@@ -1,0 +1,79 @@
+# =========================
+# LF ChordApp — repo root
+# =========================
+
+# --- Project-specific ---
+skills/
+
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- IDE / editors ---
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+.cursor/
+
+# --- Environment & secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# --- Logs & debug ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Dependencies (any subfolder) ---
+node_modules/
+
+# --- Next.js / web (webmvp) ---
+**/.next/
+**/out/
+**/.turbo/
+**/.vercel/
+
+# --- Build & cache ---
+**/dist/
+**/build/
+**/.cache/
+*.tsbuildinfo
+
+# --- Test / coverage ---
+**/coverage/
+**/.nyc_output/
+
+# --- Flutter / mobile (when added later) ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+**/android/.gradle/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+
+# --- Misc ---
+*.local
+*.orig
