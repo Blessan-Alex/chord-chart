@@ -8,15 +8,25 @@ import type { Section } from "@/lib/types";
 type InteractiveEditorProps = {
   sections: Section[];
   onSave: (sections: Section[]) => void;
+  onSectionsChange?: (sections: Section[]) => void;
   originalKey: Key;
 };
 
 export function InteractiveEditor({
   sections: initialSections,
   onSave,
+  onSectionsChange,
   originalKey,
 }: InteractiveEditorProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
+
+  const updateSections = (next: Section[] | ((prev: Section[]) => Section[])) => {
+    setSections((prev) => {
+      const resolved = typeof next === "function" ? next(prev) : next;
+      onSectionsChange?.(resolved);
+      return resolved;
+    });
+  };
   const [activeChord, setActiveChord] = useState<{
     sIndex: number;
     lIndex: number;
@@ -54,7 +64,7 @@ export function InteractiveEditor({
 
     const { sIndex, lIndex, charIndex } = activeChord;
     
-    setSections((prev) => {
+    updateSections((prev) => {
       const next = [...prev];
       const section = { ...next[sIndex], lines: [...next[sIndex].lines] };
       const line = {
@@ -86,7 +96,7 @@ export function InteractiveEditor({
   };
 
   const removeChord = (sIndex: number, lIndex: number, charIndex: number) => {
-    setSections((prev) => {
+    updateSections((prev) => {
       const next = [...prev];
       const section = { ...next[sIndex], lines: [...next[sIndex].lines] };
       const line = {

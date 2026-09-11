@@ -18,6 +18,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LF ChordApp",
   description: "Chord transposition web MVP",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "LF Chords",
+  },
 };
 
 export const viewport: Viewport = {

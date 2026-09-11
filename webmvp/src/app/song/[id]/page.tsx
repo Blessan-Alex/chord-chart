@@ -9,10 +9,15 @@ import { ChordLine } from "@/components/ChordLine";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
+import {
+  createDraft,
+  getDraftForSong,
+  listArchivedVersions,
+} from "@/lib/firestore/songEdits";
 import { archiveSong, getSong as getFirestoreSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getSong as getLocalSong } from "@/lib/storage";
-import type { Song } from "@/lib/types";
+import type { Song, SongEdit } from "@/lib/types";
 
 function isKey(k: string): k is Key {
   return (ALL_KEYS as readonly string[]).includes(k);
@@ -33,6 +38,10 @@ export default function SongPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [showAddToSession, setShowAddToSession] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [version, setVersion] = useState<number | null>(null);
+  const [draft, setDraft] = useState<SongEdit | null>(null);
+  const [archives, setArchives] = useState<SongEdit[]>([]);
+  const [editBusy, setEditBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,13 +57,27 @@ export default function SongPage() {
             if (firestoreSong) {
               const found = firestoreSongToSong(firestoreSong);
               setSong(found);
+              setVersion(firestoreSong.version);
               if (keyParam && isKey(keyParam)) {
                 setTargetKey(keyParam);
               } else if (isKey(found.originalKey)) {
                 setTargetKey(found.originalKey);
               }
+              if (isAdmin) {
+                const [openDraft, versions] = await Promise.all([
+                  getDraftForSong(id),
+                  listArchivedVersions(id),
+                ]);
+                if (!cancelled) {
+                  setDraft(openDraft);
+                  setArchives(versions);
+                }
+              }
             } else {
               setSong(null);
+              setVersion(null);
+              setDraft(null);
+              setArchives([]);
             }
             setLoaded(true);
           }
@@ -89,7 +112,26 @@ export default function SongPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, user, authLoading, keyParam]);
+  }, [id, user, authLoading, keyParam, isAdmin]);
+
+  const handleEdit = async () => {
+    if (!user || !isAdmin) {
+      return;
+    }
+
+    setEditBusy(true);
+    try {
+      if (!draft) {
+        await createDraft(id, user.uid);
+      }
+      router.push(`/song/${id}/edit`);
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Could not open editor.",
+      );
+      setEditBusy(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!song || !user || !isAdmin) {
@@ -175,12 +217,25 @@ export default function SongPage() {
             <h1 className="truncate text-lg font-semibold sm:text-xl">
               {song.title}
             </h1>
-            <p className="text-xs text-neutral-500">Key: {song.originalKey}</p>
+            <p className="text-xs text-neutral-500">
+              Key: {song.originalKey}
+              {version !== null && ` · v${version}`}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
             {user && isAdmin && (
               <>
+                <button
+                  type="button"
+                  disabled={editBusy}
+                  onClick={() => {
+                    void handleEdit();
+                  }}
+                  className="min-h-9 rounded-lg border border-neutral-300 px-3 py-1 text-sm font-medium dark:border-neutral-700"
+                >
+                  Edit
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowAddToSession(true)}
@@ -240,6 +295,15 @@ export default function SongPage() {
         </div>
       </header>
 
+      {draft && (
+        <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          Draft in progress.{" "}
+          <Link href={`/song/${id}/edit`} className="font-medium underline">
+            Continue editing
+          </Link>
+        </p>
+      )}
+
       <div className="chord-chart mt-4 pb-8">
         {song.sections.map((section, si) => (
           <div key={`${section.label}-${si}`}>
@@ -256,6 +320,31 @@ export default function SongPage() {
           </div>
         ))}
       </div>
+
+      {user && isAdmin && archives.length > 0 && (
+        <section className="border-t border-neutral-200 pt-6 dark:border-neutral-800">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+            Version history
+          </h2>
+          <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+            {archives.map((archive) => (
+              <li
+                key={archive.id}
+                className="flex items-center justify-between px-4 py-3 text-sm"
+              >
+                <span>
+                  v{archive.version} · {archive.title}
+                </span>
+                <span className="text-neutral-500">
+                  {archive.publishedAt
+                    ? archive.publishedAt.toDate().toLocaleDateString()
+                    : archive.createdAt.toDate().toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }

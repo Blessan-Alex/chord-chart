@@ -1,6 +1,6 @@
 # LF ChordApp — Project Status
 
-> Last updated: after Phase 3 Sessions (P3-01–P3-08).
+> Last updated: after Phase 4 + P2-08–P2-10.
 
 ---
 
@@ -41,14 +41,25 @@
 - [x] P3-05: `/sessions/[id]` band view + admin builder
 - [x] P3-06–P3-08: Key overrides, offline cache, reorder up/down
 
+### Phase 4 — Chord edit workflow
+- [x] P4-01: `songEdits.ts` draft CRUD + `publishDraft` transaction
+- [x] P4-02: Edit button on song page → create/open draft
+- [x] P4-03: `/song/[id]/edit` with `InteractiveEditor`
+- [x] P4-04–P4-05: Publish (version conflict) + discard draft
+- [x] P4-06: Version history on song detail (last 10 archives)
+
+### Phase 2 gaps (partial)
+- [x] P2-08: `useOnlineStatus` + offline banner
+- [x] P2-09: PWA manifest + service worker shell
+- [x] P2-10: `export-songs.ts` backup script
+
 ---
 
 ## 🔲 Later
 
 | Phase | Items |
 |-------|--------|
-| Phase 4 | Draft/publish edit workflow (P4-01–P4-06) |
-| Phase 2 gaps | P1-06 admin pagination, P2-08 offline banner, P2-09 PWA, P2-10 export backup |
+| Phase 2 gaps | P1-06 admin pagination |
 | Ops | App Check enforce on Firestore (when stable) |
 | CI | Playwright E2E, GitHub Actions |
 
@@ -72,4 +83,5 @@ npm run test:integration   # requires emulators
 npm run seed               # Admin SDK — seed presets to Firestore
 npm run rebuild-index      # Admin SDK — rebuild songIndex from songs
 npm run set-admin <email>  # Admin SDK — grant admin claim
+npm run export-songs       # Admin SDK — JSON backup to stdout
 ```

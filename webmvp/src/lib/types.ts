@@ -135,3 +135,27 @@ export type SessionSongData = {
 export type SessionSong = SessionSongData & {
   id: string;
 };
+
+export type SongEditStatus = "draft" | "archived";
+
+export type SongEditData = {
+  songId: string;
+  status: SongEditStatus;
+  baseVersion: number;
+  sections: Section[];
+  originalKey: Key;
+  title: string;
+  notes: string | null;
+  version: number;
+  editedBy: string;
+  createdAt: Timestamp;
+  publishedAt: Timestamp | null;
+};
+
+export type SongEdit = SongEditData & {
+  id: string;
+};
+
+export type UpdateSongEditInput = Partial<
+  Pick<SongEditData, "title" | "originalKey" | "sections" | "notes">
+>;

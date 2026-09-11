@@ -74,7 +74,7 @@ function resolveDb(db?: Firestore): Firestore {
   return db ?? getDb();
 }
 
-/** Cache-first song detail load. */
+/** Song detail — server when online, cache fallback when offline. */
 export async function getSong(
   songId: string,
   db?: Firestore,
@@ -82,20 +82,22 @@ export async function getSong(
   const ref = doc(resolveDb(db), SONGS_COLLECTION, songId);
 
   try {
-    const cached = await getDocFromCache(ref);
-    if (cached.exists()) {
-      return toFirestoreSong(cached.id, cached.data() as FirestoreSongData);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      return null;
     }
+    return toFirestoreSong(snap.id, snap.data() as FirestoreSongData);
   } catch {
-    // Cache miss — fall through to network.
-  }
-
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
+    try {
+      const cached = await getDocFromCache(ref);
+      if (cached.exists()) {
+        return toFirestoreSong(cached.id, cached.data() as FirestoreSongData);
+      }
+    } catch {
+      // No cache entry.
+    }
     return null;
   }
-
-  return toFirestoreSong(snap.id, snap.data() as FirestoreSongData);
 }
 
 export async function createSong(
