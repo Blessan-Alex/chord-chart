@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { SONG_PRESETS } from "@/data/presets";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
+import { archiveSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
 import { deleteSong, getSongs } from "@/lib/storage";
@@ -24,6 +25,11 @@ export function HomePage() {
   const [indexError, setIndexError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [keyFilter, setKeyFilter] = useState<Key | "">("");
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    title: string;
+    source: "local" | "firestore";
+  } | null>(null);
 
   const libraryResults = useSongSearch(
     indexEntries,
@@ -31,22 +37,17 @@ export function HomePage() {
     keyFilter || undefined,
   );
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    if (confirm("Are you sure you want to delete this song?")) {
-      deleteSong(id);
-      setSavedSongs((prev) => prev.filter((s) => s.id !== id));
-    }
-  };
+  const refreshLocalSongs = useCallback(() => {
+    setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
+    setLoaded(true);
+  }, []);
 
   useEffect(() => {
     if (user) {
       return;
     }
-
-    setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
-    setLoaded(true);
-  }, [user]);
+    refreshLocalSongs();
+  }, [user, refreshLocalSongs]);
 
   useEffect(() => {
     if (!user) {
@@ -56,16 +57,17 @@ export function HomePage() {
     }
 
     let cancelled = false;
-    setIndexLoading(true);
-    setIndexError(null);
 
-    loadSongIndex()
-      .then((entries) => {
+    void (async () => {
+      setIndexLoading(true);
+      setIndexError(null);
+
+      try {
+        const entries = await loadSongIndex();
         if (!cancelled) {
           setIndexEntries(entries);
         }
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!cancelled) {
           setIndexError(
             error instanceof Error
@@ -73,26 +75,62 @@ export function HomePage() {
               : "Could not load song library.",
           );
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setIndexLoading(false);
           setLoaded(true);
         }
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [user]);
 
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+
+    try {
+      if (pendingDelete.source === "local") {
+        deleteSong(pendingDelete.id);
+        refreshLocalSongs();
+      } else {
+        await archiveSong(pendingDelete.id);
+        setIndexEntries((prev) =>
+          prev.filter((entry) => entry.id !== pendingDelete.id),
+        );
+      }
+    } catch (error) {
+      setIndexError(
+        error instanceof Error ? error.message : "Could not delete song.",
+      );
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
   const showAddSong = !user || isAdmin;
-  const totalSongs = user
-    ? indexEntries.length
-    : SONG_PRESETS.length + savedSongs.length;
+  const totalSongs = user ? indexEntries.length : savedSongs.length;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete song?"
+        message={
+          pendingDelete
+            ? `"${pendingDelete.title}" will be removed from the library.`
+            : ""
+        }
+        onConfirm={() => {
+          void handleConfirmDelete();
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -172,15 +210,20 @@ export function HomePage() {
               </h2>
               {libraryResults.length === 0 ? (
                 <p className="text-sm text-neutral-500">
-                  No songs match your search.
+                  {indexEntries.length === 0
+                    ? "No songs in the library yet."
+                    : "No songs match your search."}
                 </p>
               ) : (
                 <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
                   {libraryResults.map((entry) => (
-                    <li key={entry.id}>
+                    <li
+                      key={entry.id}
+                      className="group flex items-stretch hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                    >
                       <Link
                         href={`/song/${entry.id}`}
-                        className="flex min-h-14 items-center justify-between gap-3 px-4 py-4 hover:bg-neutral-50 active:bg-neutral-100 dark:hover:bg-neutral-900 dark:active:bg-neutral-800"
+                        className="flex min-h-14 flex-1 items-center justify-between gap-3 px-4 py-4"
                       >
                         <span className="min-w-0 flex-1 break-words text-lg font-medium">
                           {entry.title}
@@ -189,6 +232,22 @@ export function HomePage() {
                           {entry.key}
                         </span>
                       </Link>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingDelete({
+                              id: entry.id,
+                              title: entry.title,
+                              source: "firestore",
+                            })
+                          }
+                          className="px-6 text-neutral-400 transition-colors hover:text-red-600 dark:hover:text-red-400 sm:opacity-0 sm:group-hover:opacity-100"
+                          title="Delete song"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -197,11 +256,11 @@ export function HomePage() {
           )}
         </div>
       ) : (
-        <div className="mt-4 flex flex-col gap-8">
-          {loaded && savedSongs.length > 0 && (
+        <div className="mt-4 flex flex-col gap-6">
+          {loaded && savedSongs.length > 0 ? (
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
-                Your Songs
+                Your Songs (this device)
               </h2>
               <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
                 {savedSongs.map((song) => (
@@ -221,7 +280,14 @@ export function HomePage() {
                       </span>
                     </Link>
                     <button
-                      onClick={(e) => handleDelete(e, song.id)}
+                      type="button"
+                      onClick={() =>
+                        setPendingDelete({
+                          id: song.id,
+                          title: song.title,
+                          source: "local",
+                        })
+                      }
                       className="px-6 text-neutral-400 transition-colors hover:text-red-600 dark:hover:text-red-400 sm:opacity-0 sm:group-hover:opacity-100"
                       title="Delete song"
                     >
@@ -231,30 +297,14 @@ export function HomePage() {
                 ))}
               </ul>
             </section>
+          ) : (
+            loaded && (
+              <p className="text-sm text-neutral-500">
+                Sign in to access the shared song library, or use{" "}
+                <strong>+ Add Song</strong> to save charts on this device only.
+              </p>
+            )
           )}
-
-          <section>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
-              Presets
-            </h2>
-            <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-              {SONG_PRESETS.map((preset) => (
-                <li key={preset.presetId}>
-                  <Link
-                    href={`/song/${preset.presetId}`}
-                    className="flex min-h-14 items-center justify-between gap-3 px-4 py-4 hover:bg-neutral-50 active:bg-neutral-100 dark:hover:bg-neutral-900 dark:active:bg-neutral-800"
-                  >
-                    <span className="min-w-0 flex-1 break-words text-lg font-medium">
-                      {preset.title}
-                    </span>
-                    <span className="shrink-0 text-sm text-neutral-500 dark:text-neutral-400">
-                      {preset.originalKey}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
         </div>
       )}
     </main>

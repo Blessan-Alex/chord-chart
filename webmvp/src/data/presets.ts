@@ -34,6 +34,7 @@ export type SongPreset = {
   sections: Section[];
 };
 
+/** Seed data only — used by `scripts/seed-songs.ts`, not the client UI. */
 export const SONG_PRESETS: SongPreset[] = [
   // ──────────────────────────────────────────
   // 1. Twinkle Twinkle Little Star
@@ -372,6 +373,3 @@ export const SONG_PRESETS: SongPreset[] = [
   },
 ];
 
-export function getPresetById(presetId: string): SongPreset | undefined {
-  return SONG_PRESETS.find((preset) => preset.presetId === presetId);
-}

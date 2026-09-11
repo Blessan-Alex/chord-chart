@@ -11,10 +11,8 @@ export function useSongSearch(
   query: string,
   keyFilter?: Key,
 ): SongIndexEntry[] {
-  const normalizedQuery = query.trim().toLowerCase();
-
   return useMemo(
-    () => filterSongIndex(entries, normalizedQuery, keyFilter),
-    [entries, normalizedQuery, keyFilter],
+    () => filterSongIndex(entries, query, keyFilter),
+    [entries, query, keyFilter],
   );
 }

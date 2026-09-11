@@ -163,5 +163,3 @@ export async function removeSongIndexEntry(
   }
 }
 
-/** @deprecated Use loadSongIndex */
-export const fetchSongIndex = loadSongIndex;
