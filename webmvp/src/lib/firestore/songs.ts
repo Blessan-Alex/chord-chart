@@ -19,6 +19,7 @@ import {
 
 import type { Key } from "@/lib/engine";
 import { getDb } from "@/lib/firebase";
+import { trackReads } from "@/lib/readCounter";
 import {
   removeSongIndexEntry,
   songToIndexEntry,
@@ -82,6 +83,7 @@ export async function getSong(
   const ref = doc(resolveDb(db), SONGS_COLLECTION, songId);
 
   try {
+    trackReads(`songs/${songId}`, 1);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       return null;
@@ -89,6 +91,7 @@ export async function getSong(
     return toFirestoreSong(snap.id, snap.data() as FirestoreSongData);
   } catch {
     try {
+      trackReads(`songs/${songId} (cache)`, 1);
       const cached = await getDocFromCache(ref);
       if (cached.exists()) {
         return toFirestoreSong(cached.id, cached.data() as FirestoreSongData);

@@ -13,8 +13,7 @@ import {
 } from "../src/lib/firestore/songIndex";
 import { getAdminDb } from "./admin";
 
-async function rebuildIndex(): Promise<void> {
-  const db = getAdminDb();
+export async function rebuildIndex(db = getAdminDb()): Promise<void> {
   const songsSnap = await db
     .collection("songs")
     .where("status", "==", "active")

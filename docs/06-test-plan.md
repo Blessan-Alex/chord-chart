@@ -4,7 +4,7 @@
 
 **Framework:** Vitest  
 **Location:** `webmvp/src/lib/*.test.ts` (colocated, not `__tests__/`)  
-**Run:** `npm run test` — **37 tests passing** (commit `c9bb044`)
+**Run:** `npm run test` — **49+ unit tests** (Vitest)
 
 ### 6.1.1 Engine Tests (`engine.test.ts`) — ✅ DONE
 
@@ -27,7 +27,7 @@ Includes regression: `"He said:"` stays lyric, `"Chorus:"` becomes section heade
 |---|---|
 | `validateSong(valid)` → `{ ok: true }` | ✅ |
 | Missing title, bad key, invalid chord | ✅ |
-| `validateSession` | 🔲 Implement when sessions land |
+| `validateSession` | ✅ |
 
 ### 6.1.4 Utilities (`formatError.test.ts`) — ✅ DONE
 
@@ -35,7 +35,7 @@ Error, string, and Event object cases.
 
 ---
 
-## 6.2 Integration Tests — 🔲 Phase 1 (P1-09)
+## 6.2 Integration Tests — ✅ (emulator required)
 
 **Framework:** Vitest + Firebase Emulator Suite  
 **Location:** `webmvp/src/lib/__tests__/integration/` (or colocated `*.integration.test.ts`)
@@ -53,9 +53,9 @@ npm run test -- --grep integration
 
 Create, read, archive (soft-delete), paginated list. **No prefix search tests** — search is client-side index.
 
-### 6.2.2 Session CRUD (`sessions.integration.test.ts`) — Ticket P3-01
+### 6.2.2 Session CRUD (`sessions.integration.test.ts`) — Ticket P3-01 — ✅
 
-Create session, add song (transaction), fractional reorder, `recountSessionSongs`.
+Create session, add songs, fractional reorder, publish.
 
 ### 6.2.3 Song Edit Workflow (`songEdits.integration.test.ts`) — Ticket P4-01
 
@@ -77,19 +77,22 @@ Create draft, `publishDraft` transaction, `baseVersion` conflict, discard.
 
 ---
 
-## 6.3 E2E Tests — 🔲 Post-Firebase (no ticket yet)
+## 6.3 E2E Tests — ✅ Smoke + viewports
 
 **Framework:** Playwright  
 **Location:** `webmvp/e2e/`  
-**Prerequisite:** P0-05 auth, P1-05 wired UI
+**Run:** `npm run build && npm run test:e2e`
 
-Key flows: browse → transpose, search ("maker" → Way Maker), import, session builder, offline cache, auth/role gates.
+| Spec | Coverage |
+|---|---|
+| `smoke.spec.ts` | Home, login, import routes (chromium, mobile-chrome, tablet) |
+| `auth.spec.ts` | Optional sign-in when `E2E_USER_EMAIL` + `E2E_USER_PASSWORD` set |
 
 ---
 
-## 6.4 CI — 🔲 Future
+## 6.4 CI — ✅
 
-GitHub Actions: `typecheck && lint && test && build` on PR. Emulator rules tests in separate job. Not in scope until Firebase modules exist.
+GitHub Actions (`.github/workflows/ci.yml`): `typecheck`, `lint`, `test`, `build`, emulator integration job, Playwright smoke on PR.
 
 ---
 
@@ -115,8 +118,9 @@ webmvp/
 │   ├── editorParser.test.ts     ✅
 │   ├── validation.test.ts       ✅
 │   ├── formatError.test.ts      ✅
-│   └── *.integration.test.ts    🔲 Phase 1
-├── e2e/                         🔲 Post-Firebase
+│   ├── firestore/songIndex.test.ts ✅
+│   └── __tests__/integration/   ✅ (emulator)
+├── e2e/                         ✅
 ├── vitest.config.ts             ✅
-└── playwright.config.ts         🔲 Future
+└── playwright.config.ts         ✅ (chromium + mobile + tablet)
 ```

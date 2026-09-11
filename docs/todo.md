@@ -1,6 +1,6 @@
 # LF ChordApp — Project Status
 
-> Last updated: after P1-06, Playwright CI, App Check runbook.
+> Last updated: after full audit action plan (index integrity, responsive toolbar, docs, PWA PNG icons).
 
 ---
 
@@ -58,6 +58,17 @@
 - [x] Playwright E2E smoke tests (`e2e/smoke.spec.ts`)
 - [x] GitHub Actions CI (check, integration, e2e)
 - [x] App Check enforce runbook (`docs/ops-app-check-enforce.md`)
+
+### Audit action plan (Phases 0–3)
+- [x] Song toolbar responsive layout (`SongToolbar.tsx`)
+- [x] `songIndex` upsert/remove re-chunks full index (scaling fix)
+- [x] Home browse cap (`LIBRARY_BROWSE_CAP = 100`)
+- [x] `PageLoading`, `PageError`, `formatError` on key pages
+- [x] Dev read counter (`readCounter.ts`, `NEXT_PUBLIC_READ_COUNTER`)
+- [x] `validateSession` + tests; `sessions.integration.test.ts`
+- [x] Playwright mobile + tablet viewports; optional `auth.spec.ts`
+- [x] PWA PNG icons (`generate-pwa-icons.ts`, manifest)
+- [x] `seed-load-test.ts`, `responsive-qa.md`, README refresh
 
 ---
 

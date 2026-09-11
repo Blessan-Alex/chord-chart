@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PageError } from "@/components/PageError";
+import { LIBRARY_BROWSE_CAP } from "@/lib/constants";
 import { ALL_KEYS, type Key } from "@/lib/engine";
+import { formatError } from "@/lib/formatError";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
 import { archiveSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -36,6 +39,12 @@ export function HomePage() {
     searchQuery,
     keyFilter || undefined,
   );
+  const isBrowsingAll = !searchQuery.trim() && !keyFilter;
+  const displayedResults = isBrowsingAll
+    ? libraryResults.slice(0, LIBRARY_BROWSE_CAP)
+    : libraryResults;
+  const libraryCapped =
+    isBrowsingAll && libraryResults.length > LIBRARY_BROWSE_CAP;
 
   const refreshLocalSongs = useCallback(() => {
     setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
@@ -69,11 +78,7 @@ export function HomePage() {
         }
       } catch (error) {
         if (!cancelled) {
-          setIndexError(
-            error instanceof Error
-              ? error.message
-              : "Could not load song library.",
-          );
+          setIndexError(formatError(error));
         }
       } finally {
         if (!cancelled) {
@@ -104,9 +109,7 @@ export function HomePage() {
         );
       }
     } catch (error) {
-      setIndexError(
-        error instanceof Error ? error.message : "Could not delete song.",
-      );
+      setIndexError(formatError(error));
     } finally {
       setPendingDelete(null);
     }
@@ -214,18 +217,14 @@ export function HomePage() {
             </select>
           </div>
 
-          {indexError && (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {indexError}
-            </p>
-          )}
+          {indexError && <PageError title="Library error" error={indexError} />}
 
           {loaded && !indexLoading && (
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
                 Library
               </h2>
-              {libraryResults.length === 0 ? (
+              {displayedResults.length === 0 ? (
                 <p className="text-sm text-neutral-500">
                   {indexEntries.length === 0
                     ? "No songs in the library yet."
@@ -233,7 +232,13 @@ export function HomePage() {
                 </p>
               ) : (
                 <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-                  {libraryResults.map((entry) => (
+                  {libraryCapped && (
+                    <li className="px-4 py-3 text-sm text-neutral-500">
+                      Showing {LIBRARY_BROWSE_CAP} of {libraryResults.length}{" "}
+                      songs — search or filter to narrow the list.
+                    </li>
+                  )}
+                  {displayedResults.map((entry) => (
                     <li
                       key={entry.id}
                       className="group flex items-stretch hover:bg-neutral-50 dark:hover:bg-neutral-900"

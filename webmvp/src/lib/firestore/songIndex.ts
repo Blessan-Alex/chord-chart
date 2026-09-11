@@ -1,4 +1,5 @@
 import {
+  deleteDoc,
   doc,
   getDoc,
   getDocFromServer,
@@ -6,6 +7,8 @@ import {
   setDoc,
   type Firestore,
 } from "firebase/firestore";
+
+import { trackReads } from "@/lib/readCounter";
 
 import type { Key } from "@/lib/engine";
 import { getDb } from "@/lib/firebase";
@@ -106,8 +109,10 @@ export async function loadSongIndex(db?: Firestore): Promise<SongIndexEntry[]> {
     SONG_INDEX_CHUNK_IDS.map(async (chunkId) => {
       const ref = doc(firestore, "songIndex", chunkId);
       try {
+        trackReads(`songIndex/${chunkId}`, 1);
         return await getDocFromServer(ref);
       } catch {
+        trackReads(`songIndex/${chunkId} (cache)`, 1);
         return await getDoc(ref);
       }
     }),
@@ -118,22 +123,42 @@ export async function loadSongIndex(db?: Firestore): Promise<SongIndexEntry[]> {
     .flatMap((snap) => (snap.data() as SongIndexChunk).entries);
 }
 
-/** Add or update a song in chunk0 (admin import / createSong). */
+/** Write all index chunks from a flat entry list (re-chunks by title). */
+export async function writeSongIndexEntries(
+  entries: SongIndexEntry[],
+  db?: Firestore,
+): Promise<void> {
+  const firestore = resolveDb(db);
+  const chunks = buildIndexChunks(entries);
+  const updatedAt = serverTimestamp();
+
+  for (const [chunkId, chunkEntries] of chunks) {
+    trackReads(`songIndex write ${chunkId}`, 1);
+    await setDoc(doc(firestore, "songIndex", chunkId), {
+      entries: chunkEntries,
+      updatedAt,
+    });
+  }
+
+  for (const chunkId of SONG_INDEX_CHUNK_IDS) {
+    if (!chunks.has(chunkId)) {
+      const chunkRef = doc(firestore, "songIndex", chunkId);
+      const snap = await getDoc(chunkRef);
+      if (snap.exists()) {
+        await deleteDoc(chunkRef);
+      }
+    }
+  }
+}
+
+/** Add or update a song — re-chunks across all index documents. */
 export async function upsertSongIndexEntry(
   entry: SongIndexEntry,
   db?: Firestore,
 ): Promise<void> {
   const firestore = resolveDb(db);
-  const chunkRef = doc(firestore, "songIndex", SONG_INDEX_CHUNK_IDS[0]);
-  const snap = await getDoc(chunkRef);
-  const entries = snap.exists()
-    ? (snap.data() as SongIndexChunk).entries
-    : [];
-
-  await setDoc(chunkRef, {
-    entries: mergeIndexEntry(entries, entry),
-    updatedAt: serverTimestamp(),
-  });
+  const existing = await loadSongIndex(firestore);
+  await writeSongIndexEntries(mergeIndexEntry(existing, entry), firestore);
 }
 
 /** Remove a song from the index (e.g. on archive). */
@@ -142,24 +167,10 @@ export async function removeSongIndexEntry(
   db?: Firestore,
 ): Promise<void> {
   const firestore = resolveDb(db);
-
-  for (const chunkId of SONG_INDEX_CHUNK_IDS) {
-    const chunkRef = doc(firestore, "songIndex", chunkId);
-    const snap = await getDoc(chunkRef);
-    if (!snap.exists()) {
-      continue;
-    }
-
-    const entries = (snap.data() as SongIndexChunk).entries;
-    if (!entries.some((entry) => entry.id === songId)) {
-      continue;
-    }
-
-    await setDoc(chunkRef, {
-      entries: entries.filter((entry) => entry.id !== songId),
-      updatedAt: serverTimestamp(),
-    });
-    return;
-  }
+  const existing = await loadSongIndex(firestore);
+  await writeSongIndexEntries(
+    existing.filter((entry) => entry.id !== songId),
+    firestore,
+  );
 }
 

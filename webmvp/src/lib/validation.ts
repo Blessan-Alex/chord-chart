@@ -104,3 +104,48 @@ export function validateSong(
 
   return { ok: true };
 }
+
+const SESSION_SERVICE_TYPES = new Set([
+  "friday",
+  "sunday_morning",
+  "sunday_evening",
+]);
+
+const SESSION_STATUSES = new Set(["draft", "published"]);
+
+export function validateSession(
+  session: unknown,
+): { ok: true } | { ok: false; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!session || typeof session !== "object") {
+    return { ok: false, errors: ["Session must be an object"] };
+  }
+
+  const s = session as Record<string, unknown>;
+
+  if (typeof s.title !== "string" || !s.title.trim()) {
+    errors.push("title is required");
+  }
+
+  if (
+    typeof s.serviceType !== "string" ||
+    !SESSION_SERVICE_TYPES.has(s.serviceType)
+  ) {
+    errors.push("serviceType must be friday, sunday_morning, or sunday_evening");
+  }
+
+  if (typeof s.status !== "string" || !SESSION_STATUSES.has(s.status)) {
+    errors.push("status must be draft or published");
+  }
+
+  if (typeof s.songCount !== "number" || s.songCount < 0) {
+    errors.push("songCount must be a non-negative number");
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  return { ok: true };
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateSong } from "./validation";
+import { validateSession, validateSong } from "./validation";
 
 const validSong = {
   id: "song-1",
@@ -63,5 +63,28 @@ describe("validateSong", () => {
         true,
       );
     }
+  });
+});
+
+describe("validateSession", () => {
+  it("accepts a valid session shape", () => {
+    expect(
+      validateSession({
+        title: "Sunday Morning",
+        serviceType: "sunday_morning",
+        status: "published",
+        songCount: 3,
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("rejects invalid service type", () => {
+    const result = validateSession({
+      title: "Test",
+      serviceType: "invalid",
+      status: "draft",
+      songCount: 0,
+    });
+    expect(result.ok).toBe(false);
   });
 });

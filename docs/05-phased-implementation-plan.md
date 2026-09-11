@@ -2,7 +2,7 @@
 
 > **Spark tier — no Cloud Functions.** Admin via custom claims. Search via cached `songIndex`. See `docs/08-cost-budget.md`.
 
-**Code foundation complete:** Phases 0–3 MVP hardening + Vitest (commit `c9bb044`). Firebase work starts at Phase 5a below.
+**Status:** Phases 0–4 + sessions + CI deployed. See `docs/todo.md` for live checklist. Remaining: App Check enforce (console), P5 load audit.
 
 ---
 

@@ -42,12 +42,14 @@ Pure TypeScript — zero React/Firestore imports.
 
 | Component | File | Role |
 |---|---|---|
-| **HomePage** | `components/HomePage.tsx` | Saved songs + presets list, delete |
+| **HomePage** | `components/HomePage.tsx` | Library search, key filter, browse cap (100) |
+| **SongToolbar** | `components/SongToolbar.tsx` | Responsive song header (transpose, edit, session) |
 | **ChordLine** | `components/ChordLine.tsx` | One lyric line (chord row + lyrics) |
 | **ChordRow** | `components/ChordRow.tsx` | Absolute `ch` positioning; shared by song view and editor |
 | **InteractiveEditor** | `components/InteractiveEditor.tsx` | Import step 2 — click-to-place chords |
+| **PageLoading / PageError** | `components/` | Shared loading and error states |
 
-Routes: `/` (home), `/import`, `/song/[id]` (transpose + chords/numbers toggle).
+Routes: `/`, `/import`, `/login`, `/song/[id]`, `/song/[id]/edit`, `/sessions`, `/sessions/new`, `/sessions/[id]`, `/admin/songs`.
 
 ---
 
@@ -59,24 +61,24 @@ Routes: `/` (home), `/import`, `/song/[id]` (transpose + chords/numbers toggle).
 | `storage.ts` | `localStorage` key `lf-chord-app-songs` |
 | `editorParser.ts` | Paste lyrics → `Section[]` (no chord extraction) |
 
-**Tests:** 37 Vitest tests in `src/lib/*.test.ts` (commit `c9bb044`).
+**Tests:** Vitest unit + integration (`src/lib/*.test.ts`, `__tests__/integration/`). Playwright smoke in `e2e/`. Dev read counter: `NEXT_PUBLIC_READ_COUNTER=true`.
 
 ---
 
-## Future data flow (Firebase)
+## Data flow (Firebase)
 
 ```
 firestore/*.ts (pure SDK, no React)
         ↓
-   hooks/ (useAuth, useSongSearch, useSong, …)
+   hooks/ (useAuth, useSongSearch, usePaginatedSongs, …)
         ↓
-   components/ (HomePage, ChordLine, …)
+   components/ (HomePage, SongToolbar, ChordLine, …)
 ```
 
-| Module (planned) | Responsibility |
+| Module | Responsibility |
 |---|---|
 | `firestore/songs.ts` | CRUD, soft-archive |
-| `firestore/songIndex.ts` | Fetch library index chunks |
+| `firestore/songIndex.ts` | Fetch/write index chunks; upsert re-chunks full index |
 | `firestore/sessions.ts` | Session CRUD |
 | `firestore/sessionSongs.ts` | Set-list items, fractional `order` |
 | `firestore/songEdits.ts` | Draft/publish with `runTransaction` |

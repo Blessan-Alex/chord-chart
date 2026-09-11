@@ -16,6 +16,8 @@
     "rebuild-index": "tsx scripts/rebuild-index.ts",
     "set-admin": "tsx scripts/set-admin.ts",
     "export-songs": "tsx scripts/export-songs.ts",
+    "seed-load-test": "tsx scripts/seed-load-test.ts",
+    "generate-pwa-icons": "tsx scripts/generate-pwa-icons.ts",
     "emulators": "cd .. && npx -y firebase-tools@latest emulators:start --only firestore,auth"
   },
   "dependencies": {
@@ -36,6 +38,7 @@
     "cross-env": "^7.0.3",
     "eslint-config-next": "^15.5.0",
     "firebase-admin": "^13.4.0",
+    "sharp": "^0.34.3",
     "tailwindcss": "^4",
     "tsx": "^4.20.5",
     "typescript": "^5",
