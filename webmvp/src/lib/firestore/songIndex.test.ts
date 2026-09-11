@@ -5,6 +5,7 @@ import type { SongIndexEntry } from "@/lib/types";
 import {
   buildIndexChunks,
   filterSongIndex,
+  mergeIndexEntry,
   songToIndexEntry,
 } from "./songIndex";
 
@@ -65,6 +66,38 @@ describe("filterSongIndex", () => {
       "Twinkle Twinkle Little Star",
       "Way Maker",
     ]);
+  });
+});
+
+describe("mergeIndexEntry", () => {
+  it("adds a new entry sorted by title", () => {
+    const merged = mergeIndexEntry(sampleEntries, {
+      id: "amazing-grace",
+      title: "Amazing Grace",
+      artist: "",
+      key: "G",
+      tags: [],
+    });
+    expect(merged.map((entry) => entry.id)).toEqual([
+      "amazing-grace",
+      "good-good-father",
+      "twinkle",
+      "way-maker",
+    ]);
+  });
+
+  it("replaces an existing entry by id", () => {
+    const merged = mergeIndexEntry(sampleEntries, {
+      id: "way-maker",
+      title: "Way Maker (Live)",
+      artist: "Sinach",
+      key: "F",
+      tags: ["worship"],
+    });
+    expect(merged.find((entry) => entry.id === "way-maker")?.title).toBe(
+      "Way Maker (Live)",
+    );
+    expect(merged).toHaveLength(3);
   });
 });
 

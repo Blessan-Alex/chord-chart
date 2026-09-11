@@ -19,6 +19,11 @@ import {
 
 import type { Key } from "@/lib/engine";
 import { getDb } from "@/lib/firebase";
+import {
+  removeSongIndexEntry,
+  songToIndexEntry,
+  upsertSongIndexEntry,
+} from "@/lib/firestore/songIndex";
 import type {
   CreateSongInput,
   FirestoreSong,
@@ -125,6 +130,7 @@ export async function createSong(
   const firestore = resolveDb(db);
   const ref = doc(firestore, SONGS_COLLECTION, id);
   await setDoc(ref, data);
+  await upsertSongIndexEntry(songToIndexEntry({ ...data, id }), firestore);
 
   const created = await getSong(id, firestore);
   if (!created) {
@@ -176,10 +182,12 @@ export async function updateSong(
 
 /** Soft-delete — keeps session references intact. */
 export async function archiveSong(songId: string, db?: Firestore): Promise<void> {
-  await updateDoc(doc(resolveDb(db), SONGS_COLLECTION, songId), {
+  const firestore = resolveDb(db);
+  await updateDoc(doc(firestore, SONGS_COLLECTION, songId), {
     status: "archived",
     updatedAt: serverTimestamp(),
   });
+  await removeSongIndexEntry(songId, firestore);
 }
 
 export type ListSongsOptions = {

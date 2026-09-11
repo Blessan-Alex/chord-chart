@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:integration": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 VITEST_INTEGRATION=true vitest run --fileParallelism=false src/lib/__tests__/integration",
     "seed": "tsx scripts/seed-songs.ts",
+    "rebuild-index": "tsx scripts/rebuild-index.ts",
     "set-admin": "tsx scripts/set-admin.ts",
     "emulators": "cd .. && npx -y firebase-tools@latest emulators:start --only firestore,auth"
   },
