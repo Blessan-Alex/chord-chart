@@ -1,6 +1,6 @@
 # LF ChordApp — Project Status
 
-> Last updated: after Phase 4 + P2-08–P2-10.
+> Last updated: after P1-06, Playwright CI, App Check runbook.
 
 ---
 
@@ -53,15 +53,21 @@
 - [x] P2-09: PWA manifest + service worker shell
 - [x] P2-10: `export-songs.ts` backup script
 
+### P1-06 + CI + ops
+- [x] P1-06: `/admin/songs` paginated browser + `usePaginatedSongs`
+- [x] Playwright E2E smoke tests (`e2e/smoke.spec.ts`)
+- [x] GitHub Actions CI (check, integration, e2e)
+- [x] App Check enforce runbook (`docs/ops-app-check-enforce.md`)
+
 ---
 
 ## 🔲 Later
 
 | Phase | Items |
 |-------|--------|
-| Phase 2 gaps | P1-06 admin pagination |
-| Ops | App Check enforce on Firestore (when stable) |
-| CI | Playwright E2E, GitHub Actions |
+| Ops | App Check **enforce** in Firebase Console (see `docs/ops-app-check-enforce.md`) |
+| CI | E2E with real auth (GitHub secrets for test user) |
+| Phase 5 hardening | P5-01–P5-07 load/read budget audit |
 
 ---
 
@@ -84,4 +90,5 @@ npm run seed               # Admin SDK — seed presets to Firestore
 npm run rebuild-index      # Admin SDK — rebuild songIndex from songs
 npm run set-admin <email>  # Admin SDK — grant admin claim
 npm run export-songs       # Admin SDK — JSON backup to stdout
+npm run test:e2e           # Playwright smoke (requires build)
 ```

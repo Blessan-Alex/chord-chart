@@ -61,6 +61,8 @@ node_modules/
 # --- Test / coverage ---
 **/coverage/
 **/.nyc_output/
+**/test-results/
+**/playwright-report/
 
 # --- Flutter / mobile (when added later) ---
 .dart_tool/

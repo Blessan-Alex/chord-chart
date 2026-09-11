@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "cross-env FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 VITEST_INTEGRATION=true vitest run --fileParallelism=false src/lib/__tests__/integration",
+    "test:e2e": "playwright test",
     "seed": "tsx scripts/seed-songs.ts",
     "rebuild-index": "tsx scripts/rebuild-index.ts",
     "set-admin": "tsx scripts/set-admin.ts",
@@ -24,6 +25,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
