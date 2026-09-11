@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { AddToSessionModal } from "@/components/AddToSessionModal";
 import { ChordLine } from "@/components/ChordLine";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ALL_KEYS, type Key } from "@/lib/engine";
@@ -20,7 +21,9 @@ function isKey(k: string): k is Key {
 export default function SongPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
+  const keyParam = searchParams.get("key");
   const { user, loading: authLoading, isAdmin } = useAuth();
 
   const [song, setSong] = useState<Song | null>(null);
@@ -28,6 +31,7 @@ export default function SongPage() {
   const [targetKey, setTargetKey] = useState<string>("C");
   const [viewMode, setViewMode] = useState<"chords" | "numbers">("chords");
   const [showDelete, setShowDelete] = useState(false);
+  const [showAddToSession, setShowAddToSession] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +48,9 @@ export default function SongPage() {
             if (firestoreSong) {
               const found = firestoreSongToSong(firestoreSong);
               setSong(found);
-              if (isKey(found.originalKey)) {
+              if (keyParam && isKey(keyParam)) {
+                setTargetKey(keyParam);
+              } else if (isKey(found.originalKey)) {
                 setTargetKey(found.originalKey);
               }
             } else {
@@ -65,8 +71,12 @@ export default function SongPage() {
       const found = getLocalSong(id);
       if (!cancelled) {
         setSong(found ?? null);
-        if (found && isKey(found.originalKey)) {
-          setTargetKey(found.originalKey);
+        if (found) {
+          if (keyParam && isKey(keyParam)) {
+            setTargetKey(keyParam);
+          } else if (isKey(found.originalKey)) {
+            setTargetKey(found.originalKey);
+          }
         }
         setLoaded(true);
       }
@@ -79,7 +89,7 @@ export default function SongPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, user, authLoading]);
+  }, [id, user, authLoading, keyParam]);
 
   const handleDelete = async () => {
     if (!song || !user || !isAdmin) {
@@ -137,6 +147,15 @@ export default function SongPage() {
         onCancel={() => setShowDelete(false)}
       />
 
+      {user && isAdmin && (
+        <AddToSessionModal
+          open={showAddToSession}
+          songId={id}
+          songTitle={song.title}
+          onClose={() => setShowAddToSession(false)}
+        />
+      )}
+
       <Link
         href="/"
         className="mb-2 inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
@@ -161,13 +180,22 @@ export default function SongPage() {
 
           <div className="flex items-center gap-2">
             {user && isAdmin && (
-              <button
-                type="button"
-                onClick={() => setShowDelete(true)}
-                className="min-h-9 rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
-              >
-                Delete
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowAddToSession(true)}
+                  className="min-h-9 rounded-lg border border-neutral-300 px-3 py-1 text-sm font-medium dark:border-neutral-700"
+                >
+                  + Session
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDelete(true)}
+                  className="min-h-9 rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+                >
+                  Delete
+                </button>
+              </>
             )}
 
             <div className="flex overflow-hidden rounded-lg border border-neutral-300 text-xs dark:border-neutral-700">

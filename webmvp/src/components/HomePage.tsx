@@ -142,6 +142,14 @@ export function HomePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {user && (
+            <Link
+              href="/sessions"
+              className="inline-flex min-h-11 items-center justify-center rounded border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            >
+              Sessions
+            </Link>
+          )}
           {user ? (
             <button
               type="button"

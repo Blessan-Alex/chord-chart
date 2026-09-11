@@ -95,3 +95,43 @@ export type UpdateSongInput = Partial<
     | "notes"
   >
 >;
+
+export type ServiceType = "friday" | "sunday_morning" | "sunday_evening";
+
+export type SessionStatus = "draft" | "published";
+
+export type SessionData = {
+  title: string;
+  serviceType: ServiceType;
+  date: Timestamp;
+  songCount: number;
+  status: SessionStatus;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+export type Session = SessionData & {
+  id: string;
+};
+
+export type CreateSessionInput = {
+  title: string;
+  serviceType: ServiceType;
+  date: Date;
+  status?: SessionStatus;
+};
+
+export type SessionSongData = {
+  songId: string;
+  songTitle: string;
+  order: number;
+  keyOverride: Key | null;
+  notes: string | null;
+  addedBy: string;
+  addedAt: Timestamp;
+};
+
+export type SessionSong = SessionSongData & {
+  id: string;
+};

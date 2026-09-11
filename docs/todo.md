@@ -1,6 +1,6 @@
 # LF ChordApp — Project Status
 
-> Last updated: after Phase 5 polish (presets → Firestore-only library, admin delete).
+> Last updated: after Phase 3 Sessions (P3-01–P3-08).
 
 ---
 
@@ -33,18 +33,13 @@
 - [x] Admin delete (archive) on home + song detail
 - [x] `ConfirmDialog` replaces `confirm()` for deletes
 
----
-
-## 🔲 Next — Phase 3 Sessions (P3-01–P3-08)
-
-| Ticket | What |
-|--------|------|
-| P3-01 | `sessions.ts` + `sessionSongs.ts` |
-| P3-02 | Session list page |
-| P3-03 | Session builder (admin) |
-| P3-04 | Add to session from song view |
-| P3-05 | Session view (band) |
-| P3-06–P3-08 | Key overrides, offline cache, fractional reorder |
+### Phase 3 — Sessions
+- [x] P3-01: `sessions.ts` + `sessionSongs.ts` (fractional reorder, transactions)
+- [x] P3-02: `/sessions` list (published + admin drafts)
+- [x] P3-03: `/sessions/new` admin create
+- [x] P3-04: Add to session from song view (`AddToSessionModal`)
+- [x] P3-05: `/sessions/[id]` band view + admin builder
+- [x] P3-06–P3-08: Key overrides, offline cache, reorder up/down
 
 ---
 
