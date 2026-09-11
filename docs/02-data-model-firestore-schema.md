@@ -4,17 +4,19 @@
 
 ```
 firestore-root/
-├── songs/           (10,000+ documents)
+├── songs/              (published songs)
 │   └── {songId}
-├── songEdits/       (draft/version documents, linked to songId)
+├── songIndex/          (searchable library chunks — client read-only)
+│   └── chunk0, chunk1, …
+├── songEdits/          (drafts + archived versions)
 │   └── {editId}
-├── sessions/        (service sessions / playlists)
+├── sessions/
 │   └── {sessionId}
-│       └── sessionSongs/   (subcollection: ordered songs in this session)
+│       └── sessionSongs/
 │           └── {sessionSongId}
-├── users/           (minimal user profiles + roles)
+├── users/
 │   └── {uid}
-└── meta/            (app-level config, counters)
+└── meta/               (seed-only via Admin SDK)
     └── stats
 ```
 
@@ -29,246 +31,191 @@ Each document = one published song.
 | Field | Type | Required | Description | Example |
 |---|---|---|---|---|
 | `title` | `string` | ✅ | Song title | `"Good Good Father"` |
-| `titleLower` | `string` | ✅ | Lowercase title for case-insensitive search | `"good good father"` |
 | `artist` | `string` | ❌ | Artist / writer | `"Chris Tomlin"` |
-| `originalKey` | `string` | ✅ | Canonical key (one of 12 major keys) | `"A"` |
+| `originalKey` | `string` | ✅ | One of 12 major keys | `"A"` |
+| `status` | `string` | ✅ | `"active"` or `"archived"` (soft delete, R8) | `"active"` |
 | `tempo` | `number \| null` | ❌ | BPM | `72` |
-| `tags` | `string[]` | ❌ | Searchable tags (max 20) | `["worship", "contemporary", "communion"]` |
-| `sections` | `Section[]` | ✅ | Structured lyrics + chords (see below) | *(see example)* |
+| `tags` | `string[]` | ❌ | Searchable tags (max 20) | `["worship", "contemporary"]` |
+| `sections` | `Section[]` | ✅ | Structured lyrics + chords | *(see below)* |
 | `ccli` | `string \| null` | ❌ | CCLI song number | `"7036612"` |
 | `copyright` | `string \| null` | ❌ | Copyright notice | `"© 2014 Capitol CMG"` |
-| `notes` | `string \| null` | ❌ | Internal notes for worship team | `"Slow build on bridge"` |
-| `version` | `number` | ✅ | Incremented on each publish | `1` |
+| `notes` | `string \| null` | ❌ | Internal notes | `"Slow build on bridge"` |
+| `version` | `number` | ✅ | Incremented on publish (client transaction) | `1` |
 | `createdBy` | `string` | ✅ | UID of uploader | `"uid_abc123"` |
-| `createdAt` | `timestamp` | ✅ | Firestore server timestamp | *(auto)* |
+| `createdAt` | `timestamp` | ✅ | Server timestamp | *(auto)* |
 | `updatedAt` | `timestamp` | ✅ | Last publish timestamp | *(auto)* |
 
-### `Section` (embedded object in `sections` array)
+> **`titleLower` removed as primary search field.** Search uses `songIndex` chunks with local substring filter (R4). Optional `titleLower` may remain for sorting inside index entries only.
 
-| Field | Type | Description | Example |
-|---|---|---|---|
-| `label` | `string` | Section heading | `"Chorus"` |
-| `lines` | `LyricLine[]` | Lines in this section | *(see below)* |
+### `Section` / `LyricLine` / `ChordMark`
 
-### `LyricLine` (embedded in `Section.lines`)
+Identical to MVP `types.ts`:
 
-| Field | Type | Description | Example |
-|---|---|---|---|
-| `lyrics` | `string` | Full lyric text for this line | `"You're a Good, Good Father"` |
-| `chords` | `ChordMark[]` | Chords positioned above lyrics | *(see below)* |
-
-### `ChordMark` (embedded in `LyricLine.chords`)
-
-| Field | Type | Description | Example |
-|---|---|---|---|
-| `chord` | `string` | Chord symbol | `"D"` |
-| `position` | `number` | Character index in lyric text | `0` |
-
-> **Design note:** This structure is identical to the existing MVP's `types.ts` (`Song → Section[] → LyricLine → ChordMark[]`). The `sections` array is bounded (typical song: 4-8 sections, 4-6 lines each, ~30 chords total). A song document will be ~2-5 KB, well within Firestore's 1 MB limit even for complex arrangements.
-
-### Chord/Lyric Representation
-
-We use **position-indexed ChordPro-like** format:
-- Chords are stored as an array of `{chord, position}` objects
-- `position` = character index in the lyric string where the chord sits
-- Client renders chords in a row above the lyric row, offset by `position` characters (using `ch` units in monospace)
-
-**Why this over inline `[C]lyrics` format:**
-- Separates data from display — easier to transpose, validate, migrate
-- Supports multiple chord placements per syllable
-- Existing MVP already uses this format and the editor produces it
-- ChordPro-style `[C]text` is used only in the preset builder helper (`L()` function) for convenience
-
-**Stored example:**
 ```json
 {
-  "lyrics": "You're a Good, Good Father",
-  "chords": [
-    { "chord": "D", "position": 0 },
-    { "chord": "A", "position": 16 }
-  ]
+  "label": "Chorus",
+  "lines": [{
+    "lyrics": "You're a Good, Good Father",
+    "chords": [
+      { "chord": "D", "position": 0 },
+      { "chord": "A", "position": 16 }
+    ]
+  }]
 }
 ```
 
-**Rendered as:**
-```
-D                A
-You're a Good, Good Father
-```
-
 ---
 
-## 2.3 `songEdits` Collection (Draft/Versioning)
+## 2.3 `songIndex` Collection (R4)
 
-Each document = one draft or archived version of a song.
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `songId` | `string` | ✅ | Reference to parent song document |
-| `status` | `string` | ✅ | `"draft"` or `"archived"` |
-| `sections` | `Section[]` | ✅ | The edited sections (same structure as song) |
-| `originalKey` | `string` | ✅ | Key at time of edit |
-| `title` | `string` | ✅ | Title at time of edit (in case it changed) |
-| `notes` | `string` | ❌ | Edit notes / changelog |
-| `version` | `number` | ✅ | Version number this edit represents |
-| `editedBy` | `string` | ✅ | UID of editor |
-| `createdAt` | `timestamp` | ✅ | When draft was created |
-| `publishedAt` | `timestamp \| null` | ❌ | When archived (was published) |
-
-### Edit Workflow
-
-```
-1. Admin clicks "Edit" on a song
-2. System creates a `songEdits` doc with status: "draft", copying current song data
-3. Admin edits the draft (changes saved to the songEdits doc)
-4. Admin clicks "Publish":
-   a. Current song's sections/data → new songEdits doc with status: "archived"
-   b. Draft's sections/data → copied into the song document
-   c. Song.version incremented
-   d. Draft document deleted (or marked archived)
-5. Admin can "Discard" draft → delete the draft songEdits doc
-```
-
-**Why a flat collection (not subcollection)?**
-- Subcollection under `songs/{id}/edits` would work but makes cross-song queries harder (e.g., "show me all open drafts")
-- Flat `songEdits` with `songId` field allows `where("status", "==", "draft")` globally
-- Typical volume: ≤1 draft per song at a time, archived versions grow slowly
-
----
-
-## 2.4 `sessions` Collection
-
-Each document = one worship service session (a set list).
-
-| Field | Type | Required | Description | Example |
-|---|---|---|---|---|
-| `title` | `string` | ✅ | Session display name | `"Sunday Morning — Sep 14"` |
-| `serviceType` | `string` | ✅ | `"friday"`, `"sunday_morning"`, `"sunday_evening"` | `"sunday_morning"` |
-| `date` | `timestamp` | ✅ | Service date | `2026-09-14T00:00:00Z` |
-| `songCount` | `number` | ✅ | Denormalized count of songs in session | `5` |
-| `createdBy` | `string` | ✅ | UID of session creator | `"uid_abc123"` |
-| `createdAt` | `timestamp` | ✅ | When session was created | *(auto)* |
-| `updatedAt` | `timestamp` | ✅ | Last modification | *(auto)* |
-| `status` | `string` | ✅ | `"draft"`, `"published"` | `"published"` |
-
-### `sessionSongs` Subcollection (`sessions/{id}/sessionSongs`)
-
-Each document = one song reference in the session set list.
-
-| Field | Type | Required | Description | Example |
-|---|---|---|---|---|
-| `songId` | `string` | ✅ | Reference to `songs/{songId}` | `"song_abc123"` |
-| `songTitle` | `string` | ✅ | Denormalized title (for fast list display without join) | `"Good Good Father"` |
-| `order` | `number` | ✅ | Sort position in set list (0-indexed) | `2` |
-| `keyOverride` | `string \| null` | ❌ | Key to play this song in for this session | `"G"` |
-| `notes` | `string \| null` | ❌ | Per-song session notes | `"Start with acoustic only"` |
-| `addedBy` | `string` | ✅ | UID of who added it | `"uid_abc123"` |
-| `addedAt` | `timestamp` | ✅ | When added to session | *(auto)* |
-
-> **Why subcollection instead of array?**
-> - Arrays of song references would become unwieldy and require re-writing the entire session doc to reorder
-> - Subcollection allows individual song add/remove/reorder without touching the parent doc
-> - Each `sessionSong` doc is tiny (~200 bytes), well within Firestore limits
-> - Querying `sessions/{id}/sessionSongs` ordered by `order` is a simple query
-
----
-
-## 2.5 `users` Collection
-
-Minimal user profile. Document ID = Firebase Auth UID.
-
-| Field | Type | Required | Description | Example |
-|---|---|---|---|---|
-| `email` | `string` | ✅ | User's email | `"musician@church.org"` |
-| `displayName` | `string` | ✅ | Display name | `"Sarah K"` |
-| `role` | `string` | ✅ | `"admin"` or `"musician"` | `"musician"` |
-| `createdAt` | `timestamp` | ✅ | Account creation | *(auto)* |
-| `lastLoginAt` | `timestamp` | ❌ | Last login timestamp | *(auto)* |
-
----
-
-## 2.6 `meta` Collection
-
-App-level metadata. Small collection, rarely read.
-
-### `meta/stats`
+Denormalized search index. **Clients fetch chunks once, filter locally.**
 
 | Field | Type | Description |
 |---|---|---|
-| `totalSongs` | `number` | Maintained via Cloud Function or increment (optional, for dashboard) |
-| `totalSessions` | `number` | Same |
-| `lastUpdated` | `timestamp` | When stats were last computed |
+| `entries` | `IndexEntry[]` | ~2000 songs per chunk document |
+| `updatedAt` | `timestamp` | Last rebuild |
 
----
+### `IndexEntry` (embedded)
 
-## 2.7 Indexes
-
-### Composite Indexes Required
-
-| Collection | Fields | Query Pattern |
+| Field | Type | Example |
 |---|---|---|
-| `songs` | `titleLower` ASC | Search by title prefix (`>=`, `<` range) |
-| `songs` | `originalKey` ASC, `titleLower` ASC | Filter by key + sort by title |
-| `songs` | `tags` ARRAY_CONTAINS, `titleLower` ASC | Filter by tag + sort by title |
-| `songs` | `createdAt` DESC | Recent songs list |
-| `sessions` | `serviceType` ASC, `date` DESC | Sessions by service type, newest first |
-| `sessions` | `date` DESC | All sessions, newest first |
-| `songEdits` | `songId` ASC, `status` ASC | Find drafts for a specific song |
-| `songEdits` | `status` ASC, `createdAt` DESC | All open drafts (admin dashboard) |
-| `sessionSongs` | `order` ASC | *(Single-field, auto-created)* |
+| `id` | `string` | `"good-good-father"` |
+| `title` | `string` | `"Good Good Father"` |
+| `artist` | `string` | `"Chris Tomlin"` |
+| `key` | `string` | `"A"` |
+| `tags` | `string[]` | `["worship"]` |
+
+**Queries:** Client fetches `songIndex/chunk0` … `chunkN` (1–5 reads total). No Firestore query on index fields. Substring search ("maker" → "Way Maker") runs in memory.
+
+**Writes:** Admin SDK only — updated when songs are created/archived via seed script or publish flow.
 
 ---
 
-## 2.8 Example Documents
+## 2.4 `songEdits` Collection (Draft/Versioning)
 
-### Example 1: Song Document
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `songId` | `string` | ✅ | Parent song |
+| `status` | `string` | ✅ | `"draft"` or `"archived"` |
+| `baseVersion` | `number` | ✅ | Song `version` at draft creation (conflict detection, R6) |
+| `sections` | `Section[]` | ✅ | Edited content |
+| `originalKey` | `string` | ✅ | Key at edit time |
+| `title` | `string` | ✅ | Title at edit time |
+| `notes` | `string` | ❌ | Changelog |
+| `version` | `number` | ✅ | Target version on publish |
+| `editedBy` | `string` | ✅ | Editor UID |
+| `createdAt` | `timestamp` | ✅ | Draft created |
+| `publishedAt` | `timestamp \| null` | ❌ | When archived |
+
+### Retention (R13)
+
+Keep **last 10 archived** versions per `songId`. Older archives deleted by `publishDraft` transaction or periodic Admin SDK cleanup script. No Cloud Function required.
+
+### Edit workflow
+
+```
+1. Admin → createDraft(songId) — copies song, sets baseVersion = song.version
+2. Admin edits draft doc
+3. publishDraft(editId) — runTransaction:
+   a. Verify song.version == draft.baseVersion (else conflict)
+   b. Archive current song → songEdits (status: archived)
+   c. Apply draft → song doc, increment version
+   d. Delete draft
+   e. Prune archives > 10 for this songId
+4. discardDraft → delete draft only
+```
+
+---
+
+## 2.5 `sessions` Collection
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `title` | `string` | ✅ | Display name |
+| `serviceType` | `string` | ✅ | `friday`, `sunday_morning`, `sunday_evening` |
+| `date` | `timestamp` | ✅ | Service date |
+| `songCount` | `number` | ✅ | Denormalized count |
+| `status` | `string` | ✅ | `draft`, `published` |
+| `createdBy` | `string` | ✅ | Creator UID |
+| `createdAt` / `updatedAt` | `timestamp` | ✅ | Timestamps |
+
+### `sessionSongs` Subcollection
+
+| Field | Type | Description |
+|---|---|---|
+| `songId` | `string` | Reference to `songs/{id}` |
+| `songTitle` | `string` | Denormalized for list display |
+| `order` | `number` | **Fractional** sort key (R7) — e.g. `1000`, `2000`, `1500` between |
+| `keyOverride` | `string \| null` | Per-session key |
+| `notes` | `string \| null` | Session notes |
+| `addedBy` | `string` | UID |
+| `addedAt` | `timestamp` | When added |
+
+**Reorder:** Insert at midpoint between neighbours → **1 write** per drag, not N.
+
+**Count repair:** `recountSessionSongs(sessionId)` — Admin or client utility if `songCount` drifts (no Cloud Function).
+
+---
+
+## 2.6 `users` Collection
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `email` | `string` | ✅ | From Auth |
+| `displayName` | `string` | ✅ | Display name |
+| `role` | `string` | ✅ | Always `"musician"` on self-signup; **immutable** |
+| `createdAt` | `timestamp` | ✅ | Signup time |
+| `lastLoginAt` | `timestamp` | ❌ | Updated by client |
+
+**Admin access:** `request.auth.token.admin` custom claim — **not** `users.role`. See `docs/03`.
+
+---
+
+## 2.7 `meta` Collection
+
+Seed document `meta/stats` via Admin SDK at deploy. **No client writes. No Cloud Function maintenance (R1).**
+
+| Field | Type | Description |
+|---|---|---|
+| `totalSongs` | `number` | Optional static seed value |
+| `schemaVersion` | `number` | Plan version |
+| `lastUpdated` | `timestamp` | Seed time |
+
+Dashboard stats are optional; do not increment from client.
+
+---
+
+## 2.8 Indexes
+
+### Composite indexes (`firestore.indexes.json`)
+
+| Collection | Fields | Query pattern |
+|---|---|---|
+| `songs` | `status` ASC, `createdAt` DESC | Recent active songs (admin) |
+| `songs` | `originalKey` ASC, `createdAt` DESC | Filter by key (admin, paginated) |
+| `sessions` | `status` ASC, `date` DESC | Published sessions list (R18) |
+| `sessions` | `serviceType` ASC, `date` DESC | By service type |
+| `songEdits` | `songId` ASC, `status` ASC | Drafts per song |
+| `songEdits` | `status` ASC, `createdAt` DESC | Open drafts dashboard |
+| `sessionSongs` | `order` ASC | *(single-field, auto)* |
+
+**Not needed:** `titleLower` prefix composite — search uses `songIndex`.
+
+**Not needed:** Client queries on `songIndex` beyond `getDoc(chunkId)`.
+
+---
+
+## 2.9 Example Documents
+
+### Song (active)
 
 ```json
 {
-  "__collection__": "songs",
-  "__id__": "good-good-father",
   "title": "Good Good Father",
-  "titleLower": "good good father",
   "artist": "Chris Tomlin",
   "originalKey": "A",
-  "tempo": 72,
-  "tags": ["worship", "contemporary", "adoration"],
-  "sections": [
-    {
-      "label": "Verse 1",
-      "lines": [
-        {
-          "lyrics": "Oh, I've heard a thousand stories",
-          "chords": [
-            { "chord": "A", "position": 0 },
-            { "chord": "E/G#", "position": 20 }
-          ]
-        },
-        {
-          "lyrics": "Of what they think You're like",
-          "chords": [
-            { "chord": "F#m", "position": 0 },
-            { "chord": "D", "position": 15 }
-          ]
-        }
-      ]
-    },
-    {
-      "label": "Chorus",
-      "lines": [
-        {
-          "lyrics": "You're a Good, Good Father",
-          "chords": [
-            { "chord": "D", "position": 0 },
-            { "chord": "A", "position": 16 }
-          ]
-        }
-      ]
-    }
-  ],
-  "ccli": "7036612",
-  "copyright": "© 2014 Capitol CMG Paragon",
-  "notes": "Slow build, keys lead intro",
+  "status": "active",
+  "sections": [ /* … */ ],
   "version": 1,
   "createdBy": "uid_admin001",
   "createdAt": "2026-09-01T10:00:00Z",
@@ -276,64 +223,28 @@ App-level metadata. Small collection, rarely read.
 }
 ```
 
-### Example 2: Session Document
+### songIndex chunk
 
 ```json
 {
-  "__collection__": "sessions",
-  "__id__": "session_20260914_sun_am",
-  "title": "Sunday Morning — Sep 14, 2026",
-  "serviceType": "sunday_morning",
-  "date": "2026-09-14T00:00:00Z",
-  "songCount": 5,
-  "createdBy": "uid_admin001",
-  "createdAt": "2026-09-10T14:00:00Z",
-  "updatedAt": "2026-09-12T09:30:00Z",
-  "status": "published"
+  "entries": [
+    { "id": "way-maker", "title": "Way Maker", "artist": "Sinach", "key": "E", "tags": ["worship"] },
+    { "id": "good-good-father", "title": "Good Good Father", "artist": "Chris Tomlin", "key": "A", "tags": ["worship"] }
+  ],
+  "updatedAt": "2026-09-01T10:00:00Z"
 }
 ```
 
-### Example 3: Session Song (subcollection document)
+### Song edit (draft)
 
 ```json
 {
-  "__collection__": "sessions/session_20260914_sun_am/sessionSongs",
-  "__id__": "ss_001",
-  "songId": "good-good-father",
-  "songTitle": "Good Good Father",
-  "order": 0,
-  "keyOverride": "G",
-  "notes": "Acoustic intro, build on chorus",
-  "addedBy": "uid_admin001",
-  "addedAt": "2026-09-10T14:05:00Z"
-}
-```
-
-### Example 4: Song Edit (Draft)
-
-```json
-{
-  "__collection__": "songEdits",
-  "__id__": "edit_ggf_draft_001",
   "songId": "good-good-father",
   "status": "draft",
+  "baseVersion": 1,
   "title": "Good Good Father",
   "originalKey": "A",
-  "sections": [
-    {
-      "label": "Verse 1",
-      "lines": [
-        {
-          "lyrics": "Oh, I've heard a thousand stories",
-          "chords": [
-            { "chord": "A", "position": 0 },
-            { "chord": "E", "position": 20 }
-          ]
-        }
-      ]
-    }
-  ],
-  "notes": "Changed E/G# to E in verse 1 for simplicity",
+  "sections": [ /* … */ ],
   "version": 2,
   "editedBy": "uid_admin001",
   "createdAt": "2026-09-11T08:00:00Z",
@@ -341,32 +252,17 @@ App-level metadata. Small collection, rarely read.
 }
 ```
 
-### Example 5: User Document
-
-```json
-{
-  "__collection__": "users",
-  "__id__": "uid_musician042",
-  "email": "sarah@church.org",
-  "displayName": "Sarah K",
-  "role": "musician",
-  "createdAt": "2026-08-15T12:00:00Z",
-  "lastLoginAt": "2026-09-11T07:30:00Z"
-}
-```
-
 ---
 
-## 2.9 Firestore Document Size Budget
+## 2.10 Document size budget
 
-| Document Type | Estimated Size | Notes |
+| Document | Size | Notes |
 |---|---|---|
-| Song (complex, 8 sections) | ~3-5 KB | Well within 1 MB limit |
-| Song (simple, 3 sections) | ~1-2 KB | Most songs |
-| Session | ~300 bytes | Metadata only, songs in subcollection |
-| Session Song | ~200 bytes | Reference + overrides |
-| Song Edit | ~3-5 KB | Copy of song data |
-| User | ~200 bytes | Minimal profile |
+| Song | 1–5 KB | Typical |
+| songIndex chunk | ~50–100 KB | 2000 entries × ~50 bytes |
+| Session | ~300 B | Songs in subcollection |
+| User | ~200 B | Minimal |
 
-**At 10,000 songs:** Total songs data ≈ 20-50 MB. Firestore handles this easily.
-Reads are the cost concern — see API patterns (Document 4) for pagination and caching strategy.
+At 10,000 songs: ~5 index chunks + 10k song docs ≈ 30–50 MB storage — well under 1 GB.
+
+Read costs: see `docs/08-cost-budget.md`.

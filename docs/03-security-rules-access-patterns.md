@@ -1,17 +1,22 @@
-# Document 3 — Security Rules & Access Patterns (BaaS-Ready)
+# Document 3 — Security Rules & Access Patterns (Spark-Ready)
+
+> **Spark tier:** No Cloud Functions. Admin checks use **custom claims** (`request.auth.token.admin`). User profiles are **self-created** on signup. `meta` is seed-only via Admin SDK.
+
+---
 
 ## 3.1 Access Control Summary
 
 | Collection | Read | Write (Create) | Write (Update) | Delete |
 |---|---|---|---|---|
-| `songs` | Any authenticated user | Admin only | Admin only | Admin only |
-| `songEdits` | Admin only | Admin only | Admin only | Admin only |
-| `sessions` | Any authenticated user | Admin only | Admin only | Admin only |
-| `sessions/{id}/sessionSongs` | Any authenticated user | Admin only | Admin only | Admin only |
-| `users` | Own document only | System (on signup) | Own document (limited fields) | Never |
-| `meta` | Any authenticated user | Admin only | Admin only | Never |
+| `songs` | Authenticated (`status == 'active'`) | Admin (custom claim) | Admin | Admin (soft-archive preferred) |
+| `songIndex` | Authenticated | Admin SDK only | Admin SDK only | Never |
+| `songEdits` | Admin | Admin | Admin | Admin |
+| `sessions` | Authenticated | Admin | Admin | Admin |
+| `sessions/{id}/sessionSongs` | Authenticated | Admin | Admin | Admin |
+| `users` | Own document only | Self (signup) | Own (`displayName`, `lastLoginAt` only) | Never |
+| `meta` | Authenticated | Never (client) | Never (client) | Never |
 
-> **Key principle:** Musicians can READ everything except drafts. Only admins can WRITE. This is simple to enforce and audit.
+**Session sharing:** Sessions require authentication. Share links use normal app routes (`/sessions/[id]`); no public token URLs in v1. (Future: optional read-only token doc if needed.)
 
 ---
 
@@ -22,137 +27,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Helper: Is the user authenticated? ───
     function isAuth() {
       return request.auth != null;
     }
 
-    // ─── Helper: Get the user's role from their profile doc ───
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    // ─── Helper: Is the user an admin? ───
+    // Custom claim — zero Firestore reads (R1, R2)
     function isAdmin() {
-      return isAuth() && userRole() == 'admin';
+      return isAuth() && request.auth.token.admin == true;
     }
 
-    // ─── Helper: Is the user the document owner? ───
     function isOwner(uid) {
       return isAuth() && request.auth.uid == uid;
     }
-```
 
-> **Performance note:** `userRole()` performs a Firestore read on every write rule evaluation. This is acceptable because writes are infrequent (admin-only, ~5-10 songs/week). For reads, we only check `isAuth()` which is free.
+    function validKey(k) {
+      return k in ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+    }
 
----
-
-## 3.3 Rule Snippets by Collection
-
-### `songs` — Public read (authenticated), admin write
-
-```javascript
-    // ─── Songs ───
-    match /songs/{songId} {
-      // Any authenticated user can read published songs
-      allow read: if isAuth();
-
-      // Only admins can create, update, or delete songs
-      allow create: if isAdmin()
-        && request.resource.data.title is string
+    function validSongShape() {
+      return request.resource.data.title is string
         && request.resource.data.originalKey is string
-        && request.resource.data.sections is list;
-
-      allow update: if isAdmin()
-        && request.resource.data.title is string
-        && request.resource.data.version == resource.data.version + 1;
-
-      allow delete: if isAdmin();
+        && validKey(request.resource.data.originalKey)
+        && request.resource.data.sections is list
+        && request.resource.data.status in ['active', 'archived'];
     }
 ```
 
-### `songEdits` — Admin only (drafts are private)
-
-```javascript
-    // ─── Song Edits (Drafts & Versions) ───
-    match /songEdits/{editId} {
-      // Only admins can see drafts and version history
-      allow read: if isAdmin();
-
-      // Only admins can create/modify/delete edits
-      allow create: if isAdmin()
-        && request.resource.data.songId is string
-        && request.resource.data.status in ['draft', 'archived'];
-
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-```
-
-### `sessions` — Public read, admin write
-
-```javascript
-    // ─── Sessions ───
-    match /sessions/{sessionId} {
-      // Any authenticated user can read sessions
-      allow read: if isAuth();
-
-      // Only admins can create/modify sessions
-      allow create: if isAdmin()
-        && request.resource.data.serviceType in ['friday', 'sunday_morning', 'sunday_evening']
-        && request.resource.data.date is timestamp;
-
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-
-      // ─── Session Songs (subcollection) ───
-      match /sessionSongs/{songEntryId} {
-        allow read: if isAuth();
-        allow create: if isAdmin()
-          && request.resource.data.songId is string
-          && request.resource.data.order is number;
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
-      }
-    }
-```
-
-### `users` — Own profile only
-
-```javascript
-    // ─── Users ───
-    match /users/{uid} {
-      // Users can read their own profile
-      allow read: if isOwner(uid);
-
-      // Users can update their own displayName and lastLoginAt only
-      allow update: if isOwner(uid)
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['displayName', 'lastLoginAt']);
-
-      // Profile creation is handled by Cloud Function or admin SDK
-      // No client-side create or delete
-      allow create: if false;
-      allow delete: if false;
-    }
-```
-
-### `meta` — Read-only for clients
-
-```javascript
-    // ─── Meta ───
-    match /meta/{docId} {
-      allow read: if isAuth();
-      allow write: if false; // Updated by Cloud Functions only
-    }
-
-  } // end documents
-} // end service
-```
+> **Admin promotion:** Run `scripts/set-admin.ts` locally with Admin SDK to set `admin: true` custom claim on a user's Auth record. Do **not** rely on `users.role == 'admin'` in rules — `role` is display/metadata only.
 
 ---
 
-## 3.4 Full Rules File (Combined)
+## 3.3 Canonical `firestore.rules`
+
+Single source of truth. Delete any duplicate snippets elsewhere.
 
 ```javascript
 rules_version = '2';
@@ -163,55 +70,93 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
     function isAdmin() {
-      return isAuth() && userRole() == 'admin';
+      return isAuth() && request.auth.token.admin == true;
     }
 
     function isOwner(uid) {
       return isAuth() && request.auth.uid == uid;
     }
 
-    // Songs
+    function validKey(k) {
+      return k in ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+    }
+
+    function validSongShape() {
+      return request.resource.data.title is string
+        && request.resource.data.originalKey is string
+        && validKey(request.resource.data.originalKey)
+        && request.resource.data.sections is list
+        && request.resource.data.status in ['active', 'archived'];
+    }
+
+    // ─── Songs ───
     match /songs/{songId} {
+      allow read: if isAuth()
+        && resource.data.status == 'active';
+
+      allow create: if isAdmin() && validSongShape();
+
+      // Shape validation only — version managed in publishDraft transaction (R6)
+      allow update: if isAdmin() && validSongShape();
+
+      allow delete: if isAdmin();
+    }
+
+    // ─── Library index (read-only for clients) ───
+    match /songIndex/{chunkId} {
       allow read: if isAuth();
-      allow create: if isAdmin();
+      allow write: if false; // Admin SDK seed/rebuild only
+    }
+
+    // ─── Song edits (drafts) ───
+    match /songEdits/{editId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.songId is string
+        && request.resource.data.status in ['draft', 'archived']
+        && request.resource.data.baseVersion is int;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // Song Edits
-    match /songEdits/{editId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
-    }
-
-    // Sessions + subcollection
+    // ─── Sessions ───
     match /sessions/{sessionId} {
       allow read: if isAuth();
-      allow create: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.serviceType in ['friday', 'sunday_morning', 'sunday_evening']
+        && request.resource.data.date is timestamp;
       allow update: if isAdmin();
       allow delete: if isAdmin();
 
       match /sessionSongs/{entryId} {
         allow read: if isAuth();
-        allow write: if isAdmin();
+        allow create: if isAdmin()
+          && request.resource.data.songId is string
+          && request.resource.data.order is number;
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
       }
     }
 
-    // Users
+    // ─── Users (self-signup on Spark — R1) ───
     match /users/{uid} {
       allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.role == 'musician';
+
       allow update: if isOwner(uid)
+        && request.resource.data.role == resource.data.role  // role immutable
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['displayName', 'lastLoginAt']);
-      allow create, delete: if false;
+
+      allow delete: if false;
     }
 
-    // Meta
+    // ─── Meta (seed via Admin SDK at deploy — R1) ───
     match /meta/{docId} {
       allow read: if isAuth();
       allow write: if false;
@@ -222,39 +167,56 @@ service cloud.firestore {
 
 ---
 
-## 3.5 Access Pattern Summary
+## 3.4 App Check (R11)
+
+Enable before public launch:
+
+1. Firebase Console → App Check → Register web app with **reCAPTCHA v3**.
+2. Add App Check provider to `src/lib/firebase.ts`.
+3. Firebase Console → Firestore → Enforce App Check.
+4. Rules automatically reject requests without valid App Check token.
+
+App Check is free and prevents quota abuse from scripted reads.
+
+---
+
+## 3.5 Admin setup (`scripts/set-admin.ts`)
+
+```typescript
+// Run locally: GOOGLE_APPLICATION_CREDENTIALS=/path/outside/repo.json npx tsx scripts/set-admin.ts uid@email.com
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+
+const app = initializeApp({ credential: cert(process.env.GOOGLE_APPLICATION_CREDENTIALS!) });
+await getAuth(app).setCustomUserClaims(uid, { admin: true });
+```
+
+Never commit service account JSON. See `docs/07` §7.1.
+
+---
+
+## 3.6 Access pattern diagram
 
 ```
-                    ┌─────────────┐
-                    │  Firebase    │
-                    │  Auth       │
-                    └──────┬──────┘
-                           │ JWT token
-                    ┌──────▼──────┐
-                    │  Firestore  │
-                    │  Rules      │
-                    └──────┬──────┘
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-    ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
-    │   Admin     │ │  Musician   │ │  Anon       │
-    │             │ │             │ │             │
-    │ Read: all   │ │ Read: songs │ │ Read: none  │
-    │ Write: all  │ │   sessions  │ │ Write: none │
-    │             │ │ Write: own  │ │             │
-    │             │ │   profile   │ │             │
-    └─────────────┘ └─────────────┘ └─────────────┘
+Firebase Auth (JWT + custom claims)
+        │
+        ▼
+firestore.rules
+        │
+   ┌────┴────┐
+   │         │
+ Admin     Musician
+ (claim)   (authed)
+   │         │
+ Read/     Read songs,
+ Write     sessions, index
+ all       Write: own profile only
 ```
 
 ---
 
-## 3.6 Future-Proofing Notes
+## 3.7 Future-proofing
 
-1. **Adding musician write permissions:** If musicians need to create personal playlists (not sessions), add a `personalPlaylists` subcollection under `users/{uid}` — no rule changes to shared collections needed.
-
-2. **Granular admin roles:** If needed (e.g., "editor" vs "super-admin"), change `role` from a string to an array or add a `permissions` map in the user doc. Rules would check `userRole() in ['admin', 'editor']`.
-
-3. **Public (unauthenticated) access:** To allow public song viewing later, change `songs` read rule from `isAuth()` to `true`. All other collections remain authenticated.
-
-4. **Rate limiting:** Firestore doesn't have built-in rate limiting in rules, but you can add App Check for abuse prevention and use Cloud Functions for sensitive operations.
+1. **Editor role:** Add `editor` custom claim; extend `isAdmin()` OR check `request.auth.token.editor == true` for song writes only.
+2. **Public read:** Change `songs` read to `resource.data.status == 'active'` without `isAuth()` if needed — keep drafts/edits admin-only.
+3. **Rate limiting:** App Check + Firebase Console usage alerts (see `docs/08-cost-budget.md`).

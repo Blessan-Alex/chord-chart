@@ -1,34 +1,53 @@
 # LF ChordApp — Firebase Architecture Documents
 
-> **Purpose:** Complete, implementation-ready design for evolving the existing web MVP into a Firebase Firestore-backed BaaS for musicians.
+> Implementation-ready design for evolving the web MVP into a Firebase Firestore-backed app on **Spark (free tier)**.
 
 ## Documents
 
 | # | Document | Description |
 |---|---|---|
-| 1 | [Product & UX Overview](01-product-ux-overview.md) | User types, core flows, UI map, UX requirements |
-| 2 | [Data Model & Firestore Schema](02-data-model-firestore-schema.md) | Collections, fields, types, chord representation, versioning, indexes, 5 example JSON docs |
-| 3 | [Security Rules & Access Patterns](03-security-rules-access-patterns.md) | Complete `firestore.rules`, per-collection access, helper functions |
-| 4 | [API / Client Usage Patterns](04-api-client-usage-patterns.md) | SDK-first queries/mutations, offline strategy, performance notes, service layer |
-| 5 | [Phased Implementation Plan](05-phased-implementation-plan.md) | 6 phases, 36 tickets with acceptance criteria, dependency chain |
-| 6 | [Test Plan](06-test-plan.md) | Unit, integration (emulator), E2E (Playwright), performance, offline tests |
-| 7 | [Migration & Growth Notes](07-migration-growth-notes.md) | Bulk import, schema evolution, monitoring, Spark limits, growth roadmap |
+| — | [Architecture](ARCHITECTURE.md) | Current MVP + planned Firebase data flow |
+| 1 | [Product & UX Overview](01-product-ux-overview.md) | User types, core flows, UI map |
+| 2 | [Data Model & Firestore Schema](02-data-model-firestore-schema.md) | Collections, `songIndex`, soft-delete, versioning |
+| 3 | [Security Rules & Access Patterns](03-security-rules-access-patterns.md) | Canonical `firestore.rules`, App Check, custom claims |
+| 4 | [API / Client Usage Patterns](04-api-client-usage-patterns.md) | SDK patterns, local search, transactions |
+| 5 | [Phased Implementation Plan](05-phased-implementation-plan.md) | Tickets with dependencies and status |
+| 6 | [Test Plan](06-test-plan.md) | Unit (done), emulator, E2E (planned) |
+| 7 | [Migration & Growth Notes](07-migration-growth-notes.md) | Import, backup, schema evolution |
+| 8 | [Cost Budget](08-cost-budget.md) | Spark read/write budgets per action |
+
+**9 documents total** (Architecture + 01–08).
 
 ## Current Codebase Context
 
-The existing `webmvp/` is a Next.js 15 + TypeScript + Tailwind v4 app with:
-- **Transposition engine** (`engine.ts`) — 12-semitone, supports major/minor/slash/7th chords
-- **Section-based chord model** (`types.ts`) — `Song → Section[] → LyricLine → ChordMark[]`
-- **10 worship song presets** (`presets.ts`) — ChordPro-parsed into position-indexed format
-- **Interactive chord editor** (`InteractiveEditor.tsx`) — click-to-place chords above lyrics
-- **localStorage persistence** (`storage.ts`) — to be replaced by Firestore
-- **Mobile-responsive layout** with dark mode, sticky header, chords/numbers toggle
+Commit **`c9bb044`** — foundation hardening complete:
+
+- **Transposition engine** (`engine.ts`) — transpose, degrees, diatonic palette, `isValidChord`
+- **Chord model** — `Song → Section[] → LyricLine → ChordMark{chord, position}`
+- **Components** — `ChordRow`, `ChordLine`, `InteractiveEditor`, `HomePage`
+- **Validation** — `validation.ts` called before every `saveSong`
+- **Tests** — Vitest, **37 tests** in `src/lib/*.test.ts`
+- **Storage** — `localStorage` key `lf-chord-app-songs` (Firestore fallback when authed — see R17)
+- **Presets** — 10 worship songs in `presets.ts` (read-only seed)
+
+## Spark Tier Constraints
+
+1. **No Cloud Functions** — self-signup `users` docs, custom claim `admin`, Admin SDK scripts only (R1, R2)
+2. **No per-keystroke Firestore queries** — `songIndex` chunks + local substring search (R4)
+3. **`publishDraft` / session writes use `runTransaction`** — conflict detection, fractional order (R6, R7)
+4. **App Check required** before public launch (R11)
+5. **Cost budget** — see [08-cost-budget.md](08-cost-budget.md)
+
+## Hosting
+
+**Recommended:** [Vercel Hobby](https://vercel.com) — dynamic `/song/[id]` works out of the box.
+
+Firebase Hosting requires static export or query-param routing unless on Blaze.
 
 ## Key Design Decisions
 
-1. **Same data model:** Firestore schema directly mirrors existing `types.ts` types — minimal refactoring
-2. **Position-indexed chords:** `{chord, position}` array (not inline ChordPro) — separates data from display
-3. **Subcollection for session songs:** Avoids unbounded arrays, supports individual add/remove/reorder
-4. **Flat `songEdits` collection:** Enables cross-song draft queries (e.g., "all open drafts")
-5. **Admin SDK for imports:** Bulk seeding bypasses security rules, uses batched writes
-6. **Offline = Firestore persistence:** No custom caching layer — SDK handles IndexedDB automatically
+1. Same chord position model as MVP — minimal refactor into Firestore
+2. `songIndex` collection for search — not `titleLower` prefix queries
+3. Soft-delete songs (`status: archived`) — sessions keep valid references
+4. Admin = Firebase Auth custom claim — not Firestore `users.role`
+5. Offline = Firestore persistence + `getDocFromCache`; localStorage when not signed in

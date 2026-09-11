@@ -29,3 +29,7 @@ Open [http://localhost:3000](http://localhost:3000).
 Songs are stored in browser `localStorage` under key `lf-chord-app-songs`. Built-in presets are read-only in `src/data/presets.ts`.
 
 Architecture details: [`tickets/MAP.md`](tickets/MAP.md) and [`../docs/`](../docs/).
+
+## Hosting (planned)
+
+**Vercel Hobby** recommended — dynamic `/song/[id]` routes work without static export. See `docs/05` ticket P0-09.
