@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuth() && request.auth.token.admin == true;
+    }
+
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function validKey(k) {
+      return k in ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+    }
+
+    function validSongShape() {
+      return request.resource.data.title is string
+        && request.resource.data.originalKey is string
+        && validKey(request.resource.data.originalKey)
+        && request.resource.data.sections is list
+        && request.resource.data.status in ['active', 'archived'];
+    }
+
+    match /songs/{songId} {
+      allow read: if isAuth()
+        && resource.data.status == 'active';
+
+      allow create: if isAdmin() && validSongShape();
+      allow update: if isAdmin() && validSongShape();
+      allow delete: if isAdmin();
+    }
+
+    match /songIndex/{chunkId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    match /songEdits/{editId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.songId is string
+        && request.resource.data.status in ['draft', 'archived']
+        && request.resource.data.baseVersion is int;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isAuth();
+      allow create: if isAdmin()
+        && request.resource.data.serviceType in ['friday', 'sunday_morning', 'sunday_evening']
+        && request.resource.data.date is timestamp;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+
+      match /sessionSongs/{entryId} {
+        allow read: if isAuth();
+        allow create: if isAdmin()
+          && request.resource.data.songId is string
+          && request.resource.data.order is number;
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.role == 'musician';
+
+      allow update: if isOwner(uid)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['displayName', 'lastLoginAt']);
+
+      allow delete: if false;
+    }
+
+    match /meta/{docId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+  }
+}

@@ -7,6 +7,7 @@ Next.js prototype for worship chord charts: paste lyrics, place chords, transpos
 ```bash
 cd webmvp
 npm install
+cp .env.example .env.local   # fill in Firebase keys when ready
 npm run dev
 ```
 
@@ -23,13 +24,79 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run test` | Run unit tests (Vitest) |
 | `npm run test:watch` | Run tests in watch mode |
+| `npm run emulators` | Firestore + Auth emulators (from repo root config) |
 
 ## Data
 
 Songs are stored in browser `localStorage` under key `lf-chord-app-songs`. Built-in presets are read-only in `src/data/presets.ts`.
 
-Architecture details: [`tickets/MAP.md`](tickets/MAP.md) and [`../docs/`](../docs/).
+Firebase wiring (Phase 5c) will use Firestore when signed in; localStorage + presets remain the fallback when not.
 
-## Hosting (planned)
+Architecture: [`tickets/MAP.md`](tickets/MAP.md) and [`../docs/`](../docs/).
 
-**Vercel Hobby** recommended — dynamic `/song/[id]` routes work without static export. See `docs/05` ticket P0-09.
+---
+
+## Firebase (Phase 5a)
+
+Config lives at the **repo root**: `firebase.json`, `firestore.rules`, `firestore.indexes.json`, `.firebaserc`.
+
+### P0-01 — Create project
+
+1. [Firebase Console](https://console.firebase.google.com/) → Create project (Spark / free tier).
+2. Enable **Authentication** → Email/Password.
+3. Enable **Firestore** → production mode (rules deployed from repo).
+4. Set project ID in `.firebaserc` at repo root:
+   ```bash
+   npx -y firebase-tools@latest use your-project-id
+   ```
+
+### P0-02 / P0-03 — SDK + persistence
+
+- `firebase` package installed.
+- `src/lib/firebase.ts` — `getDb()` uses `persistentLocalCache` (not wired to UI yet).
+- Copy `.env.example` → `.env.local` with Web app config from Firebase Console.
+
+### P0-04 — Deploy rules
+
+```bash
+# From repo root, after firebase login
+npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes
+```
+
+Rules match `docs/03` (custom claim `admin`, self-signup `users`, `songIndex` read-only).
+
+### P0-08 — App Check
+
+1. Firebase Console → App Check → Register web app → **reCAPTCHA v3**.
+2. Add site key to `.env.local` as `NEXT_PUBLIC_FIREBASE_APP_CHECK_KEY`.
+3. Call `initAppCheck()` from client after auth UI lands (Phase 5c).
+4. Console → Enforce App Check on Firestore when ready for production.
+
+### Local emulators
+
+```bash
+# Terminal 1 (repo root via webmvp script)
+cd webmvp && npm run emulators
+
+# .env.local
+NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true
+```
+
+Emulator UI: [http://localhost:4000](http://localhost:4000)
+
+---
+
+## Deploy — Vercel Hobby (P0-09)
+
+1. Import repo on [vercel.com](https://vercel.com).
+2. Set **Root Directory** to `webmvp`.
+3. Add environment variables from `.env.example` (Production + Preview).
+4. Deploy — `/song/[id]` dynamic routes work on Hobby.
+
+```bash
+# Optional CLI
+cd webmvp
+npx vercel
+```
+
+`vercel.json` is included for explicit Next.js framework detection.

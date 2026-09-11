@@ -1,6 +1,6 @@
 # LF ChordApp — Project Status
 
-> Last updated: after docs session (Spark-ready plan). Code foundation: commit **`c9bb044`**.
+> Last updated: after Phase 5a config. Code foundation: **`c9bb044`**. Docs: **`c58a7ee`**.
 
 ---
 
@@ -43,10 +43,16 @@ Audit fixes **R1–R18** applied to the implementation plan:
 
 Execute in order after docs merge. See `docs/05-phased-implementation-plan.md` for full tickets.
 
-### Phase 5a — Firebase config
-- [ ] P0-01–P0-04: Project, SDK, persistence, deploy rules from `docs/03`
-- [ ] P0-08: App Check
-- [ ] P0-09: Deploy to Vercel Hobby
+### Phase 5a — Firebase config ✅ (in repo; deploy requires your Firebase project)
+- [x] P0-02: `firebase` + `src/lib/firebase.ts`
+- [x] P0-03: `persistentLocalCache` in `getDb()`
+- [x] P0-04: `firestore.rules` + `firestore.indexes.json` at repo root
+- [x] P0-08: App Check helper `initAppCheck()` + `.env.example`
+- [x] P0-09: `vercel.json` + deploy docs in `webmvp/README.md`
+- [x] Emulators: `firebase.json` + `npm run emulators`
+- [ ] P0-01: Create Firebase project + `firebase use <id>` (manual, Console)
+- [ ] P0-04 deploy: `firebase deploy --only firestore` (after P0-01)
+- [ ] P0-09 deploy: Vercel import + env vars (manual)
 
 ### Phase 5b — Firestore modules
 - [ ] P1-01–P1-04: Types, `firestore/songs.ts`, seed + `songIndex`, indexes
