@@ -7,6 +7,8 @@ import { useState } from "react";
 import { InteractiveEditor } from "@/components/InteractiveEditor";
 import { parseRawLyrics } from "@/lib/editorParser";
 import { ALL_KEYS, type Key } from "@/lib/engine";
+import { createSong } from "@/lib/firestore/songs";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { saveSong } from "@/lib/storage";
 import type { Section, Song } from "@/lib/types";
 
@@ -16,7 +18,8 @@ function isKey(value: string): value is Key {
 
 export default function ImportPage() {
   const router = useRouter();
-  
+  const { user, loading, isAdmin } = useAuth();
+
   const [step, setStep] = useState<1 | 2>(1);
   const [title, setTitle] = useState("");
   const [originalKey, setOriginalKey] = useState<Key>("C");
@@ -24,26 +27,65 @@ export default function ImportPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  if (loading) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center p-4">
+        <p className="text-neutral-400">Loading…</p>
+      </main>
+    );
+  }
+
+  if (user && !isAdmin) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 p-4 sm:p-8">
+        <Link
+          href="/"
+          className="text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+        >
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-semibold">Import restricted</h1>
+        <p className="text-neutral-600 dark:text-neutral-400">
+          Only admins can add songs to the shared library. Sign out to save
+          songs locally on this device instead.
+        </p>
+      </main>
+    );
+  }
+
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !rawText.trim()) return;
-    
+
     const parsed = parseRawLyrics(rawText);
     setSections(parsed);
     setStep(2);
   };
 
-  const handleSave = (finalSections: Section[]) => {
+  const handleSave = async (finalSections: Section[]) => {
     setSaveError(null);
 
-    const song: Song = {
-      id: "",
-      title: title.trim(),
-      originalKey,
-      sections: finalSections,
-    };
-
     try {
+      if (user && isAdmin) {
+        const created = await createSong(
+          {
+            title: title.trim(),
+            originalKey,
+            sections: finalSections,
+          },
+          user.uid,
+        );
+        router.push(`/song/${created.id}`);
+        return;
+      }
+
+      const song: Song = {
+        id: "",
+        title: title.trim(),
+        originalKey,
+        sections: finalSections,
+      };
+
       const saved = saveSong(song);
       router.push(`/song/${saved.id}`);
     } catch (error) {
@@ -67,7 +109,8 @@ export default function ImportPage() {
           <div className="border-b border-neutral-200 pb-4 dark:border-neutral-800">
             <h1 className="text-2xl font-semibold">Step 1: Paste Lyrics</h1>
             <p className="mt-1 text-sm text-neutral-500">
-              Paste your raw lyrics here. Type <strong>[Verse 1]</strong> on an empty line to separate sections.
+              Paste your raw lyrics here. Type <strong>[Verse 1]</strong> on an
+              empty line to separate sections.
             </p>
           </div>
 
@@ -89,10 +132,14 @@ export default function ImportPage() {
               <select
                 className="w-full rounded-lg border border-neutral-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-950"
                 value={originalKey}
-                onChange={(e) => isKey(e.target.value) && setOriginalKey(e.target.value)}
+                onChange={(e) =>
+                  isKey(e.target.value) && setOriginalKey(e.target.value)
+                }
               >
                 {ALL_KEYS.map((k) => (
-                  <option key={k} value={k}>{k}</option>
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
                 ))}
               </select>
             </label>
@@ -106,7 +153,9 @@ export default function ImportPage() {
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-950"
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              placeholder={"[Verse 1]\nOh, I've heard a thousand stories\nOf what they think You're like..."}
+              placeholder={
+                "[Verse 1]\nOh, I've heard a thousand stories\nOf what they think You're like..."
+              }
             />
           </label>
 
@@ -130,7 +179,9 @@ export default function ImportPage() {
           <InteractiveEditor
             sections={sections}
             originalKey={originalKey}
-            onSave={handleSave}
+            onSave={(finalSections) => {
+              void handleSave(finalSections);
+            }}
           />
         </>
       )}

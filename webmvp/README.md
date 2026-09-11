@@ -67,10 +67,40 @@ Rules match `docs/03` (custom claim `admin`, self-signup `users`, `songIndex` re
 
 ### P0-08 — App Check
 
-1. Firebase Console → App Check → Register web app → **reCAPTCHA v3**.
+1. Firebase Console → App Check → Register web app → **reCAPTCHA Enterprise**.
 2. Add site key to `.env.local` as `NEXT_PUBLIC_FIREBASE_APP_CHECK_KEY`.
 3. Call `initAppCheck()` from client after auth UI lands (Phase 5c).
 4. Console → Enforce App Check on Firestore when ready for production.
+
+### P1-03 — Seed Firestore (presets + songIndex)
+
+```bash
+# Production — service account JSON outside repo
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json npm run seed
+
+# Emulator (Terminal 1: npm run emulators)
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npm run seed
+```
+
+Writes 10 preset songs to `songs/`, builds `songIndex/chunk0`, and `meta/stats`.
+
+### P0-06 — Grant admin claim
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json npm run set-admin user@example.com
+```
+
+User must sign out and sign in again for `isAdmin` to apply.
+
+### Integration tests (P1-09)
+
+```bash
+# Terminal 1
+npm run emulators
+
+# Terminal 2
+npm run test:integration
+```
 
 ### Local emulators
 

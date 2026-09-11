@@ -1,0 +1,77 @@
+import { describe, expect, it } from "vitest";
+
+import type { SongIndexEntry } from "@/lib/types";
+
+import {
+  buildIndexChunks,
+  filterSongIndex,
+  songToIndexEntry,
+} from "./songIndex";
+
+const sampleEntries: SongIndexEntry[] = [
+  {
+    id: "way-maker",
+    title: "Way Maker",
+    artist: "Sinach",
+    key: "E",
+    tags: ["worship"],
+  },
+  {
+    id: "good-good-father",
+    title: "Good Good Father",
+    artist: "Chris Tomlin",
+    key: "A",
+    tags: ["worship"],
+  },
+  {
+    id: "twinkle",
+    title: "Twinkle Twinkle Little Star",
+    artist: "",
+    key: "C",
+    tags: [],
+  },
+];
+
+describe("songToIndexEntry", () => {
+  it("maps song fields to index entry", () => {
+    expect(
+      songToIndexEntry({
+        id: "way-maker",
+        title: "Way Maker",
+        artist: "Sinach",
+        originalKey: "E",
+        tags: ["worship"],
+      }),
+    ).toEqual(sampleEntries[0]);
+  });
+});
+
+describe("filterSongIndex", () => {
+  it('finds "Way Maker" from substring "maker"', () => {
+    const results = filterSongIndex(sampleEntries, "maker");
+    expect(results).toHaveLength(1);
+    expect(results[0]?.id).toBe("way-maker");
+  });
+
+  it("filters by key", () => {
+    const results = filterSongIndex(sampleEntries, "", "C");
+    expect(results.map((entry) => entry.id)).toEqual(["twinkle"]);
+  });
+
+  it("sorts alphabetically when query is empty", () => {
+    const results = filterSongIndex(sampleEntries, "");
+    expect(results.map((entry) => entry.title)).toEqual([
+      "Good Good Father",
+      "Twinkle Twinkle Little Star",
+      "Way Maker",
+    ]);
+  });
+});
+
+describe("buildIndexChunks", () => {
+  it("places all entries in chunk0 for small libraries", () => {
+    const chunks = buildIndexChunks(sampleEntries);
+    expect(chunks.size).toBe(1);
+    expect(chunks.get("chunk0")).toHaveLength(3);
+  });
+});

@@ -1,9 +1,10 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 import {
   connectFirestoreEmulator,
   initializeFirestore,
+  memoryLocalCache,
   persistentLocalCache,
   persistentMultipleTabManager,
   type Firestore,
@@ -45,9 +46,12 @@ export function getDb(): Firestore {
   if (!db) {
     const firebaseApp = getFirebaseApp();
     db = initializeFirestore(firebaseApp, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
+      localCache:
+        process.env.VITEST === "true"
+          ? memoryLocalCache()
+          : persistentLocalCache({
+              tabManager: persistentMultipleTabManager(),
+            }),
     });
 
     if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true") {
@@ -72,7 +76,7 @@ export function getFirebaseAuth(): Auth {
   return auth;
 }
 
-/** Call once on the client after sign-in UI mounts. Requires reCAPTCHA v3 site key. */
+/** Call once on the client after sign-in UI mounts. Requires reCAPTCHA Enterprise site key. */
 export function initAppCheck(): void {
   if (typeof window === "undefined" || appCheckInitialized) {
     return;
@@ -84,7 +88,7 @@ export function initAppCheck(): void {
   }
 
   initializeAppCheck(getFirebaseApp(), {
-    provider: new ReCaptchaV3Provider(siteKey),
+    provider: new ReCaptchaEnterpriseProvider(siteKey),
     isTokenAutoRefreshEnabled: true,
   });
 

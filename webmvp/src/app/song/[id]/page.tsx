@@ -7,7 +7,9 @@ import { useState, useEffect } from "react";
 import { ChordLine } from "@/components/ChordLine";
 import { getPresetById } from "@/data/presets";
 import { ALL_KEYS, type Key } from "@/lib/engine";
-import { getSong } from "@/lib/storage";
+import { getSong as getFirestoreSong } from "@/lib/firestore/songs";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { getSong as getLocalSong } from "@/lib/storage";
 import type { Song } from "@/lib/types";
 
 function isKey(k: string): k is Key {
@@ -17,37 +19,78 @@ function isKey(k: string): k is Key {
 export default function SongPage() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
-  
+  const { user, loading: authLoading } = useAuth();
+
   const [song, setSong] = useState<Song | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [targetKey, setTargetKey] = useState<string>("C");
   const [viewMode, setViewMode] = useState<"chords" | "numbers">("chords");
 
   useEffect(() => {
-    let found: Song | undefined = undefined;
-    
-    // 1. Check if it's a preset
-    const preset = getPresetById(id);
-    if (preset) {
-      found = {
-        id: preset.presetId,
-        title: preset.title,
-        originalKey: preset.originalKey,
-        sections: preset.sections,
-      };
-    } else {
-      // 2. If not a preset, check local storage for user-saved songs
-      found = getSong(id);
-    }
-    
-    setSong(found ?? null);
-    if (found && isKey(found.originalKey)) {
-      setTargetKey(found.originalKey);
-    }
-    setLoaded(true);
-  }, [id]);
+    let cancelled = false;
 
-  if (!loaded) {
+    async function loadSong() {
+      setLoaded(false);
+
+      if (user) {
+        try {
+          const firestoreSong = await getFirestoreSong(id);
+          if (!cancelled && firestoreSong) {
+            const found: Song = {
+              id: firestoreSong.id,
+              title: firestoreSong.title,
+              originalKey: firestoreSong.originalKey,
+              sections: firestoreSong.sections,
+            };
+            setSong(found);
+            if (isKey(found.originalKey)) {
+              setTargetKey(found.originalKey);
+            }
+            setLoaded(true);
+            return;
+          }
+        } catch {
+          if (!cancelled) {
+            setSong(null);
+            setLoaded(true);
+          }
+          return;
+        }
+      }
+
+      let found: Song | undefined;
+
+      const preset = getPresetById(id);
+      if (preset) {
+        found = {
+          id: preset.presetId,
+          title: preset.title,
+          originalKey: preset.originalKey,
+          sections: preset.sections,
+        };
+      } else {
+        found = getLocalSong(id);
+      }
+
+      if (!cancelled) {
+        setSong(found ?? null);
+        if (found && isKey(found.originalKey)) {
+          setTargetKey(found.originalKey);
+        }
+        setLoaded(true);
+      }
+    }
+
+    if (!authLoading) {
+      void loadSong();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user, authLoading]);
+
+  if (!loaded || authLoading) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center p-4">
         <p className="text-neutral-400">Loading…</p>
@@ -81,20 +124,16 @@ export default function SongPage() {
         ← Home
       </Link>
 
-      {/* Sticky header */}
       <header className="sticky top-0 z-10 -mx-4 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:-mx-8 sm:px-8 dark:border-neutral-800 dark:bg-neutral-950/95">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-semibold sm:text-xl">
               {song.title}
             </h1>
-            <p className="text-xs text-neutral-500">
-              Key: {song.originalKey}
-            </p>
+            <p className="text-xs text-neutral-500">Key: {song.originalKey}</p>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* View toggle: Chords / Numbers */}
             <div className="flex overflow-hidden rounded-lg border border-neutral-300 text-xs dark:border-neutral-700">
               <button
                 type="button"
@@ -120,7 +159,6 @@ export default function SongPage() {
               </button>
             </div>
 
-            {/* Key selector */}
             <select
               value={targetKey}
               onChange={(e) =>
@@ -138,7 +176,6 @@ export default function SongPage() {
         </div>
       </header>
 
-      {/* Song content */}
       <div className="chord-chart mt-4 pb-8">
         {song.sections.map((section, si) => (
           <div key={`${section.label}-${si}`}>
