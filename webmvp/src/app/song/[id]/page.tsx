@@ -2,26 +2,43 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AddToSessionModal } from "@/components/AddToSessionModal";
+import { ChordChartViewport } from "@/components/ChordChartViewport";
 import { ChordLine } from "@/components/ChordLine";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ALL_KEYS, type Key } from "@/lib/engine";
+import { PageLoading } from "@/components/PageLoading";
+import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
+import { SongToolbar, type SongViewMode } from "@/components/SongToolbar";
+import { type Key } from "@/lib/engine";
+import { formatError } from "@/lib/formatError";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
 import {
   createDraft,
   getDraftForSong,
   listArchivedVersions,
 } from "@/lib/firestore/songEdits";
+import { listSessionSongs } from "@/lib/firestore/sessionSongs";
+import { getSession } from "@/lib/firestore/sessions";
 import { archiveSong, getSong as getFirestoreSong } from "@/lib/firestore/songs";
+import { useChartZoom } from "@/lib/hooks/useChartZoom";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { isKey, transposeKeyBy } from "@/lib/keyUtils";
+import {
+  type ChartTheme,
+  readChartTheme,
+  writeChartTheme,
+  writeLastSessionIndex,
+} from "@/lib/performancePreferences";
+import {
+  buildAdjacentSongHref,
+  parseSessionNavParams,
+} from "@/lib/sessionNavigation";
 import { getSong as getLocalSong } from "@/lib/storage";
-import type { Song, SongEdit } from "@/lib/types";
+import type { Session, SessionSong, Song, SongEdit } from "@/lib/types";
 
-function isKey(k: string): k is Key {
-  return (ALL_KEYS as readonly string[]).includes(k);
-}
+const THEME_CYCLE: ChartTheme[] = ["system", "dark", "stage"];
 
 export default function SongPage() {
   const params = useParams();
@@ -29,12 +46,13 @@ export default function SongPage() {
   const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
   const keyParam = searchParams.get("key");
+  const { sessionId, index: sessionIndex } = parseSessionNavParams(searchParams);
   const { user, loading: authLoading, isAdmin } = useAuth();
 
   const [song, setSong] = useState<Song | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [targetKey, setTargetKey] = useState<string>("C");
-  const [viewMode, setViewMode] = useState<"chords" | "numbers">("chords");
+  const [viewMode, setViewMode] = useState<SongViewMode>("chords");
   const [showDelete, setShowDelete] = useState(false);
   const [showAddToSession, setShowAddToSession] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -42,6 +60,28 @@ export default function SongPage() {
   const [draft, setDraft] = useState<SongEdit | null>(null);
   const [archives, setArchives] = useState<SongEdit[]>([]);
   const [editBusy, setEditBusy] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionSongs, setSessionSongs] = useState<SessionSong[]>([]);
+  const [chartTheme, setChartTheme] = useState<ChartTheme>("system");
+
+  const swipeStartX = useRef<number | null>(null);
+  const zoom = useChartZoom({ sessionId });
+
+  useEffect(() => {
+    setChartTheme(readChartTheme());
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (chartTheme === "system") {
+      root.removeAttribute("data-chart-theme");
+    } else {
+      root.dataset.chartTheme = chartTheme;
+    }
+    return () => {
+      root.removeAttribute("data-chart-theme");
+    };
+  }, [chartTheme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +154,41 @@ export default function SongPage() {
     };
   }, [id, user, authLoading, keyParam, isAdmin]);
 
+  useEffect(() => {
+    if (!sessionId) {
+      setSession(null);
+      setSessionSongs([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const [nextSession, nextSongs] = await Promise.all([
+          getSession(sessionId),
+          listSessionSongs(sessionId),
+        ]);
+        if (!cancelled) {
+          setSession(nextSession);
+          setSessionSongs(nextSongs);
+          if (sessionIndex !== null) {
+            writeLastSessionIndex(sessionId, sessionIndex);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setSession(null);
+          setSessionSongs([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, sessionIndex]);
+
   const handleEdit = async () => {
     if (!user || !isAdmin) {
       return;
@@ -126,9 +201,7 @@ export default function SongPage() {
       }
       router.push(`/song/${id}/edit`);
     } catch (error) {
-      setDeleteError(
-        error instanceof Error ? error.message : "Could not open editor.",
-      );
+      setDeleteError(formatError(error));
       setEditBusy(false);
     }
   };
@@ -143,19 +216,72 @@ export default function SongPage() {
       await archiveSong(id);
       router.push("/");
     } catch (error) {
-      setDeleteError(
-        error instanceof Error ? error.message : "Could not delete song.",
-      );
+      setDeleteError(formatError(error));
       setShowDelete(false);
     }
   };
 
+  const handleTranspose = useCallback((direction: -1 | 1) => {
+    setTargetKey((current) => {
+      if (!isKey(current)) {
+        return current;
+      }
+      return transposeKeyBy(current, direction);
+    });
+  }, []);
+
+  const handleToggleTheme = useCallback(() => {
+    setChartTheme((current) => {
+      const idx = THEME_CYCLE.indexOf(current);
+      const next = THEME_CYCLE[(idx + 1) % THEME_CYCLE.length];
+      writeChartTheme(next);
+      return next;
+    });
+  }, []);
+
+  const navigateSwipe = useCallback(
+    (direction: -1 | 1) => {
+      if (!sessionId || sessionIndex === null) {
+        return;
+      }
+      const href = buildAdjacentSongHref(
+        sessionId,
+        sessionSongs,
+        sessionIndex,
+        direction,
+      );
+      if (href) {
+        router.push(href);
+      }
+    },
+    [router, sessionId, sessionIndex, sessionSongs],
+  );
+
+  const onTouchStart = useCallback((event: React.TouchEvent) => {
+    swipeStartX.current = event.touches[0]?.clientX ?? null;
+  }, []);
+
+  const onTouchEnd = useCallback(
+    (event: React.TouchEvent) => {
+      if (swipeStartX.current === null || !sessionId || sessionIndex === null) {
+        return;
+      }
+      const endX = event.changedTouches[0]?.clientX;
+      if (endX === undefined) {
+        return;
+      }
+      const delta = endX - swipeStartX.current;
+      swipeStartX.current = null;
+      if (Math.abs(delta) < 72) {
+        return;
+      }
+      navigateSwipe(delta > 0 ? -1 : 1);
+    },
+    [navigateSwipe, sessionId, sessionIndex],
+  );
+
   if (!loaded || authLoading) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center p-4">
-        <p className="text-neutral-400">Loading…</p>
-      </main>
-    );
+    return <PageLoading />;
   }
 
   if (!song) {
@@ -177,8 +303,27 @@ export default function SongPage() {
     );
   }
 
+  const originalKey = song.originalKey;
+  const currentKey = isKey(targetKey) ? targetKey : originalKey;
+  const prevHref =
+    sessionId && sessionIndex !== null
+      ? buildAdjacentSongHref(sessionId, sessionSongs, sessionIndex, -1)
+      : null;
+  const nextHref =
+    sessionId && sessionIndex !== null
+      ? buildAdjacentSongHref(sessionId, sessionSongs, sessionIndex, 1)
+      : null;
+  const sessionPosition =
+    sessionIndex !== null && sessionSongs.length > 0
+      ? `${sessionIndex + 1}/${sessionSongs.length}`
+      : null;
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8">
+    <main
+      className="mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 pb-32 sm:p-8 sm:pb-36"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       <ConfirmDialog
         open={showDelete}
         title="Delete song?"
@@ -199,10 +344,10 @@ export default function SongPage() {
       )}
 
       <Link
-        href="/"
+        href={sessionId ? `/sessions/${sessionId}` : "/"}
         className="mb-2 inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
       >
-        ← Home
+        {sessionId ? "← Session" : "← Home"}
       </Link>
 
       {deleteError && (
@@ -211,89 +356,22 @@ export default function SongPage() {
         </p>
       )}
 
-      <header className="sticky top-0 z-10 -mx-4 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:-mx-8 sm:px-8 dark:border-neutral-800 dark:bg-neutral-950/95">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold sm:text-xl">
-              {song.title}
-            </h1>
-            <p className="text-xs text-neutral-500">
-              Key: {song.originalKey}
-              {version !== null && ` · v${version}`}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {user && isAdmin && (
-              <>
-                <button
-                  type="button"
-                  disabled={editBusy}
-                  onClick={() => {
-                    void handleEdit();
-                  }}
-                  className="min-h-9 rounded-lg border border-neutral-300 px-3 py-1 text-sm font-medium dark:border-neutral-700"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddToSession(true)}
-                  className="min-h-9 rounded-lg border border-neutral-300 px-3 py-1 text-sm font-medium dark:border-neutral-700"
-                >
-                  + Session
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDelete(true)}
-                  className="min-h-9 rounded-lg border border-red-300 px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
-                >
-                  Delete
-                </button>
-              </>
-            )}
-
-            <div className="flex overflow-hidden rounded-lg border border-neutral-300 text-xs dark:border-neutral-700">
-              <button
-                type="button"
-                onClick={() => setViewMode("chords")}
-                className={`px-3 py-1.5 font-medium transition-colors ${
-                  viewMode === "chords"
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-black"
-                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"
-                }`}
-              >
-                Chords
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("numbers")}
-                className={`px-3 py-1.5 font-medium transition-colors ${
-                  viewMode === "numbers"
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-black"
-                    : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400"
-                }`}
-              >
-                Numbers
-              </button>
-            </div>
-
-            <select
-              value={targetKey}
-              onChange={(e) =>
-                isKey(e.target.value) && setTargetKey(e.target.value)
-              }
-              className="min-h-9 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-sm font-semibold dark:border-neutral-700 dark:bg-neutral-950"
-            >
-              {ALL_KEYS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </header>
+      <SongToolbar
+        title={song.title}
+        originalKey={originalKey}
+        version={version}
+        viewMode={viewMode}
+        targetKey={targetKey}
+        isAdmin={Boolean(user && isAdmin)}
+        editBusy={editBusy}
+        onViewModeChange={setViewMode}
+        onTargetKeyChange={setTargetKey}
+        onEdit={() => {
+          void handleEdit();
+        }}
+        onAddToSession={() => setShowAddToSession(true)}
+        onDelete={() => setShowDelete(true)}
+      />
 
       {draft && (
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -304,25 +382,50 @@ export default function SongPage() {
         </p>
       )}
 
-      <div className="chord-chart mt-4 pb-8">
-        {song.sections.map((section, si) => (
-          <div key={`${section.label}-${si}`}>
-            <div className="section-label">[{section.label}]</div>
-            {section.lines.map((line, li) => (
-              <ChordLine
-                key={`${si}-${li}`}
-                line={line}
-                originalKey={song.originalKey}
-                targetKey={targetKey}
-                viewMode={viewMode}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
+      <ChordChartViewport
+        scale={zoom.scale}
+        scalePercent={zoom.scalePercent}
+        showIndicator={zoom.showIndicator}
+        pinchHandlers={zoom.pinchHandlers}
+        className="mt-4"
+      >
+        <div className="chord-chart">
+          {song.sections.map((section, si) => (
+            <div key={`${section.label}-${si}`}>
+              <div className="section-label">[{section.label}]</div>
+              {section.lines.map((line, li) => (
+                <ChordLine
+                  key={`${si}-${li}`}
+                  line={line}
+                  originalKey={originalKey}
+                  targetKey={targetKey}
+                  viewMode={viewMode}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </ChordChartViewport>
+
+      <PerformanceBottomBar
+        targetKey={currentKey}
+        originalKey={originalKey}
+        onTransposeDown={() => handleTranspose(-1)}
+        onTransposeUp={() => handleTranspose(1)}
+        onZoomOut={zoom.zoomOut}
+        onZoomIn={zoom.zoomIn}
+        scalePercent={zoom.scalePercent}
+        chartTheme={chartTheme}
+        onToggleTheme={handleToggleTheme}
+        sessionLabel={session?.title ?? null}
+        sessionPosition={sessionPosition}
+        prevHref={prevHref}
+        nextHref={nextHref}
+        sessionBackHref={sessionId ? `/sessions/${sessionId}` : null}
+      />
 
       {user && isAdmin && archives.length > 0 && (
-        <section className="border-t border-neutral-200 pt-6 dark:border-neutral-800">
+        <section className="mt-8 border-t border-neutral-200 pt-6 dark:border-neutral-800">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
             Version history
           </h2>

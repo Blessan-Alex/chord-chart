@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { listSessions } from "@/lib/firestore/sessions";
 import { addSongToSession } from "@/lib/firestore/sessionSongs";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { formatServiceType } from "@/lib/sessionLabels";
 import type { Session } from "@/lib/types";
 
 type AddToSessionModalProps = {
@@ -136,7 +135,6 @@ export function AddToSessionModal({
                 >
                   <span className="font-medium">{session.title}</span>
                   <span className="text-xs text-neutral-500">
-                    {formatServiceType(session.serviceType)} ·{" "}
                     {formatSessionDate(session.date)}
                     {session.status === "draft" ? " · Draft" : ""}
                   </span>

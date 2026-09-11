@@ -24,29 +24,20 @@ import {
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
 import {
-  formatServiceType,
-  SESSION_STATUS_LABELS,
-} from "@/lib/sessionLabels";
+  formatSessionDateLong,
+  sessionInitials,
+  sessionTileGradient,
+  songInitials,
+} from "@/lib/sessionDisplay";
+import { SESSION_STATUS_LABELS } from "@/lib/sessionLabels";
+import {
+  sessionSongHref,
+  startSetHref,
+} from "@/lib/sessionNavigation";
 import type { Session, SessionSong, SongIndexEntry } from "@/lib/types";
 
 function isKey(value: string): value is Key {
   return (ALL_KEYS as readonly string[]).includes(value);
-}
-
-function formatSessionDate(date: Session["date"]): string {
-  return date.toDate().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function songHref(songId: string, keyOverride: Key | null): string {
-  if (keyOverride) {
-    return `/song/${songId}?key=${encodeURIComponent(keyOverride)}`;
-  }
-  return `/song/${songId}`;
 }
 
 export default function SessionDetailPage() {
@@ -61,6 +52,7 @@ export default function SessionDetailPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [indexEntries, setIndexEntries] = useState<SongIndexEntry[]>([]);
   const [addSearch, setAddSearch] = useState("");
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<SessionSong | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -172,6 +164,9 @@ export default function SessionDetailPage() {
     );
   };
 
+  const playHref = startSetHref(sessionId, songs);
+  const heroGradient = session ? sessionTileGradient(session.id) : "";
+
   return (
     <SignInRequired>
       <ConfirmDialog
@@ -189,92 +184,123 @@ export default function SessionDetailPage() {
         onCancel={() => setPendingRemove(null)}
       />
 
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
+      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 bg-neutral-950 p-4 pb-10 text-white sm:p-8">
         <Link
           href="/sessions"
-          className="text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+          className="text-sm text-neutral-400 hover:text-neutral-200"
         >
           ← Sessions
         </Link>
 
-        {loading && <p className="text-neutral-400">Loading…</p>}
+        {loading && <p className="text-neutral-500">Loading…</p>}
 
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="text-sm text-red-400">{error}</p>
         )}
         {actionMessage && (
-          <p className="text-sm text-green-700 dark:text-green-400">
-            {actionMessage}
-          </p>
+          <p className="text-sm text-emerald-400">{actionMessage}</p>
         )}
 
         {!loading && session && session.status === "draft" && !isAdmin && (
-          <p className="text-neutral-600 dark:text-neutral-400">
+          <p className="text-neutral-400">
             This session is not published yet.
           </p>
         )}
 
         {!loading && session && (session.status === "published" || isAdmin) && (
           <>
-            <header className="flex flex-col gap-3">
-              <div>
-                <h1 className="text-2xl font-semibold">{session.title}</h1>
-                <p className="mt-1 text-sm text-neutral-500">
-                  {formatServiceType(session.serviceType)} ·{" "}
-                  {formatSessionDate(session.date)}
-                </p>
-                <p className="text-xs text-neutral-400">
-                  {SESSION_STATUS_LABELS[session.status]} · {songs.length}{" "}
-                  songs
-                </p>
+            <header className="flex flex-col gap-5">
+              <div className="flex items-end gap-4">
+                <div
+                  className={`flex h-28 w-28 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${heroGradient} text-2xl font-bold text-white shadow-xl sm:h-36 sm:w-36`}
+                  aria-hidden
+                >
+                  {sessionInitials(session.title)}
+                </div>
+                <div className="min-w-0 pb-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                    {SESSION_STATUS_LABELS[session.status]}
+                  </p>
+                  <h1 className="mt-1 text-2xl font-bold leading-tight sm:text-4xl">
+                    {session.title}
+                  </h1>
+                  <p className="mt-2 text-sm text-neutral-400">
+                    {formatSessionDateLong(session.date)} · {songs.length}{" "}
+                    {songs.length === 1 ? "song" : "songs"}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                {playHref ? (
+                  <Link
+                    href={playHref}
+                    className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-2xl text-black shadow-lg transition-transform hover:scale-105"
+                    aria-label="Start set"
+                  >
+                    ▶
+                  </Link>
+                ) : (
+                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-neutral-700 text-2xl text-neutral-500">
+                    ▶
+                  </span>
+                )}
+
                 <button
                   type="button"
                   disabled={busy}
                   onClick={handleCacheOffline}
-                  className="rounded border border-neutral-300 px-3 py-2 text-sm font-medium dark:border-neutral-700"
+                  className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-neutral-300 transition-colors hover:bg-white/10"
+                  aria-label="Cache for offline"
+                  title="Cache for offline"
                 >
-                  Cache for offline
+                  ⬇
                 </button>
+
                 {isAdmin && session.status === "draft" && (
                   <button
                     type="button"
                     disabled={busy}
                     onClick={handlePublish}
-                    className="rounded bg-black px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
+                    className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium"
                   >
-                    Publish session
+                    Publish
+                  </button>
+                )}
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPanel((open) => !open)}
+                    className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium"
+                  >
+                    {showAddPanel ? "Done" : "+ Add songs"}
                   </button>
                 )}
               </div>
             </header>
 
-            {isAdmin && (
-              <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-500">
-                  Add songs
-                </h2>
+            {isAdmin && showAddPanel && (
+              <section className="rounded-2xl bg-neutral-900 p-4">
                 <input
                   type="search"
                   value={addSearch}
                   onChange={(e) => setAddSearch(e.target.value)}
                   placeholder="Search library…"
-                  className="mt-3 min-h-10 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                  className="min-h-11 w-full rounded-full bg-white/10 px-4 text-sm text-white placeholder:text-neutral-500 focus:outline-none"
                 />
                 {addSearch.trim() && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                  <ul className="mt-2 max-h-48 overflow-y-auto">
                     {addResults.slice(0, 8).map((entry) => (
                       <li key={entry.id}>
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => handleAddSong(entry)}
-                          className="flex w-full items-center justify-between px-2 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm hover:bg-white/5"
                         >
                           <span>{entry.title}</span>
-                          <span className="text-neutral-400">+ Add</span>
+                          <span className="text-neutral-500">+ Add</span>
                         </button>
                       </li>
                     ))}
@@ -284,41 +310,52 @@ export default function SessionDetailPage() {
             )}
 
             <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
-                Set list
-              </h2>
               {songs.length === 0 ? (
-                <p className="text-sm text-neutral-500">
-                  No songs in this session yet.
-                </p>
+                <div className="rounded-2xl bg-neutral-900 p-8 text-center">
+                  <p className="font-semibold">No songs yet</p>
+                  <p className="mt-2 text-sm text-neutral-400">
+                    {isAdmin
+                      ? "Add songs to build this set list."
+                      : "Songs will appear here once added."}
+                  </p>
+                </div>
               ) : (
-                <ol className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+                <ol className="flex flex-col">
                   {songs.map((entry, index) => (
                     <li
                       key={entry.id}
-                      className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center"
+                      className="group flex min-h-14 items-center gap-3 border-b border-white/10 py-2 last:border-b-0"
                     >
-                      <span className="w-6 shrink-0 text-sm text-neutral-400">
-                        {index + 1}.
+                      <span className="w-5 shrink-0 text-sm tabular-nums text-neutral-500">
+                        {index + 1}
                       </span>
-                      <Link
-                        href={songHref(entry.songId, entry.keyOverride)}
-                        className="min-w-0 flex-1 font-medium hover:underline"
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-neutral-800 text-sm font-semibold text-neutral-300"
+                        aria-hidden
                       >
-                        {entry.songTitle}
+                        {songInitials(entry.songTitle)}
+                      </div>
+                      <Link
+                        href={sessionSongHref(sessionId, entry, index)}
+                        className="min-w-0 flex-1 py-2"
+                      >
+                        <p className="truncate font-medium text-white group-hover:underline">
+                          {entry.songTitle}
+                        </p>
                       </Link>
+
                       {isAdmin ? (
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-1">
                           <select
                             value={entry.keyOverride ?? ""}
                             onChange={(e) =>
                               handleKeyOverride(entry, e.target.value)
                             }
                             disabled={busy}
-                            className="rounded border border-neutral-300 bg-white px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+                            className="rounded-full border border-white/10 bg-neutral-900 px-2 py-1 text-xs dark:bg-neutral-900"
                             aria-label={`Key for ${entry.songTitle}`}
                           >
-                            <option value="">Original</option>
+                            <option value="">Orig</option>
                             {ALL_KEYS.map((key) => (
                               <option key={key} value={key}>
                                 {key}
@@ -329,7 +366,7 @@ export default function SessionDetailPage() {
                             type="button"
                             disabled={busy || index === 0}
                             onClick={() => handleMoveUp(index)}
-                            className="rounded border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm hover:bg-white/10 disabled:opacity-30"
                             title="Move up"
                           >
                             ↑
@@ -338,7 +375,7 @@ export default function SessionDetailPage() {
                             type="button"
                             disabled={busy || index === songs.length - 1}
                             onClick={() => handleMoveDown(index)}
-                            className="rounded border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm hover:bg-white/10 disabled:opacity-30"
                             title="Move down"
                           >
                             ↓
@@ -347,7 +384,7 @@ export default function SessionDetailPage() {
                             type="button"
                             disabled={busy}
                             onClick={() => setPendingRemove(entry)}
-                            className="px-2 text-neutral-400 hover:text-red-600"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-500 hover:bg-white/10 hover:text-red-400"
                             title="Remove"
                           >
                             ✕
@@ -355,8 +392,8 @@ export default function SessionDetailPage() {
                         </div>
                       ) : (
                         entry.keyOverride && (
-                          <span className="text-sm text-neutral-500">
-                            Key: {entry.keyOverride}
+                          <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-neutral-200">
+                            {entry.keyOverride}
                           </span>
                         )
                       )}
@@ -369,9 +406,7 @@ export default function SessionDetailPage() {
         )}
 
         {!loading && !session && (
-          <p className="text-neutral-600 dark:text-neutral-400">
-            Session not found.
-          </p>
+          <p className="text-neutral-400">Session not found.</p>
         )}
       </main>
     </SignInRequired>
