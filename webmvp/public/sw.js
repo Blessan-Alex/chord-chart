@@ -1,4 +1,4 @@
-const CACHE_NAME = "lf-chordapp-shell-v1";
+const CACHE_NAME = "lf-chordapp-shell-v2";
 const SHELL_URLS = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -26,7 +26,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const url = new URL(event.request.url);
+
+  // Network-only — used by useOnlineStatus; must not be served from cache.
+  if (url.pathname === "/connectivity.txt") {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request)),
+    fetch(event.request).catch(() => caches.match(event.request)),
   );
 });
