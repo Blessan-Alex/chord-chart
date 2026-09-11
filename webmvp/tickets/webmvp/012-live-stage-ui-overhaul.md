@@ -24,4 +24,4 @@ Fix broken line 2 alignment and rehaul song/import UI for live on-stage use — 
 
 ## Resolution
 
-Added `labels?: string[]` to `Line` type and `getSlotLabels()` in `lineLabels.ts` with comma/space fallback for legacy songs. Twinkle preset now has explicit syllable labels for both lines. `SongLine` uses 4-col grid (no horizontal scroll), large degrees, labels below — no duplicate lyric row. `PerformanceHeader` compact: key + options menu (title, chord toggle hidden). Import page: chart-builder layout, sticky Save on mobile. Song view: `performance-mode` dark theme, `max-w-2xl`. Verified via `scripts/verify-line-labels.ts`.
+Live-stage UI iteration: compact sticky header, chords/numbers toggle, `ChordRow` with `ch` positioning. Import page: interactive chord editor, sticky Save on mobile. Song view: dark-mode-friendly chart styling, `max-w-2xl`. Superseded by current `ChordRow` / `InteractiveEditor` architecture (see `MAP.md`).

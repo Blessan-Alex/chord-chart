@@ -23,4 +23,4 @@ Rehaul song view for live on-stage use: numbers anchored above lyrics, key in st
 
 ## Resolution
 
-Replaced spreadsheet-style rows with inline chart columns in `SongLine` — degree above each lyric word, horizontal scroll on narrow screens. Added `PerformanceHeader` with sticky large KeyPicker, song title, original key hint, and "Show chord letters" toggle (default OFF). `transposeSlot` only used when toggle is ON. Numbers always from stored `slot.degree`. `npm run build` passes.
+Replaced spreadsheet-style rows with inline chart columns in `ChordLine` — degrees above lyric words via `ChordRow`. Sticky song header with key selector, title, and chords/numbers toggle. `transposeChord` used for chords view; `chordToDegree` for numbers view. `npm run build` passes.

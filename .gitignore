@@ -31,6 +31,9 @@ Desktop.ini
 *.pem
 *.key
 *.p12
+serviceAccountKey.json
+**/serviceAccount*.json
+*-serviceaccount*.json
 
 # --- Logs & debug ---
 *.log

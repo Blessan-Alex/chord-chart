@@ -14,7 +14,7 @@ Diagnose and harden against Next.js dev overlay showing `Runtime Error — [obje
 
 ## Root cause
 
-No single app bug reproduced a raw Event in state handlers — `KeyPicker` already extracted `event.target.value`. The overlay message appears when:
+No single app bug reproduced a raw Event in state handlers — the key selector already extracted `event.target.value`. The overlay message appears when:
 
 1. **Dev/HMR or stale `.next` cache** — JS chunks 404; script `error` events surface as `[object Event]` in the Next.js overlay (most common during dev).
 2. **Unhandled navigation rejection** — `router.push()` on import save had no `.catch()`.
@@ -25,8 +25,8 @@ No single app bug reproduced a raw Event in state handlers — `KeyPicker` alrea
 - `src/lib/formatError.ts` — format Error, Event, and unknown values safely
 - `src/app/error.tsx` + `global-error.tsx` — user-facing error UI with Try again / Home
 - `song/[id]/page.tsx` — guarded `handleKeyChange` / `handleShowChordLettersChange` (never accept Event as key)
-- `KeyPicker.tsx` — shared `handleSelectChange` validates MAJOR_KEYS before calling onChange
-- `SongLine.tsx` — try/catch around `transposeSlot`; invalid key skipped
+- Song view — guarded key select validates `ALL_KEYS` before calling onChange
+- `ChordLine` — try/catch around `transposeChord`; invalid key skipped
 - `import/page.tsx` — `formatError` for save errors (App Router `router.push` is void, not Promise)
 
 ## Verify
@@ -50,4 +50,4 @@ npm run build && npm run start
 
 ## Resolution
 
-Hardened error handling and event guards across song view, import save, and KeyPicker. Added `formatError` utility and app error boundaries. Primary `[object Event]` during dev often indicates stale `.next`/HMR chunk load failure — restart dev or delete `.next` if overlay persists after code changes.
+Hardened error handling and event guards across song view and import save. Added `formatError` utility and app error boundaries. Primary `[object Event]` during dev often indicates stale `.next`/HMR chunk load failure — restart dev or delete `.next` if overlay persists after code changes.

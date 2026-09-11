@@ -16,13 +16,13 @@ Define the song data shape and hard-code the Twinkle Twinkle template (lyrics + 
 
 Create:
 
-- `src/lib/types.ts` — `ChordSlot`, `Line`, `Song`
+- `src/lib/types.ts` — `ChordMark`, `LyricLine`, `Section`, `Song`
 - `src/data/presets.ts` — Twinkle Twinkle with 2 lines, 4 slots each
 
 ```typescript
-// ChordSlot: { chord: string, degree?: string, quality?: string }
-// Line: { lyrics: string, slots: ChordSlot[] }
-// Song: { id, title, originalKey, lines[] }
+// ChordMark: { chord: string, position: number }
+// LyricLine: { lyrics: string, chords: ChordMark[] }
+// Song: { id, title, originalKey, sections: Section[] }
 ```
 
 Twinkle lines (MVP):
@@ -42,9 +42,8 @@ Expected chords when filled: `C C F C` / `F C G C` in key C.
 
 ## References
 
-- [`webmvp/docs/SRS.md`](../../webmvp/docs/SRS.md) — Data per song, Twinkle preset
-- [`webmvp/docs/PLAN.md`](../../webmvp/docs/PLAN.md) — Step 2–3
+- [`docs/02-data-model-firestore-schema.md`](../../../docs/02-data-model-firestore-schema.md) — Data model
 
 ## Resolution
 
-Created `src/lib/types.ts` with plain TypeScript exports: `ChordSlot`, `Line`, and `Song` (no React). Created `src/data/presets.ts` exporting `twinklePreset` — title "Twinkle Twinkle Little Star", originalKey "C", two lyric lines with four empty chord slots each (8 total). Verified compile via `npm run build` and temporary import in `src/app/page.tsx`.
+Created `src/lib/types.ts` with section-based song types (no React). Created `src/data/presets.ts` with Twinkle preset — title "Twinkle Twinkle Little Star", originalKey "C", chord marks at character positions. Verified compile via `npm run build`.

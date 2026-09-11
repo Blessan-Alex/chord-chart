@@ -1,13 +1,57 @@
 # Map — Web MVP Prototype
 
 **Label:** `wayfinder:map`  
-**Status:** closed — MVP verified + mobile polish + live-stage chart (ticket 010)
+**Status:** closed — core MVP verified; architecture aligned with `docs/` tree
 
 ---
 
-## Frontier (open, unblocked)
+## Current architecture
 
-_All core tickets complete._ Optional follow-ups: extra Twinkle lines, edit-from-song-view.
+### Data model (`src/lib/types.ts`)
+
+```
+Song → Section[] → LyricLine → ChordMark { chord, position }
+```
+
+- **Song** — `id`, `title`, `originalKey` (`Key` union), `sections`
+- **Section** — `label`, `lines`
+- **LyricLine** — `lyrics`, `chords`
+- **ChordMark** — chord string at a character `position` in the lyric line
+
+Presets live in `src/data/presets.ts` as `SongPreset` (with `presetId` for routing only — not stored on `Song`).
+
+### Components
+
+| Component | Role |
+|---|---|
+| `HomePage` | Song list (saved + presets), delete, link to import |
+| `ChordLine` | One lyric line: chord row + lyrics |
+| `ChordRow` | Absolutely positioned chords in `ch` units |
+| `InteractiveEditor` | Import step 2 — click-to-place chords, diatonic palette |
+
+### Engine (`src/lib/engine.ts`)
+
+| Export | Purpose |
+|---|---|
+| `transposeChord` | Transpose a chord between keys |
+| `chordToDegree` | Scale-degree display (numbers view) |
+| `getDiatonicChords` | 6 diatonic triads for any `Key` |
+| `isValidChord` | Parse guard for chord input |
+| `ALL_KEYS` / `Key` | 12 major keys |
+
+### Storage (`src/lib/storage.ts`)
+
+- **Key:** `lf-chord-app-songs` in `localStorage`
+- **API:** `getSongs`, `getSong`, `saveSong`, `deleteSong`
+- **Validation:** `validateSong` called before every write
+
+### Routes
+
+| Path | Page |
+|---|---|
+| `/` | Home — presets + saved songs |
+| `/import` | Paste lyrics → place chords → save |
+| `/song/[id]` | Song view — transpose + chords/numbers toggle |
 
 ---
 
@@ -27,39 +71,35 @@ _All core tickets complete._ Optional follow-ups: extra Twinkle lines, edit-from
 | 010 | [Live-stage song view](webmvp/010-live-stage-song-view.md) | closed | 009 |
 | 011 | [Fix [object Event] runtime error](webmvp/011-fix-object-event-runtime-error.md) | closed | 010 |
 | 012 | [Live stage UI overhaul](webmvp/012-live-stage-ui-overhaul.md) | closed | 011 |
+| 013 | [Multi-song presets + no duplicates](webmvp/013-multi-song-presets.md) | closed | 012 |
 
 ---
 
 ## Decisions so far
 
-- **001 closed:** Next.js 15 scaffold in `webmvp/` with App Router, TypeScript, Tailwind v4, ESLint, and `src/` layout (`app`, `lib`, `components`, `data`).
-- **002 closed:** `ChordSlot` / `Line` / `Song` types in `src/lib/types.ts`; `twinklePreset` in `src/data/presets.ts` (2 lines × 4 empty chord slots).
-- **003 closed:** Pure transposition engine in `src/lib/engine.ts` — parse, degree map, transpose; all Twinkle test cases pass.
-- **004 closed:** Browser persistence in `src/lib/storage.ts` — `getSongs` / `getSong` / `saveSong` via `lf-chord-app-songs` key; SSR-safe.
-- **006 closed:** Import page at `/import` — Twinkle preset, chord inputs, auto-map on save, redirect to `/song/[id]`.
-- **007 closed:** Song view at `/song/[id]` — `KeyPicker` + `SongLine`, live transpose via `transposeSlot`, fixed degree row.
-- **005 closed:** MVP home — song list from `getSongs()`, Import Song button, links to song view; dev placeholders removed.
-- **008 closed:** E2E verified — import/persist/transpose flow passes; engine + song-view scripts green.
-- **009 closed:** Mobile-responsive layout — 375px-friendly, touch targets, slot-card chord display on phone, sticky KeyPicker.
-- **010 closed:** Live-stage song view — numbers above lyrics (chart columns), sticky performance header, optional chord letters toggle.
-- **011 closed:** `[object Event]` hardening — `formatError`, error boundaries, guarded key/toggle handlers; dev overlay often from stale `.next`/HMR.
-- **012 closed:** Syllable `labels` on lines + lead-sheet UI — line 2 fixed (How/I/wonder/what), compact stage header, dark performance mode.
+- **001 closed:** Next.js 15 scaffold in `webmvp/` with App Router, TypeScript, Tailwind v4, ESLint, and `src/` layout.
+- **002 closed:** `Song` / `Section` / `LyricLine` / `ChordMark` types; Twinkle preset in `src/data/presets.ts`.
+- **003 closed:** Pure transposition engine in `src/lib/engine.ts` — `parseChord`, `transposeChord`, `chordToDegree`.
+- **004 closed:** Browser persistence via `lf-chord-app-songs`; SSR-safe `getSongs` / `saveSong`.
+- **005 closed:** Home page lists saved songs and presets; Import link.
+- **006 closed:** Import flow — paste lyrics, `InteractiveEditor` for chord placement, save to localStorage.
+- **007 closed:** Song view at `/song/[id]` — `ChordLine` + `ChordRow`, live transpose, chords/numbers toggle.
+- **008 closed:** E2E verified — import/persist/transpose flow passes.
+- **009–012 closed:** Mobile layout, live-stage chart UI iterations (superseded by current `ChordRow` renderer).
+- **013 closed:** 10 worship presets in `SONG_PRESETS`; preset routes use `presetId` as URL id.
 
 ---
 
 ## Not yet specified
 
-- Extra Twinkle lyrics lines (3–4) after core flow works
-- Edit existing song from Song View
-- Basic chord input validation UX
+- Edit existing song from song view
+- Replace `confirm()` delete with proper modal
+- Firebase migration (see `docs/02`–`docs/05`)
 
 ---
 
-## Out of scope
+## Out of scope (MVP)
 
-- Supabase / cloud database
+- Supabase / cloud database (until Firebase migration)
 - User login
-- Minor chords, 7ths, slash chords, capo
-- Unit tests (optional after 008 passes)
-- Flutter / mobile app
-- Production polish and styling (mobile layout covered in 009)
+- Unit test framework in CI (optional scripts in `scripts/`)

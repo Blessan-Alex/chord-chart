@@ -23,7 +23,7 @@ Create `src/lib/engine.ts`:
 | `parseBasicChord(input)` | Parse `C`, `F#`, `Bb` → root + `major` |
 | `chordToDegree(chord, originalKey)` | `F` in key `C` → `IV` |
 | `chordFromDegree(degree, quality, targetKey)` | `IV` in key `G` → `C` |
-| `transposeSlot(slot, targetKey)` | Use stored degree + quality → display chord |
+| `transposeChord(chord, fromKey, toKey)` | Transpose chord string between keys |
 
 ## Test cases (manual or quick script)
 
@@ -46,9 +46,9 @@ Create `src/lib/engine.ts`:
 
 ## References
 
-- [`webmvp/docs/SRS.md`](../../webmvp/docs/SRS.md) — Auto-map rule, Transpose rule
+- [`docs/02-data-model-firestore-schema.md`](../../../docs/02-data-model-firestore-schema.md) — Transpose rule
 - `/prototype` LOGIC — isolate pure module
 
 ## Resolution
 
-**Verdict: pass.** Added `src/lib/engine.ts` with `parseBasicChord`, `chordToDegree`, `chordFromDegree`, `transposeSlot`, and helper `transposeChords`. Pure TypeScript — no React or localStorage. Supports all 12 major keys; major quality only. All ticket test cases pass (verified via `scripts/verify-engine.ts`). Home page shows live check: `C C F C` → `G G C G` in key G. Non-diatonic chords throw a clear error (edge case for later UI validation).
+**Verdict: pass.** Added `src/lib/engine.ts` with `parseChord`, `chordToDegree`, and `transposeChord`. Pure TypeScript — no React or localStorage. Supports all 12 major keys. All ticket test cases pass (verified via `scripts/verify-engine.ts`).

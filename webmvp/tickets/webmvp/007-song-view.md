@@ -16,9 +16,9 @@ Open a saved song, change key, see chords update instantly. Degree row stays fix
 
 Create `src/app/song/[id]/page.tsx` + components:
 
-**`KeyPicker`** — dropdown: 12 major keys (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B)
+**Key selector** — dropdown: 12 major keys (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B)
 
-**`SongLine`** — per line, three rows:
+**`ChordLine`** — per line, chord row + lyrics:
 
 ```text
 G        G        C        G      ← transposed chords (from engine)
@@ -28,7 +28,7 @@ Twinkle, twinkle, little, star   ← lyrics
 
 - Load song by `id` from localStorage
 - Default key = song's `originalKey`
-- On key change: re-run `transposeSlot()` for each slot — **no save needed**, display only
+- On key change: re-run `transposeChord()` for each chord — **no save needed**, display only
 - **Edit** link → `/import?id=...` (optional; can defer)
 
 ## Test matrix
@@ -51,9 +51,8 @@ Degrees always: `I I IV I` / `IV I V I`
 
 ## References
 
-- [`webmvp/docs/SRS.md`](../../webmvp/docs/SRS.md) — F9, F10, Transpose rule
-- [`webmvp/docs/PLAN.md`](../../webmvp/docs/PLAN.md) — Screen 3
+- [`docs/01-product-ux-overview.md`](../../../docs/01-product-ux-overview.md) — Song view
 
 ## Resolution
 
-Added `KeyPicker` and `SongLine` components plus client `src/app/song/[id]/page.tsx`. Loads song via `getSong(id)` on mount; default key is `originalKey`. Key changes re-render transposed chords via `transposeSlot` (display only, degrees from stored data). Friendly not-found state for invalid ids. Test matrix C/G/D verified in `scripts/verify-song-view.ts`. Import → Save → Song View loop works; `npm run build` passes.
+Added `ChordLine` / `ChordRow` plus client `src/app/song/[id]/page.tsx`. Loads song via `getSong(id)` on mount; default key is `originalKey`. Key changes re-render transposed chords via `transposeChord` (display only). Friendly not-found state for invalid ids. Import → Save → Song View loop works; `npm run build` passes.

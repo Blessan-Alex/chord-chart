@@ -21,9 +21,8 @@ Pages/components to update (webmvp/ only):
 | `src/app/layout.tsx` | Viewport meta, safe-area, prevent overflow-x |
 | `src/components/HomePage.tsx` | Tighter padding, full-width Import button on small screens, tap-friendly list rows |
 | `src/app/import/page.tsx` | Stack preset/key controls, 2-col chord grid on phone, larger inputs, full-width Save |
-| `src/app/song/[id]/page.tsx` | Sticky or prominent KeyPicker, readable title wrap |
-| `src/components/KeyPicker.tsx` | Full-width select, min touch height 44px |
-| `src/components/SongLine.tsx` | Mobile chord layout — align chord/degree under each word; no truncation clipping |
+| `src/app/song/[id]/page.tsx` | Sticky key selector, readable title wrap |
+| `src/components/ChordLine.tsx` | Mobile chord layout — align chord/degree above lyrics |
 
 ## Requirements
 
@@ -72,4 +71,4 @@ Use Chrome DevTools → iPhone 14 / Pixel 7 (375×812) and real phone if possibl
 
 ## Resolution
 
-Phone-first UI polish across all routes. Added `viewport` export with `viewport-fit=cover`, safe-area insets, and `overflow-x-hidden` on html/body. All pages use `p-4 sm:p-8`, `w-full max-w-*`, 44px touch targets, and `text-base` inputs. Home: full-width Import on mobile, tappable list rows. Import: stacked controls, 2-col chord grid, full-width Save. Song view: sticky full-width KeyPicker, wrapping title. `SongLine`: mobile slot cards (word + chord + degree per cell), desktop 4-col rows preserved. No engine/storage changes. `npm run build` passes.
+Phone-first UI polish across all routes. Added `viewport` export with `viewport-fit=cover`, safe-area insets, and `overflow-x-hidden` on html/body. All pages use `p-4 sm:p-8`, `w-full max-w-*`, 44px touch targets, and `text-base` inputs. Home: full-width Import on mobile, tappable list rows. Import: stacked controls, full-width Save. Song view: sticky header with key selector and wrapping title. No engine/storage changes. `npm run build` passes.

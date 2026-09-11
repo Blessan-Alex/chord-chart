@@ -2,7 +2,11 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1a1a1a;
+  --chord-color: #000000;
+  --lyric-color: #444444;
+  --section-color: #333333;
+  --section-bg: #f5f5f5;
 }
 
 @theme inline {
@@ -16,6 +20,10 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --chord-color: #ffffff;
+    --lyric-color: #b0b0b0;
+    --section-color: #d0d0d0;
+    --section-bg: #1a1a1a;
   }
 }
 
@@ -30,25 +38,46 @@ body {
   overflow-x: hidden;
 }
 
-/* Live performance song view */
-.performance-mode {
-  background-color: #0a0a0a;
-  color: #ededed;
-  min-height: 100vh;
+/* ── Chord chart ── */
+
+.chord-chart {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 15px;
+  line-height: 1.3;
+  overflow-x: auto;
+  white-space: pre;
+  padding-bottom: 1rem;
 }
 
-.performance-mode .chart-degree {
-  color: #ffffff;
+.section-label {
+  font-weight: 700;
+  color: var(--section-color);
+  font-size: 14px;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  padding: 2px 8px;
+  background: var(--section-bg);
+  border-radius: 4px;
+  display: inline-block;
 }
 
-.performance-mode .chart-label {
-  color: #cccccc;
+.chord-line {
+  margin-bottom: 2px;
+  min-width: min-content;
 }
 
-.performance-mode .chart-chord {
-  color: #888888;
+.chord-row {
+  color: var(--chord-color);
+  font-weight: 700;
+  min-height: 1.3em;
+  letter-spacing: 0;
 }
 
-.performance-mode .chart-line + .chart-line {
-  margin-top: 2.5rem;
+.lyric-row {
+  color: var(--lyric-color);
+}
+
+/* First section label has no top margin */
+.chord-chart > div:first-child > .section-label {
+  margin-top: 0;
 }
