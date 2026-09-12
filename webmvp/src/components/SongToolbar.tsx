@@ -14,6 +14,7 @@ export type SongToolbarProps = {
   targetKey: string;
   isAdmin: boolean;
   editBusy?: boolean;
+  performanceMode?: boolean;
   onViewModeChange: (mode: SongViewMode) => void;
   onTargetKeyChange: (key: Key) => void;
   onEdit?: () => void;
@@ -85,13 +86,68 @@ export function SongToolbar({
   targetKey,
   isAdmin,
   editBusy = false,
+  performanceMode = false,
   onViewModeChange,
   onTargetKeyChange,
   onEdit,
   onAddToSession,
   onDelete,
 }: SongToolbarProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+
+  if (performanceMode) {
+    return (
+      <header className="sticky top-0 z-10 -mx-4 border-b border-neutral-200 bg-white/95 px-4 py-2 backdrop-blur-sm sm:-mx-8 sm:px-8 dark:border-neutral-800 dark:bg-neutral-950/95">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="min-w-0 truncate text-base font-semibold">{title}</h1>
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              aria-label="Song options"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-neutral-300 text-lg dark:border-neutral-700"
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onViewModeChange(viewMode === "chords" ? "numbers" : "chords");
+                    setMenuOpen(false);
+                  }}
+                  className="min-h-10 w-full rounded-lg px-3 py-2 text-left text-sm font-medium"
+                >
+                  View: {viewMode === "chords" ? "Numbers" : "Chords"}
+                </button>
+                {isAdmin && (
+                  <AdminActions
+                    editBusy={editBusy}
+                    onEdit={() => {
+                      setMenuOpen(false);
+                      onEdit?.();
+                    }}
+                    onAddToSession={() => {
+                      setMenuOpen(false);
+                      onAddToSession?.();
+                    }}
+                    onDelete={() => {
+                      setMenuOpen(false);
+                      onDelete?.();
+                    }}
+                    compact
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-10 -mx-4 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:-mx-8 sm:px-8 dark:border-neutral-800 dark:bg-neutral-950/95">

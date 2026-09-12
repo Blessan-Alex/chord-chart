@@ -23,6 +23,8 @@ import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import { getSession } from "@/lib/firestore/sessions";
 import { archiveSong, getSong as getFirestoreSong } from "@/lib/firestore/songs";
 import { useChartZoom } from "@/lib/hooks/useChartZoom";
+import { useChartLayout } from "@/lib/hooks/useChartLayout";
+import { usePerformanceMode } from "@/lib/hooks/usePerformanceMode";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { isKey, transposeKeyBy } from "@/lib/keyUtils";
 import {
@@ -63,9 +65,12 @@ export default function SongPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionSongs, setSessionSongs] = useState<SessionSong[]>([]);
   const [chartTheme, setChartTheme] = useState<ChartTheme>("system");
+  const [transposeFlash, setTransposeFlash] = useState<Key | null>(null);
 
   const swipeStartX = useRef<number | null>(null);
+  const performanceMode = usePerformanceMode(sessionId);
   const zoom = useChartZoom({ sessionId });
+  const { containerRef, maxChars } = useChartLayout(zoom.scale, performanceMode);
 
   useEffect(() => {
     setChartTheme(readChartTheme());
@@ -82,6 +87,20 @@ export default function SongPage() {
       root.removeAttribute("data-chart-theme");
     };
   }, [chartTheme]);
+
+  useEffect(() => {
+    if (!performanceMode) {
+      document.documentElement.classList.remove("song-performance-page");
+      document.body.classList.remove("song-performance-page");
+      return;
+    }
+    document.documentElement.classList.add("song-performance-page");
+    document.body.classList.add("song-performance-page");
+    return () => {
+      document.documentElement.classList.remove("song-performance-page");
+      document.body.classList.remove("song-performance-page");
+    };
+  }, [performanceMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,9 +245,23 @@ export default function SongPage() {
       if (!isKey(current)) {
         return current;
       }
-      return transposeKeyBy(current, direction);
+      const next = transposeKeyBy(current, direction);
+      setTransposeFlash(next);
+      window.setTimeout(() => setTransposeFlash(null), 900);
+      return next;
     });
   }, []);
+
+  const handlePinchScale = useCallback(
+    (next: number) => {
+      zoom.setScaleLive(next);
+    },
+    [zoom],
+  );
+
+  const handlePinchEnd = useCallback(() => {
+    zoom.commitScale();
+  }, [zoom]);
 
   const handleToggleTheme = useCallback(() => {
     setChartTheme((current) => {
@@ -320,7 +353,9 @@ export default function SongPage() {
 
   return (
     <main
-      className="mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 pb-32 sm:p-8 sm:pb-36"
+      className={`mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 pb-28 sm:p-8 sm:pb-32 ${
+        performanceMode ? "song-page--performance" : ""
+      }`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -343,12 +378,14 @@ export default function SongPage() {
         />
       )}
 
-      <Link
-        href={sessionId ? `/sessions/${sessionId}` : "/"}
-        className="mb-2 inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-      >
-        {sessionId ? "← Session" : "← Home"}
-      </Link>
+      {!performanceMode && (
+        <Link
+          href={sessionId ? `/sessions/${sessionId}` : "/"}
+          className="mb-2 inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+        >
+          {sessionId ? "← Session" : "← Home"}
+        </Link>
+      )}
 
       {deleteError && (
         <p className="mb-2 text-sm text-red-600 dark:text-red-400">
@@ -364,6 +401,7 @@ export default function SongPage() {
         targetKey={targetKey}
         isAdmin={Boolean(user && isAdmin)}
         editBusy={editBusy}
+        performanceMode={performanceMode}
         onViewModeChange={setViewMode}
         onTargetKeyChange={setTargetKey}
         onEdit={() => {
@@ -373,7 +411,7 @@ export default function SongPage() {
         onDelete={() => setShowDelete(true)}
       />
 
-      {draft && (
+      {!performanceMode && draft && (
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           Draft in progress.{" "}
           <Link href={`/song/${id}/edit`} className="font-medium underline">
@@ -386,8 +424,11 @@ export default function SongPage() {
         scale={zoom.scale}
         scalePercent={zoom.scalePercent}
         showIndicator={zoom.showIndicator}
-        pinchHandlers={zoom.pinchHandlers}
-        className="mt-4"
+        containerRef={containerRef}
+        onPinchScale={handlePinchScale}
+        onPinchEnd={handlePinchEnd}
+        onDoubleTap={zoom.toggleZoomPreset}
+        className="mt-2 min-w-0 flex-1 sm:mt-4"
       >
         <div className="chord-chart">
           {song.sections.map((section, si) => (
@@ -400,6 +441,8 @@ export default function SongPage() {
                   originalKey={originalKey}
                   targetKey={targetKey}
                   viewMode={viewMode}
+                  wrapEnabled={performanceMode}
+                  maxChars={maxChars}
                 />
               ))}
             </div>
@@ -417,6 +460,7 @@ export default function SongPage() {
         scalePercent={zoom.scalePercent}
         chartTheme={chartTheme}
         onToggleTheme={handleToggleTheme}
+        transposeFlash={transposeFlash}
         sessionLabel={session?.title ?? null}
         sessionPosition={sessionPosition}
         prevHref={prevHref}

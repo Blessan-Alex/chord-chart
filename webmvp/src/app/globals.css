@@ -46,34 +46,69 @@
 }
 
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+html.song-performance-page,
+body.song-performance-page {
+  overflow-x: visible;
 }
 
 /* ── Chord chart ── */
 
 .chord-chart {
   font-family: "Courier New", Courier, monospace;
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: calc(var(--chart-base-size, 16px) * var(--chart-scale, 1));
+  line-height: 1.55;
   overflow-x: auto;
   white-space: pre;
   padding-bottom: 1rem;
   user-select: none;
+  width: 100%;
+  max-width: 100%;
+}
+
+.song-page--performance .chord-chart {
+  --chart-base-size: 18px;
+  overflow-x: visible;
+  white-space: normal;
 }
 
 .chord-chart-viewport {
   -webkit-overflow-scrolling: touch;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 .chord-chart-scaler {
   transform-origin: top center;
+  width: 100%;
+  max-width: 100%;
+}
+
+.song-page--performance .chord-line {
+  margin-bottom: 10px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.song-page--performance .lyric-row {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.song-page--performance .chord-row {
+  max-width: 100%;
+  overflow: visible;
 }
 
 .section-label {

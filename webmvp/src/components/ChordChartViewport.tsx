@@ -1,34 +1,114 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 
 type ChordChartViewportProps = {
   children: ReactNode;
   scale: number;
   scalePercent: number;
   showIndicator: boolean;
-  pinchHandlers: {
-    onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
-    onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
-    onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
-    onPointerCancel: (event: React.PointerEvent<HTMLElement>) => void;
-  };
+  containerRef: RefObject<HTMLDivElement | null>;
+  onPinchScale: (scale: number) => void;
+  onPinchEnd: () => void;
+  onDoubleTap: () => void;
   className?: string;
 };
+
+function touchDistance(touches: TouchList): number {
+  if (touches.length < 2) {
+    return 0;
+  }
+  return Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY,
+  );
+}
 
 export function ChordChartViewport({
   children,
   scale,
   scalePercent,
   showIndicator,
-  pinchHandlers,
+  containerRef,
+  onPinchScale,
+  onPinchEnd,
+  onDoubleTap,
   className = "",
 }: ChordChartViewportProps) {
+  const pinchStartRef = useRef<{ distance: number; scale: number } | null>(null);
+  const scaleRef = useRef(scale);
+  const lastTapRef = useRef(0);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) {
+      return;
+    }
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length === 2) {
+        pinchStartRef.current = {
+          distance: touchDistance(event.touches),
+          scale: scaleRef.current,
+        };
+      }
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || !pinchStartRef.current) {
+        return;
+      }
+      event.preventDefault();
+      const distance = touchDistance(event.touches);
+      if (distance <= 0 || pinchStartRef.current.distance <= 0) {
+        return;
+      }
+      const ratio = distance / pinchStartRef.current.distance;
+      onPinchScale(pinchStartRef.current.scale * ratio);
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2 && pinchStartRef.current) {
+        pinchStartRef.current = null;
+        onPinchEnd();
+      }
+
+      if (event.touches.length === 0 && event.changedTouches.length === 1) {
+        const now = Date.now();
+        if (now - lastTapRef.current < 280) {
+          onDoubleTap();
+          lastTapRef.current = 0;
+        } else {
+          lastTapRef.current = now;
+        }
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [containerRef, onDoubleTap, onPinchEnd, onPinchScale]);
+
   return (
     <div
-      className={`chord-chart-viewport relative ${className}`}
-      style={{ touchAction: "pan-y" }}
-      {...pinchHandlers}
+      ref={containerRef}
+      className={`chord-chart-viewport relative w-full max-w-full ${className}`}
+      style={{
+        touchAction: "pan-y",
+        ["--chart-scale" as string]: scale,
+      }}
     >
       {showIndicator && (
         <div
@@ -38,12 +118,7 @@ export function ChordChartViewport({
           {scalePercent}%
         </div>
       )}
-      <div
-        className="chord-chart-scaler origin-top"
-        style={{ transform: `scale(${scale})`, willChange: "transform" }}
-      >
-        {children}
-      </div>
+      <div className="chord-chart-scaler w-full max-w-full">{children}</div>
     </div>
   );
 }

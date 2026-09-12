@@ -15,6 +15,7 @@ type PerformanceBottomBarProps = {
   scalePercent: number;
   chartTheme: ChartTheme;
   onToggleTheme: () => void;
+  transposeFlash?: Key | null;
   sessionLabel?: string | null;
   sessionPosition?: string | null;
   prevHref?: string | null;
@@ -95,41 +96,36 @@ export function PerformanceBottomBar({
   scalePercent,
   chartTheme,
   onToggleTheme,
+  transposeFlash,
   sessionLabel,
   sessionPosition,
   prevHref,
   nextHref,
   sessionBackHref,
 }: PerformanceBottomBarProps) {
-  const transposed = targetKey !== originalKey;
+  const displayKey = transposeFlash ?? targetKey;
+  const transposed = displayKey !== originalKey;
 
   return (
     <div className="performance-bottom-bar fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-950/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md">
-      <div className="mx-auto flex max-w-2xl flex-col gap-2 px-3">
-        {(sessionLabel || scalePercent !== 100) && (
-          <div className="flex items-center justify-between gap-2 px-1 text-xs text-neutral-400">
-            <div className="min-w-0 truncate">
-              {sessionLabel ? (
-                sessionBackHref ? (
-                  <Link href={sessionBackHref} className="hover:text-neutral-200">
-                    {sessionLabel}
-                  </Link>
-                ) : (
-                  sessionLabel
-                )
-              ) : (
-                <span>Chart zoom</span>
-              )}
-              {sessionPosition && (
-                <span className="text-neutral-500"> · {sessionPosition}</span>
-              )}
-            </div>
-            <span className="shrink-0 tabular-nums">{scalePercent}%</span>
+      <div className="mx-auto flex max-w-2xl flex-col gap-1.5 px-2">
+        {sessionLabel && (
+          <div className="truncate px-1 text-[11px] text-neutral-400">
+            {sessionBackHref ? (
+              <Link href={sessionBackHref} className="hover:text-neutral-200">
+                {sessionLabel}
+              </Link>
+            ) : (
+              sessionLabel
+            )}
+            {sessionPosition && (
+              <span className="text-neutral-500"> · {sessionPosition}</span>
+            )}
           </div>
         )}
 
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1">
-          <div className="flex items-center gap-0.5">
+        <div className="flex items-center justify-between gap-1">
+          <div className="flex items-center">
             <NavLink href={prevHref ?? "#"} label="Previous song" disabled={!prevHref}>
               ◀
             </NavLink>
@@ -138,16 +134,17 @@ export function PerformanceBottomBar({
             </NavLink>
           </div>
 
-          <div className="flex items-center justify-center gap-1">
+          <div className="flex items-center gap-0.5">
             <IconButton label="Transpose down" onClick={onTransposeDown}>
               −
             </IconButton>
             <div
-              className="inline-flex min-h-11 min-w-[4.5rem] flex-col items-center justify-center rounded-xl bg-white/10 px-2 text-center"
-              aria-label={`Key ${targetKey}`}
+              className="inline-flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center rounded-xl bg-white/10 px-2 text-center"
+              aria-label={`Key ${displayKey}`}
+              aria-live="polite"
             >
               <span className="text-base font-bold leading-none text-white">
-                {targetKey}
+                {displayKey}
               </span>
               {transposed && (
                 <span className="text-[10px] leading-none text-neutral-400">
@@ -160,11 +157,14 @@ export function PerformanceBottomBar({
             </IconButton>
           </div>
 
-          <div className="flex items-center justify-end gap-0.5">
-            <IconButton label="Zoom out" onClick={onZoomOut}>
+          <div className="flex items-center gap-0.5">
+            <IconButton label="Text smaller" onClick={onZoomOut}>
               A−
             </IconButton>
-            <IconButton label="Zoom in" onClick={onZoomIn}>
+            <span className="inline-flex h-11 min-w-10 items-center justify-center text-xs tabular-nums text-neutral-300">
+              {scalePercent}%
+            </span>
+            <IconButton label="Text larger" onClick={onZoomIn}>
               A+
             </IconButton>
             <IconButton
