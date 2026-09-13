@@ -40,10 +40,22 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
     });
   });
 
-  it("denies anonymous song reads", async () => {
+  it("allows anonymous read of active songs", async () => {
     const anonDb = testEnv.unauthenticatedContext().firestore();
 
-    await assertFails(getDoc(doc(anonDb, "songs", "active-song")));
+    await assertSucceeds(getDoc(doc(anonDb, "songs", "active-song")));
+  });
+
+  it("allows anonymous read of song index", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "songIndex", "chunk0"), {
+        entries: [],
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const anonDb = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(anonDb, "songIndex", "chunk0")));
   });
 
   it("allows musician read of active songs", async () => {

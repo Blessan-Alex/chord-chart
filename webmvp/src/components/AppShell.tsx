@@ -147,7 +147,7 @@ function SidebarNav({
 }
 
 function UserFooter() {
-  const { user, profile, isAdmin, loading } = useAuth();
+  const { user, profile, isAdmin, loading, signOut } = useAuth();
 
   if (loading) {
     return (
@@ -170,20 +170,40 @@ function UserFooter() {
 
   return (
     <div className="mt-auto border-t border-lf-border px-3 py-4">
-      <Link
-        href={user ? "/profile" : "/login"}
-        className="flex items-center gap-3 rounded-[10px] p-2 transition-colors hover:bg-lf-bg-muted"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lf-brand-soft text-sm font-semibold text-lf-brand">
-          {initials}
+      {user ? (
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/profile"
+            className="flex items-center gap-3 rounded-[10px] p-2 transition-colors hover:bg-lf-bg-muted"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lf-brand-soft text-sm font-semibold text-lf-brand">
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-lf-text-primary">
+                {name}
+              </p>
+              <p className="truncate text-xs text-lf-text-secondary">{subtitle}</p>
+            </div>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              void signOut();
+            }}
+            className="min-h-10 w-full rounded-[var(--lf-radius-md)] border border-lf-border px-3 text-sm font-medium text-lf-text-secondary hover:bg-lf-bg-muted hover:text-lf-text-primary"
+          >
+            Sign out
+          </button>
         </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-lf-text-primary">
-            {name}
-          </p>
-          <p className="truncate text-xs text-lf-text-secondary">{subtitle}</p>
-        </div>
-      </Link>
+      ) : (
+        <Link
+          href="/login"
+          className="flex min-h-11 items-center justify-center rounded-[var(--lf-radius-md)] bg-lf-action-primary px-3 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
+        >
+          Sign in
+        </Link>
+      )}
     </div>
   );
 }

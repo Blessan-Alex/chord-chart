@@ -141,47 +141,47 @@ export default function SongPage() {
     async function loadSong() {
       setLoaded(false);
 
-      if (user) {
-        try {
-          const firestoreSong = await getFirestoreSong(id);
-          if (!cancelled) {
-            if (firestoreSong) {
-              const found = firestoreSongToSong(firestoreSong);
-              setSong(found);
-              setArtist(firestoreSong.artist ?? "");
-              setVersion(firestoreSong.version);
-              if (keyParam && isKey(keyParam)) {
-                setTargetKey(keyParam);
-              } else if (isKey(found.originalKey)) {
-                setTargetKey(found.originalKey);
+      try {
+        const firestoreSong = await getFirestoreSong(id);
+        if (!cancelled) {
+          if (firestoreSong) {
+            const found = firestoreSongToSong(firestoreSong);
+            setSong(found);
+            setArtist(firestoreSong.artist ?? "");
+            setVersion(firestoreSong.version);
+            if (keyParam && isKey(keyParam)) {
+              setTargetKey(keyParam);
+            } else if (isKey(found.originalKey)) {
+              setTargetKey(found.originalKey);
+            }
+            if (user && isAdmin) {
+              const [openDraft, versions] = await Promise.all([
+                getDraftForSong(id),
+                listArchivedVersions(id),
+              ]);
+              if (!cancelled) {
+                setDraft(openDraft);
+                setArchives(versions);
               }
-              if (isAdmin) {
-                const [openDraft, versions] = await Promise.all([
-                  getDraftForSong(id),
-                  listArchivedVersions(id),
-                ]);
-                if (!cancelled) {
-                  setDraft(openDraft);
-                  setArchives(versions);
-                }
-              }
-            } else {
-              setSong(null);
-              setArtist("");
-              setVersion(null);
-              setDraft(null);
-              setArchives([]);
             }
             setLoaded(true);
+            return;
           }
-          return;
-        } catch {
-          if (!cancelled) {
-            setSong(null);
-            setLoaded(true);
-          }
-          return;
         }
+      } catch {
+        /* fall through to local storage */
+      }
+
+      if (user) {
+        if (!cancelled) {
+          setSong(null);
+          setArtist("");
+          setVersion(null);
+          setDraft(null);
+          setArchives([]);
+          setLoaded(true);
+        }
+        return;
       }
 
       const found = getLocalSong(id);

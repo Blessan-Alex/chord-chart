@@ -13,9 +13,12 @@ import { SongRow } from "@/components/SongRow";
 import { LIBRARY_BROWSE_CAP } from "@/lib/constants";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
-import { loadSongIndex } from "@/lib/firestore/songIndex";
 import { listGroupsForMember } from "@/lib/firestore/groups";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
+import {
+  loadSongIndexCached,
+  peekSongIndexCache,
+} from "@/lib/firestore/songIndexCache";
 import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessions";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
@@ -73,9 +76,14 @@ export function HomePage() {
   const { recentSongs } = useRecentSongs();
   const [savedSongs, setSavedSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [indexEntries, setIndexEntries] = useState<SongIndexEntry[]>([]);
-  const [indexLoading, setIndexLoading] = useState(false);
+  const [indexEntries, setIndexEntries] = useState<SongIndexEntry[]>(
+    () => peekSongIndexCache() ?? [],
+  );
+  const [indexLoading, setIndexLoading] = useState(
+    () => peekSongIndexCache() === null,
+  );
   const [indexError, setIndexError] = useState<string | null>(null);
+  const [socialError, setSocialError] = useState<string | null>(null);
   const [myPlaylists, setMyPlaylists] = useState<Session[]>([]);
   const [groupPlaylists, setGroupPlaylists] = useState<Session[]>([]);
   const [myGroups, setMyGroups] = useState<Group[]>([]);
@@ -103,12 +111,10 @@ export function HomePage() {
   const libraryCapped =
     isBrowsingAll && libraryResults.length > LIBRARY_BROWSE_CAP;
 
-  const knownSongIds = useMemo(() => {
-    if (user) {
-      return new Set(indexEntries.map((entry) => entry.id));
-    }
-    return new Set(savedSongs.map((song) => song.id));
-  }, [user, indexEntries, savedSongs]);
+  const knownSongIds = useMemo(
+    () => new Set(indexEntries.map((entry) => entry.id)),
+    [indexEntries],
+  );
 
   const visibleRecent = useMemo(
     () => filterRecentByKnownIds(recentSongs, knownSongIds),
@@ -120,59 +126,100 @@ export function HomePage() {
 
   const refreshLocalSongs = useCallback(() => {
     setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
-    setLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (user) {
-      return;
-    }
     refreshLocalSongs();
-  }, [user, refreshLocalSongs]);
+  }, [refreshLocalSongs]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      if (peekSongIndexCache() === null) {
+        setIndexLoading(true);
+      }
+      setIndexError(null);
+
+      try {
+        const entries = await loadSongIndexCached();
+        if (!cancelled) {
+          setIndexEntries(entries);
+          setLoaded(true);
+          setIndexLoading(false);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setIndexError(formatError(error));
+          setIndexLoading(false);
+          setLoaded(true);
+        }
+      }
+    })();
+
+    void loadSongIndexCached({ preferServer: true })
+      .then((entries) => {
+        if (!cancelled) {
+          setIndexEntries(entries);
+          setLoaded(true);
+          setIndexLoading(false);
+        }
+      })
+      .catch(() => {
+        /* keep cached / prior entries */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
-      setIndexEntries([]);
-      setIndexError(null);
       setMyPlaylists([]);
       setGroupPlaylists([]);
       setMyGroups([]);
       setPlaylistPreviews({});
+      setSocialError(null);
+      setPlaylistsLoading(false);
       return;
     }
 
     let cancelled = false;
 
     void (async () => {
-      setIndexLoading(true);
       setPlaylistsLoading(true);
-      setIndexError(null);
+      setSocialError(null);
 
       try {
-        const [entries, ownedPlaylists, groups] = await Promise.all([
-          loadSongIndex(),
+        const [ownedPlaylists, groups] = await Promise.all([
           listOwnedPlaylists(user.uid),
           listGroupsForMember(user.uid),
         ]);
 
-        if (!cancelled) {
-          setIndexEntries(entries);
-          const artistBySongId = new Map(
-            entries.map((entry) => [entry.id, entry.artist ?? ""]),
-          );
-          const owned = ownedPlaylists.slice(0, 2);
-          setMyPlaylists(owned);
-          setMyGroups(groups.slice(0, 2));
+        if (cancelled) {
+          return;
+        }
 
-          const groupPlaylistLists = await Promise.all(
-            groups.slice(0, 2).map((group) => listPlaylistsForGroup(group.id)),
-          );
-          const groupSessions = groupPlaylistLists.flat().slice(0, 2);
-          setGroupPlaylists(groupSessions);
+        const artistBySongId = new Map(
+          indexEntries.map((entry) => [entry.id, entry.artist ?? ""]),
+        );
+        const owned = ownedPlaylists.slice(0, 2);
+        setMyPlaylists(owned);
+        setMyGroups(groups.slice(0, 2));
 
-          const previewSessions = [...owned, ...groupSessions].slice(0, 4);
-          const previewEntries = await Promise.all(
-            previewSessions.map(async (session) => {
+        const groupPlaylistLists = await Promise.all(
+          groups.slice(0, 2).map((group) =>
+            listPlaylistsForGroup(group.id).catch(() => [] as Session[]),
+          ),
+        );
+        const groupSessions = groupPlaylistLists.flat().slice(0, 2);
+        setGroupPlaylists(groupSessions);
+
+        const previewSessions = [...owned, ...groupSessions].slice(0, 4);
+        const previewEntries = await Promise.all(
+          previewSessions.map(async (session) => {
+            try {
               const songs = await listSessionSongs(session.id);
               return [
                 session.id,
@@ -181,19 +228,21 @@ export function HomePage() {
                   artist: artistBySongId.get(song.songId) ?? "",
                 })),
               ] as const;
-            }),
-          );
+            } catch {
+              return [session.id, []] as const;
+            }
+          }),
+        );
+        if (!cancelled) {
           setPlaylistPreviews(Object.fromEntries(previewEntries));
         }
       } catch (error) {
         if (!cancelled) {
-          setIndexError(formatError(error));
+          setSocialError(formatError(error));
         }
       } finally {
         if (!cancelled) {
-          setIndexLoading(false);
           setPlaylistsLoading(false);
-          setLoaded(true);
         }
       }
     })();
@@ -201,7 +250,7 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, indexEntries]);
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) {
@@ -209,10 +258,8 @@ export function HomePage() {
     }
 
     try {
-      if (pendingDelete.source === "local") {
-        deleteSong(pendingDelete.id);
-        refreshLocalSongs();
-      }
+      deleteSong(pendingDelete.id);
+      refreshLocalSongs();
     } catch (error) {
       setIndexError(formatError(error));
     } finally {
@@ -220,7 +267,8 @@ export function HomePage() {
     }
   };
 
-  const showAddSong = !user;
+  const showLocalSongs =
+    !user && savedSongs.length > 0 && !searchQuery.trim() && !keyFilter;
 
   return (
     <div className="mx-auto w-full max-w-3xl overflow-x-clip p-4 sm:p-8">
@@ -229,7 +277,7 @@ export function HomePage() {
         title="Delete song?"
         message={
           pendingDelete
-            ? `"${pendingDelete.title}" will be removed from the library.`
+            ? `"${pendingDelete.title}" will be removed from this device.`
             : ""
         }
         onConfirm={() => {
@@ -246,13 +294,11 @@ export function HomePage() {
           <p className="mt-1 text-sm text-lf-text-secondary">
             {authLoading || indexLoading
               ? "Loading library…"
-              : user
-                ? `${indexEntries.length} songs in the library`
-                : `${savedSongs.length} songs on this device`}
+              : `${indexEntries.length} songs in the library`}
           </p>
         </div>
 
-        {showAddSong && (
+        {!user && (
           <Link
             href="/import"
             className="inline-flex min-h-11 items-center justify-center self-start rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
@@ -262,100 +308,119 @@ export function HomePage() {
         )}
       </div>
 
-      {user ? (
-        <div className="mt-8 flex flex-col gap-8">
-          <div className="flex flex-col gap-3">
-            <label className="relative block">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lf-text-tertiary">
-                <SearchIcon />
-              </span>
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search songs, artists…"
-                className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated py-3 pl-12 pr-4 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-              />
-            </label>
+      <div className="mt-8 flex flex-col gap-8">
+        {!user && (
+          <p className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted px-4 py-3 text-sm text-lf-text-secondary">
+            Browsing as a guest.{" "}
+            <Link href="/login" className="font-medium text-lf-brand hover:underline">
+              Sign in
+            </Link>{" "}
+            or{" "}
+            <Link href="/signup" className="font-medium text-lf-brand hover:underline">
+              sign up
+            </Link>{" "}
+            for playlists, groups, and @usernames.
+          </p>
+        )}
 
-            <select
-              value={keyFilter}
-              onChange={(e) => {
-                const value = e.target.value;
-                setKeyFilter(value && isKey(value) ? value : "");
-              }}
-              className="min-h-11 max-w-xs rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-sm text-lf-text-primary"
-              aria-label="Filter by key"
-            >
-              <option value="">All keys</option>
-              {ALL_KEYS.map((key) => (
-                <option key={key} value={key}>
-                  {key}
-                </option>
+        <div className="flex flex-col gap-3">
+          <label className="relative block">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lf-text-tertiary">
+              <SearchIcon />
+            </span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search songs, artists…"
+              className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated py-3 pl-12 pr-4 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+            />
+          </label>
+
+          <select
+            value={keyFilter}
+            onChange={(e) => {
+              const value = e.target.value;
+              setKeyFilter(value && isKey(value) ? value : "");
+            }}
+            className="min-h-11 max-w-xs rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-sm text-lf-text-primary"
+            aria-label="Filter by key"
+          >
+            <option value="">All keys</option>
+            {ALL_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {key}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {indexError && <PageError title="Library error" error={indexError} />}
+        {socialError && (
+          <PageError title="Could not load playlists" error={socialError} />
+        )}
+
+        {showRecent && (
+          <section>
+            <SectionHeader title="Recently viewed" />
+            <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
+              {visibleRecent.map((entry) => (
+                <SongRow
+                  key={entry.songId}
+                  title={entry.title}
+                  artist={entry.artist}
+                  songKey={entry.key}
+                  href={`/song/${entry.songId}`}
+                />
               ))}
-            </select>
-          </div>
+            </ul>
+          </section>
+        )}
 
-          {indexError && <PageError title="Library error" error={indexError} />}
-
-          {showRecent && (
+        {user && !searchQuery.trim() && !keyFilter && (
+          <>
             <section>
-              <SectionHeader title="Recently viewed" />
-              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                {visibleRecent.map((entry) => (
-                  <SongRow
-                    key={entry.songId}
-                    title={entry.title}
-                    artist={entry.artist}
-                    songKey={entry.key}
-                    href={`/song/${entry.songId}`}
-                  />
-                ))}
-              </ul>
+              <SectionHeader title="My playlists" seeAllHref="/playlists" />
+              {playlistsLoading ? (
+                <p className="text-sm text-lf-text-secondary">Loading…</p>
+              ) : myPlaylists.length > 0 ? (
+                <ul className="flex flex-col gap-3">
+                  {myPlaylists.map((session) => (
+                    <PlaylistPreviewCard
+                      key={session.id}
+                      title={session.title}
+                      subtitle={`${session.songCount} ${
+                        session.songCount === 1 ? "song" : "songs"
+                      }`}
+                      href={`/playlists/${session.id}`}
+                      previewSongs={playlistPreviews[session.id] ?? []}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
+                  No playlists yet.{" "}
+                  <Link
+                    href="/playlists/new"
+                    className="font-medium text-lf-brand hover:underline"
+                  >
+                    Create one
+                  </Link>
+                </div>
+              )}
             </section>
-          )}
 
-          {!searchQuery.trim() && !keyFilter && (
-            <>
-              <section>
-                <SectionHeader title="My playlists" seeAllHref="/playlists" />
-                {playlistsLoading ? (
-                  <p className="text-sm text-lf-text-secondary">Loading…</p>
-                ) : myPlaylists.length > 0 ? (
-                  <ul className="flex flex-col gap-3">
-                    {myPlaylists.map((session) => (
-                      <PlaylistPreviewCard
-                        key={session.id}
-                        title={session.title}
-                        subtitle={`${session.songCount} ${
-                          session.songCount === 1 ? "song" : "songs"
-                        }`}
-                        href={`/playlists/${session.id}`}
-                        previewSongs={playlistPreviews[session.id] ?? []}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
-                    No playlists yet.{" "}
-                    <Link href="/playlists" className="font-medium text-lf-brand hover:underline">
-                      Browse playlists
-                    </Link>
-                  </div>
-                )}
-              </section>
-
-              <section>
-                <SectionHeader title="Group playlists" seeAllHref="/groups" />
-                {playlistsLoading ? (
-                  <p className="text-sm text-lf-text-secondary">Loading…</p>
-                ) : groupPlaylists.length > 0 ? (
-                  <ul className="flex flex-col gap-3">
-                    {groupPlaylists.map((session) => {
-                      const groupName = myGroups.find(
-                        (group) => group.id === session.groupId,
-                      )?.name;
-                      return (
+            <section>
+              <SectionHeader title="Group playlists" seeAllHref="/groups" />
+              {playlistsLoading ? (
+                <p className="text-sm text-lf-text-secondary">Loading…</p>
+              ) : groupPlaylists.length > 0 ? (
+                <ul className="flex flex-col gap-3">
+                  {groupPlaylists.map((session) => {
+                    const groupName = myGroups.find(
+                      (group) => group.id === session.groupId,
+                    )?.name;
+                    return (
                       <PlaylistPreviewCard
                         key={session.id}
                         title={session.title}
@@ -371,111 +436,79 @@ export function HomePage() {
                         href={`/playlists/${session.id}`}
                         previewSongs={playlistPreviews[session.id] ?? []}
                       />
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
-                    No group playlists yet.{" "}
-                    <Link href="/groups" className="font-medium text-lf-brand hover:underline">
-                      Join or create a group
-                    </Link>
-                  </div>
-                )}
-              </section>
-            </>
-          )}
-
-          {loaded && !indexLoading && (
-            <section>
-              <SectionHeader title="All songs" />
-              {displayedResults.length === 0 ? (
-                <p className="text-sm text-lf-text-secondary">
-                  {indexEntries.length === 0
-                    ? "No songs in the library yet."
-                    : "No songs match your search."}
-                </p>
-              ) : (
-                <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                  {libraryCapped && (
-                    <li className="border-b border-lf-border px-4 py-3 text-sm text-lf-text-secondary">
-                      Showing {LIBRARY_BROWSE_CAP} of {libraryResults.length}{" "}
-                      songs — search or filter to narrow the list.
-                    </li>
-                  )}
-                  {displayedResults.map((entry) => (
-                    <SongRow
-                      key={entry.id}
-                      title={entry.title}
-                      artist={entry.artist ?? ""}
-                      songKey={entry.key}
-                      href={`/song/${entry.id}`}
-                    />
-                  ))}
+                    );
+                  })}
                 </ul>
+              ) : (
+                <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
+                  No group playlists yet.{" "}
+                  <Link
+                    href="/groups"
+                    className="font-medium text-lf-brand hover:underline"
+                  >
+                    Join or create a group
+                  </Link>
+                </div>
               )}
             </section>
-          )}
-        </div>
-      ) : (
-        <div className="mt-8 flex flex-col gap-8">
-          {!user && (
-            <p className="text-sm text-lf-text-secondary">
-              <Link href="/login" className="font-medium text-lf-brand hover:underline">
-                Sign in
-              </Link>{" "}
-              to access the shared song library, or add songs on this device only.
-            </p>
-          )}
+          </>
+        )}
 
-          {showRecent && (
-            <section>
-              <SectionHeader title="Recently viewed" />
-              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                {visibleRecent.map((entry) => (
-                  <SongRow
-                    key={entry.songId}
-                    title={entry.title}
-                    artist={entry.artist}
-                    songKey={entry.key}
-                    href={`/song/${entry.songId}`}
-                  />
-                ))}
-              </ul>
-            </section>
-          )}
+        {showLocalSongs && (
+          <section>
+            <SectionHeader title="On this device" />
+            <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
+              {savedSongs.map((song) => (
+                <SongRow
+                  key={song.id}
+                  title={song.title}
+                  artist=""
+                  songKey={song.originalKey}
+                  href={`/song/${song.id}`}
+                  onDelete={() =>
+                    setPendingDelete({
+                      id: song.id,
+                      title: song.title,
+                      source: "local",
+                    })
+                  }
+                />
+              ))}
+            </ul>
+          </section>
+        )}
 
-          {loaded && savedSongs.length > 0 ? (
-            <section>
-              <SectionHeader title="Your songs" />
-              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                {savedSongs.map((song) => (
-                  <SongRow
-                    key={song.id}
-                    title={song.title}
-                    artist=""
-                    songKey={song.originalKey}
-                    href={`/song/${song.id}`}
-                    onDelete={() =>
-                      setPendingDelete({
-                        id: song.id,
-                        title: song.title,
-                        source: "local",
-                      })
-                    }
-                  />
-                ))}
-              </ul>
-            </section>
-          ) : (
-            loaded && (
+        {loaded && !indexLoading && (
+          <section>
+            <SectionHeader title="All songs" />
+            {displayedResults.length === 0 ? (
               <p className="text-sm text-lf-text-secondary">
-                Use <strong>+ Add song</strong> to save charts on this device.
+                {indexEntries.length === 0
+                  ? "No songs in the library yet."
+                  : "No songs match your search."}
               </p>
-            )
-          )}
-        </div>
-      )}
+            ) : (
+              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
+                {libraryCapped && (
+                  <li className="border-b border-lf-border px-4 py-3 text-sm text-lf-text-secondary">
+                    Showing {LIBRARY_BROWSE_CAP} of {libraryResults.length}{" "}
+                    songs — search or filter to narrow the list.
+                  </li>
+                )}
+                {displayedResults.map((entry) => (
+                  <SongRow
+                    key={entry.id}
+                    title={entry.title}
+                    artist={entry.artist ?? ""}
+                    songKey={entry.key}
+                    href={`/song/${entry.id}`}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </div>
     </div>
   );
 }

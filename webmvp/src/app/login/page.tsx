@@ -32,7 +32,7 @@ export default function LoginPage() {
             <code>.env.local</code> and add your project keys.
           </p>
           <Link href="/" className="text-sm text-lf-brand hover:underline">
-            ← Home
+            ← Browse songs
           </Link>
         </div>
       </main>
@@ -46,22 +46,33 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-lf-bg-page px-4 py-10">
-      <div className="flex w-full max-w-md flex-col items-center gap-8">
-        <div className="text-center">
-          <div className="flex justify-center">
+      <div className="w-full max-w-md">
+        <div className="rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-6 shadow-sm sm:p-8">
+          <div className="mb-8 flex flex-col items-center gap-3 text-center">
             <AppLogo size="lg" showTagline />
+            <p className="text-sm text-lf-text-secondary">
+              Sign in to save playlists, join groups, and sync across devices.
+            </p>
           </div>
+
+          <LoginForm onSubmit={handleSignIn} loading={loading} />
+
+          {showDemoAccounts && (
+            <div className="mt-6 border-t border-lf-border pt-6">
+              <DemoAccounts
+                onSelect={(email, password) => {
+                  void handleSignIn(email, password);
+                }}
+              />
+            </div>
+          )}
         </div>
 
-        <LoginForm onSubmit={handleSignIn} loading={loading} />
-
-        {showDemoAccounts && (
-          <DemoAccounts
-            onSelect={(email, password) => {
-              void handleSignIn(email, password);
-            }}
-          />
-        )}
+        <p className="mt-6 text-center text-sm text-lf-text-secondary">
+          <Link href="/" className="font-medium text-lf-brand hover:underline">
+            Continue browsing songs without signing in
+          </Link>
+        </p>
       </div>
     </main>
   );

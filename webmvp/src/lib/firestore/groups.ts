@@ -162,6 +162,15 @@ export async function joinGroupByInviteCode(
 
   const groupId = inviteSnap.data().groupId as string;
   const groupRef = doc(firestore, GROUPS_COLLECTION, groupId);
+  const existing = await getDoc(groupRef);
+
+  if (existing.exists()) {
+    const data = existing.data() as GroupData;
+    if (data.memberIds?.includes(uid)) {
+      return mapGroup(existing as QueryDocumentSnapshot);
+    }
+  }
+
   const member = memberFromProfile(uid, profile);
 
   await updateDoc(groupRef, {

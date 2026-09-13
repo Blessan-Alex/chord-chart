@@ -101,20 +101,27 @@ function resolveDb(db?: Firestore): Firestore {
   return db ?? getDb();
 }
 
-/** Fetch all index chunks (1–5 reads). Uses server when online for fresh library. */
-export async function loadSongIndex(db?: Firestore): Promise<SongIndexEntry[]> {
+/** Fetch all index chunks. Uses local cache first for instant paint, then server. */
+export async function loadSongIndex(
+  db?: Firestore,
+  options: { preferServer?: boolean } = {},
+): Promise<SongIndexEntry[]> {
   const firestore = resolveDb(db);
+  const read = options.preferServer
+    ? getDocFromServer
+    : async (ref: ReturnType<typeof doc>) => {
+        try {
+          return await getDoc(ref);
+        } catch {
+          return getDocFromServer(ref);
+        }
+      };
 
   const chunks = await Promise.all(
     SONG_INDEX_CHUNK_IDS.map(async (chunkId) => {
       const ref = doc(firestore, "songIndex", chunkId);
-      try {
-        trackReads(`songIndex/${chunkId}`, 1);
-        return await getDocFromServer(ref);
-      } catch {
-        trackReads(`songIndex/${chunkId} (cache)`, 1);
-        return await getDoc(ref);
-      }
+      trackReads(`songIndex/${chunkId}`, 1);
+      return read(ref);
     }),
   );
 
