@@ -37,6 +37,7 @@ import {
   buildAdjacentSongHref,
   parseSessionNavParams,
 } from "@/lib/sessionNavigation";
+import { recordRecentSong } from "@/lib/recentSongs";
 import { getSong as getLocalSong } from "@/lib/storage";
 import type { Session, SessionSong, Song, SongEdit } from "@/lib/types";
 
@@ -116,6 +117,12 @@ export default function SongPage() {
             if (firestoreSong) {
               const found = firestoreSongToSong(firestoreSong);
               setSong(found);
+              recordRecentSong({
+                songId: found.id,
+                title: found.title,
+                artist: firestoreSong.artist ?? "",
+                key: found.originalKey,
+              });
               setVersion(firestoreSong.version);
               if (keyParam && isKey(keyParam)) {
                 setTargetKey(keyParam);
@@ -154,6 +161,12 @@ export default function SongPage() {
       if (!cancelled) {
         setSong(found ?? null);
         if (found) {
+          recordRecentSong({
+            songId: found.id,
+            title: found.title,
+            artist: "",
+            key: found.originalKey,
+          });
           if (keyParam && isKey(keyParam)) {
             setTargetKey(keyParam);
           } else if (isKey(found.originalKey)) {
