@@ -78,6 +78,7 @@ export async function createSession(
     ownerId: createdBy,
     ownerUsername: ownerUsername?.trim() ?? "",
     sharedWith: [] as string[],
+    ...(input.groupId ? { groupId: input.groupId } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -184,6 +185,20 @@ export async function updateSessionStatus(
 }
 
 /** Prefetch playlist doc + songs for offline use. */
+export async function listPlaylistsForGroup(
+  groupId: string,
+  db?: Firestore,
+): Promise<Session[]> {
+  const snap = await getDocs(
+    query(
+      collection(resolveDb(db), SESSIONS_COLLECTION),
+      where("groupId", "==", groupId),
+      orderBy("date", "desc"),
+    ),
+  );
+  return snap.docs.map(mapSession);
+}
+
 export async function cacheSessionOffline(
   sessionId: string,
   db?: Firestore,

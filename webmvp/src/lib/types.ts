@@ -126,6 +126,32 @@ export type CreateUserProfileInput = {
 
 export type SessionStatus = "draft" | "published";
 
+export type GroupMemberInfo = {
+  uid: string;
+  username?: string;
+  displayName: string;
+};
+
+export type GroupData = {
+  name: string;
+  ownerId: string;
+  ownerUsername?: string;
+  memberIds: string[];
+  members: GroupMemberInfo[];
+  inviteCode: string;
+  playlistCount: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+export type Group = GroupData & {
+  id: string;
+};
+
+export type CreateGroupInput = {
+  name: string;
+};
+
 export type SessionData = {
   title: string;
   serviceType: ServiceType;
@@ -136,6 +162,7 @@ export type SessionData = {
   ownerId: string;
   ownerUsername?: string;
   sharedWith: string[];
+  groupId?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -149,6 +176,7 @@ export type CreateSessionInput = {
   serviceType: ServiceType;
   date: Date;
   status?: SessionStatus;
+  groupId?: string;
 };
 
 export type SessionSongData = {

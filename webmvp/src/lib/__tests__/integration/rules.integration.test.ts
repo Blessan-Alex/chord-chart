@@ -353,4 +353,94 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
 
     await assertSucceeds(deleteDoc(doc(adminDb, "sessions", "delete-me")));
   });
+
+  it("allows group owner to create group", async () => {
+    const ownerDb = testEnv.authenticatedContext("owner-uid").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(ownerDb, "groups", "group-1"), {
+        name: "Youth Band",
+        ownerId: "owner-uid",
+        memberIds: ["owner-uid"],
+        members: [{ uid: "owner-uid", displayName: "Owner" }],
+        inviteCode: "AB12CD34",
+        playlistCount: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("denies non-member reading group", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "groups", "private-group"), {
+        name: "Private",
+        ownerId: "owner-uid",
+        memberIds: ["owner-uid"],
+        members: [{ uid: "owner-uid", displayName: "Owner" }],
+        inviteCode: "ZZZZZZZZ",
+        playlistCount: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const strangerDb = testEnv.authenticatedContext("stranger-uid").firestore();
+    await assertFails(getDoc(doc(strangerDb, "groups", "private-group")));
+  });
+
+  it("allows member to read group", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "groups", "member-group"), {
+        name: "Band",
+        ownerId: "owner-uid",
+        memberIds: ["owner-uid", "member-uid"],
+        members: [
+          { uid: "owner-uid", displayName: "Owner" },
+          { uid: "member-uid", displayName: "Member" },
+        ],
+        inviteCode: "MEMBER01",
+        playlistCount: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const memberDb = testEnv.authenticatedContext("member-uid").firestore();
+    await assertSucceeds(getDoc(doc(memberDb, "groups", "member-group")));
+  });
+
+  it("allows group member to read group playlist", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "groups", "group-playlists"), {
+        name: "Worship",
+        ownerId: "owner-uid",
+        memberIds: ["owner-uid", "member-uid"],
+        members: [
+          { uid: "owner-uid", displayName: "Owner" },
+          { uid: "member-uid", displayName: "Member" },
+        ],
+        inviteCode: "WORSHIP1",
+        playlistCount: 1,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+      await setDoc(doc(context.firestore(), "sessions", "group-set"), {
+        title: "Sunday Set",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: [],
+        groupId: "group-playlists",
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const memberDb = testEnv.authenticatedContext("member-uid").firestore();
+    await assertSucceeds(getDoc(doc(memberDb, "sessions", "group-set")));
+  });
 });

@@ -14,15 +14,16 @@ import { LIBRARY_BROWSE_CAP } from "@/lib/constants";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
+import { listGroupsForMember } from "@/lib/firestore/groups";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
-import { listOwnedPlaylists } from "@/lib/firestore/sessions";
+import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessions";
 import { archiveSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
 import { filterRecentByKnownIds } from "@/lib/recentSongs";
 import { deleteSong, getSongs } from "@/lib/storage";
-import type { Session, Song, SongIndexEntry } from "@/lib/types";
+import type { Group, Session, Song, SongIndexEntry } from "@/lib/types";
 
 function isKey(value: string): value is Key {
   return (ALL_KEYS as readonly string[]).includes(value);
@@ -77,6 +78,8 @@ export function HomePage() {
   const [indexLoading, setIndexLoading] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [myPlaylists, setMyPlaylists] = useState<Session[]>([]);
+  const [groupPlaylists, setGroupPlaylists] = useState<Session[]>([]);
+  const [myGroups, setMyGroups] = useState<Group[]>([]);
   const [playlistPreviews, setPlaylistPreviews] = useState<
     Record<string, PlaylistPreviewSong[]>
   >({});
@@ -133,6 +136,8 @@ export function HomePage() {
       setIndexEntries([]);
       setIndexError(null);
       setMyPlaylists([]);
+      setGroupPlaylists([]);
+      setMyGroups([]);
       setPlaylistPreviews({});
       return;
     }
@@ -145,9 +150,10 @@ export function HomePage() {
       setIndexError(null);
 
       try {
-        const [entries, ownedPlaylists] = await Promise.all([
+        const [entries, ownedPlaylists, groups] = await Promise.all([
           loadSongIndex(),
           listOwnedPlaylists(user.uid),
+          listGroupsForMember(user.uid),
         ]);
 
         if (!cancelled) {
@@ -157,9 +163,17 @@ export function HomePage() {
           );
           const owned = ownedPlaylists.slice(0, 2);
           setMyPlaylists(owned);
+          setMyGroups(groups.slice(0, 2));
 
+          const groupPlaylistLists = await Promise.all(
+            groups.slice(0, 2).map((group) => listPlaylistsForGroup(group.id)),
+          );
+          const groupSessions = groupPlaylistLists.flat().slice(0, 2);
+          setGroupPlaylists(groupSessions);
+
+          const previewSessions = [...owned, ...groupSessions].slice(0, 4);
           const previewEntries = await Promise.all(
-            owned.map(async (session) => {
+            previewSessions.map(async (session) => {
               const songs = await listSessionSongs(session.id);
               return [
                 session.id,
@@ -339,9 +353,36 @@ export function HomePage() {
 
               <section>
                 <SectionHeader title="Group playlists" seeAllHref="/groups" />
-                <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
-                  No group playlists yet. Groups are coming in Phase G.
-                </div>
+                {playlistsLoading ? (
+                  <p className="text-sm text-lf-text-secondary">Loading…</p>
+                ) : groupPlaylists.length > 0 ? (
+                  <ul className="flex flex-col gap-3">
+                    {groupPlaylists.map((session) => (
+                      <PlaylistPreviewCard
+                        key={session.id}
+                        title={session.title}
+                        subtitle={
+                          myGroups.find((group) => group.id === session.groupId)
+                            ? `${myGroups.find((group) => group.id === session.groupId)?.name} · ${session.songCount} ${
+                                session.songCount === 1 ? "song" : "songs"
+                              }`
+                            : `${session.songCount} ${
+                                session.songCount === 1 ? "song" : "songs"
+                              }`
+                        }
+                        href={`/playlists/${session.id}`}
+                        previewSongs={playlistPreviews[session.id] ?? []}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
+                    No group playlists yet.{" "}
+                    <Link href="/groups" className="font-medium text-lf-brand hover:underline">
+                      Join or create a group
+                    </Link>
+                  </div>
+                )}
               </section>
             </>
           )}

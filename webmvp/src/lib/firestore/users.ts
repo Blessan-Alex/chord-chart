@@ -101,6 +101,26 @@ export async function updateUserDisplayName(
   });
 }
 
+export async function resolveUsernameToUid(
+  usernameLower: string,
+  db?: Firestore,
+): Promise<string | null> {
+  const validated = validateUsername(usernameLower);
+  if (!validated.ok) {
+    return null;
+  }
+
+  const snap = await getDoc(
+    doc(resolveDb(db), USERNAMES_COLLECTION, validated.normalized),
+  );
+  if (!snap.exists()) {
+    return null;
+  }
+
+  const data = snap.data() as { uid?: string };
+  return data.uid ?? null;
+}
+
 export async function touchLastLogin(uid: string, db?: Firestore): Promise<void> {
   const ref = doc(resolveDb(db), USERS_COLLECTION, uid);
   const snap = await getDoc(ref);

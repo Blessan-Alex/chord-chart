@@ -57,12 +57,28 @@ service cloud.firestore {
       return data.ownerId != null ? data.ownerId : data.createdBy;
     }
 
+    function isGroupMember(groupId) {
+      let group = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      return request.auth.uid in group.memberIds;
+    }
+
+    function isGroupJoinUpdate() {
+      return isAuth()
+        && request.auth.uid in request.resource.data.memberIds
+        && !(request.auth.uid in resource.data.memberIds)
+        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['memberIds', 'members', 'updatedAt']);
+    }
+
     function canReadPlaylist(sessionId) {
       let playlist = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
       return isAuth() && (
         playlist.status == 'published'
         || playlistOwnerId(playlist) == request.auth.uid
         || request.auth.uid in playlist.get('sharedWith', [])
+        || (playlist.get('groupId', null) != null
+            && isGroupMember(playlist.groupId))
         || isAdmin()
       );
     }
@@ -85,6 +101,8 @@ service cloud.firestore {
         resource.data.status == 'published'
         || playlistOwnerId(resource.data) == request.auth.uid
         || request.auth.uid in resource.data.get('sharedWith', [])
+        || (resource.data.get('groupId', null) != null
+            && isGroupMember(resource.data.groupId))
         || isAdmin()
       );
 
@@ -136,6 +154,40 @@ service cloud.firestore {
         && !('username' in request.resource.data)
         && (!('lastLoginAt' in request.resource.data)
             || request.resource.data.lastLoginAt is timestamp);
+    }
+
+    match /groupInviteCodes/{code} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && request.resource.data.groupId is string
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.createdAt is timestamp;
+      allow update, delete: if isAuth() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /groups/{groupId} {
+      allow read: if isAuth() && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isAuth()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.auth.uid in request.resource.data.memberIds
+        && request.resource.data.name is string
+        && request.resource.data.inviteCode is string
+        && request.resource.data.memberIds is list
+        && request.resource.data.members is list
+        && request.resource.data.playlistCount is int;
+
+      allow update: if isAuth() && (
+        resource.data.ownerId == request.auth.uid
+        || isGroupJoinUpdate()
+        || isAdmin()
+      );
+
+      allow delete: if isAuth() && (
+        resource.data.ownerId == request.auth.uid
+        || isAdmin()
+      );
     }
 
     match /users/{uid} {
