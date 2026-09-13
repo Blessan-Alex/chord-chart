@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateSession, validateSong } from "./validation";
+import { validateSession, validateSong, validateUsername } from "./validation";
 
 const validSong = {
   id: "song-1",
@@ -63,6 +63,40 @@ describe("validateSong", () => {
         true,
       );
     }
+  });
+});
+
+describe("validateUsername", () => {
+  it("accepts valid usernames", () => {
+    expect(validateUsername("alex_rivera")).toEqual({
+      ok: true,
+      normalized: "alex_rivera",
+    });
+  });
+
+  it("normalizes uppercase input", () => {
+    expect(validateUsername("AlexRivera")).toEqual({
+      ok: true,
+      normalized: "alexrivera",
+    });
+  });
+
+  it("rejects empty usernames", () => {
+    const result = validateUsername("   ");
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects too long usernames", () => {
+    const result = validateUsername("a".repeat(21));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("3–20");
+    }
+  });
+
+  it("rejects invalid characters", () => {
+    const result = validateUsername("bad-name");
+    expect(result.ok).toBe(false);
   });
 });
 

@@ -1,5 +1,34 @@
 import { ALL_KEYS, isValidChord, type Key } from "@/lib/engine";
 
+export const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+
+export function normalizeUsername(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function validateUsername(
+  username: string,
+): { ok: true; normalized: string } | { ok: false; error: string } {
+  const normalized = normalizeUsername(username);
+
+  if (!normalized) {
+    return { ok: false, error: "Username is required" };
+  }
+
+  if (normalized.length < 3 || normalized.length > 20) {
+    return { ok: false, error: "Username must be 3–20 characters" };
+  }
+
+  if (!USERNAME_REGEX.test(normalized)) {
+    return {
+      ok: false,
+      error: "Use lowercase letters, numbers, and underscores only",
+    };
+  }
+
+  return { ok: true, normalized };
+}
+
 function isKey(value: string): value is Key {
   return (ALL_KEYS as readonly string[]).includes(value);
 }

@@ -98,6 +98,27 @@ export type UpdateSongInput = Partial<
 
 export type ServiceType = "friday" | "sunday_morning" | "sunday_evening";
 
+export type UserRole = "musician" | "admin";
+
+/** Firestore `users/{uid}` document fields. */
+export type UserProfile = {
+  email: string;
+  displayName: string;
+  username?: string;
+  usernameLower?: string;
+  role: UserRole;
+  avatarInitials?: string;
+  createdAt: Timestamp;
+  lastLoginAt?: Timestamp;
+};
+
+export type CreateUserProfileInput = {
+  uid: string;
+  email: string;
+  displayName: string;
+  username: string;
+};
+
 export type SessionStatus = "draft" | "published";
 
 export type SessionData = {
@@ -107,6 +128,8 @@ export type SessionData = {
   songCount: number;
   status: SessionStatus;
   createdBy: string;
+  ownerId?: string;
+  ownerUsername?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

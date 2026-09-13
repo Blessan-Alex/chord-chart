@@ -14,6 +14,30 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-lora);
+
+  --color-lf-bg-page: var(--lf-bg-page);
+  --color-lf-bg-sidebar: var(--lf-bg-sidebar);
+  --color-lf-bg-elevated: var(--lf-bg-elevated);
+  --color-lf-bg-muted: var(--lf-bg-muted);
+  --color-lf-bg-active: var(--lf-bg-active);
+
+  --color-lf-text-primary: var(--lf-text-primary);
+  --color-lf-text-secondary: var(--lf-text-secondary);
+  --color-lf-text-tertiary: var(--lf-text-tertiary);
+  --color-lf-text-inverse: var(--lf-text-inverse);
+
+  --color-lf-brand: var(--lf-brand);
+  --color-lf-brand-hover: var(--lf-brand-hover);
+  --color-lf-brand-soft: var(--lf-brand-soft);
+
+  --color-lf-action-primary: var(--lf-action-primary);
+  --color-lf-action-primary-hover: var(--lf-action-primary-hover);
+  --color-lf-danger: var(--lf-danger);
+  --color-lf-danger-bg: var(--lf-danger-bg);
+
+  --color-lf-border: var(--lf-border);
+  --color-lf-border-strong: var(--lf-border-strong);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,11 +1,11 @@
 {
-  "name": "LF ChordApp",
+  "name": "LF Chords",
   "short_name": "LF Chords",
-  "description": "Worship chord charts with transpose and sessions",
+  "description": "Worship chord charts with transpose and playlists",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#171717",
+  "background_color": "#FAF9F6",
+  "theme_color": "#4A7BF7",
   "icons": [
     {
       "src": "/icon-192.png",

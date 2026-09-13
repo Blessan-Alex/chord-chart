@@ -33,6 +33,9 @@ export function SessionTile({ session, showStatus }: SessionTileProps) {
           <p className="truncate text-sm text-neutral-400">
             {formatSessionDateShort(session.date)} · {session.songCount}{" "}
             {session.songCount === 1 ? "song" : "songs"}
+            {session.ownerUsername && (
+              <span> · @{session.ownerUsername}</span>
+            )}
             {showStatus && session.status === "draft" && (
               <span> · {SESSION_STATUS_LABELS.draft}</span>
             )}

@@ -2,6 +2,7 @@
 
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -14,6 +15,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,9 +25,19 @@ import {
   initAppCheck,
   isFirebaseEnabled,
 } from "@/lib/firebase";
+import {
+  createUserProfile,
+  getUserProfile,
+  isUsernameAvailable,
+  touchLastLogin,
+  updateUserDisplayName,
+} from "@/lib/firestore/users";
+import type { UserProfile } from "@/lib/types";
+import { validateUsername } from "@/lib/validation";
 
 export type AuthContextValue = {
   user: User | null;
+  profile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -33,13 +45,16 @@ export type AuthContextValue = {
     email: string,
     password: string,
     displayName: string,
+    username: string,
   ) => Promise<void>;
   signOut: () => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
+  checkUsernameAvailable: (username: string) => Promise<boolean>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function ensureUserProfile(user: User): Promise<void> {
+async function ensureLegacyUserProfile(user: User): Promise<void> {
   const { getDb } = await import("@/lib/firebase");
   const userRef = doc(getDb(), "users", user.uid);
   const snap = await getDoc(userRef);
@@ -56,6 +71,7 @@ async function ensureUserProfile(user: User): Promise<void> {
       "Musician",
     role: "musician",
     createdAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
   });
 }
 
@@ -64,10 +80,20 @@ async function readIsAdmin(user: User): Promise<boolean> {
   return token.claims.admin === true;
 }
 
+async function loadProfile(uid: string): Promise<UserProfile | null> {
+  try {
+    return await getUserProfile(uid);
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(isFirebaseEnabled());
   const [isAdmin, setIsAdmin] = useState(false);
+  const signUpInProgressRef = useRef(false);
 
   useEffect(() => {
     if (!isFirebaseEnabled()) {
@@ -82,12 +108,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (nextUser) {
         try {
-          await ensureUserProfile(nextUser);
+          if (!signUpInProgressRef.current) {
+            await ensureLegacyUserProfile(nextUser);
+          }
+          await touchLastLogin(nextUser.uid);
+          setProfile(await loadProfile(nextUser.uid));
           setIsAdmin(await readIsAdmin(nextUser));
         } catch {
+          setProfile(null);
           setIsAdmin(false);
         }
       } else {
+        setProfile(null);
         setIsAdmin(false);
       }
 
@@ -105,22 +137,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(
-    async (email: string, password: string, displayName: string) => {
+    async (
+      email: string,
+      password: string,
+      displayName: string,
+      username: string,
+    ) => {
       if (!isFirebaseEnabled()) {
         throw new Error("Firebase is not configured");
       }
 
-      const auth = getFirebaseAuth();
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
+      const trimmedName = displayName.trim();
+      if (!trimmedName) {
+        throw new Error("Display name is required");
+      }
 
-      if (displayName.trim()) {
+      const usernameResult = validateUsername(username);
+      if (!usernameResult.ok) {
+        throw new Error(usernameResult.error);
+      }
+
+      if (!(await isUsernameAvailable(usernameResult.normalized))) {
+        throw new Error("That username is already taken");
+      }
+
+      signUpInProgressRef.current = true;
+      const auth = getFirebaseAuth();
+      let credential: Awaited<
+        ReturnType<typeof createUserWithEmailAndPassword>
+      > | null = null;
+
+      try {
+        credential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password,
+        );
+
         await updateProfile(credential.user, {
-          displayName: displayName.trim(),
+          displayName: trimmedName,
         });
+
+        await createUserProfile({
+          uid: credential.user.uid,
+          email: credential.user.email ?? email,
+          displayName: trimmedName,
+          username: usernameResult.normalized,
+        });
+
+        setProfile(await loadProfile(credential.user.uid));
+      } catch (error) {
+        if (credential?.user) {
+          try {
+            await deleteUser(credential.user);
+          } catch {
+            // Best-effort cleanup if profile creation fails after auth user exists.
+          }
+        }
+        throw error;
+      } finally {
+        signUpInProgressRef.current = false;
       }
     },
     [],
@@ -133,16 +209,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(getFirebaseAuth());
   }, []);
 
+  const updateDisplayName = useCallback(
+    async (displayName: string) => {
+      if (!user) {
+        throw new Error("Not signed in");
+      }
+
+      const trimmed = displayName.trim();
+      if (!trimmed) {
+        throw new Error("Display name is required");
+      }
+
+      await updateUserDisplayName(user.uid, trimmed);
+      await updateProfile(user, { displayName: trimmed });
+      setProfile(await loadProfile(user.uid));
+    },
+    [user],
+  );
+
+  const checkUsernameAvailable = useCallback(async (username: string) => {
+    const result = validateUsername(username);
+    if (!result.ok) {
+      return false;
+    }
+    return isUsernameAvailable(result.normalized);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
+      profile,
       loading,
       isAdmin,
       signIn,
       signUp,
       signOut,
+      updateDisplayName,
+      checkUsernameAvailable,
     }),
-    [user, loading, isAdmin, signIn, signUp, signOut],
+    [
+      user,
+      profile,
+      loading,
+      isAdmin,
+      signIn,
+      signUp,
+      signOut,
+      updateDisplayName,
+      checkUsernameAvailable,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

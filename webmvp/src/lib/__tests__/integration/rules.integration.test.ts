@@ -80,15 +80,49 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
     );
   });
 
-  it("allows musician self-signup user doc", async () => {
+  it("allows musician self-signup user doc with username", async () => {
     const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
 
     await assertSucceeds(
       setDoc(doc(musicianDb, "users", "musician-uid"), {
         email: "musician@example.com",
         displayName: "Musician",
+        username: "musician",
+        usernameLower: "musician",
+        role: "musician",
+        avatarInitials: "MU",
+        createdAt: Timestamp.now(),
+        lastLoginAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("allows legacy musician signup without username", async () => {
+    const musicianDb = testEnv.authenticatedContext("legacy-uid").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(musicianDb, "users", "legacy-uid"), {
+        email: "legacy@example.com",
+        displayName: "Legacy User",
         role: "musician",
         createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("denies musician signup with admin role", async () => {
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    await assertFails(
+      setDoc(doc(musicianDb, "users", "musician-uid"), {
+        email: "musician@example.com",
+        displayName: "Musician",
+        username: "musician",
+        usernameLower: "musician",
+        role: "admin",
+        avatarInitials: "MU",
+        createdAt: Timestamp.now(),
+        lastLoginAt: Timestamp.now(),
       }),
     );
   });
@@ -100,8 +134,12 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
       await setDoc(doc(context.firestore(), "users", "musician-uid"), {
         email: "musician@example.com",
         displayName: "Musician",
+        username: "musician",
+        usernameLower: "musician",
         role: "musician",
+        avatarInitials: "MU",
         createdAt: Timestamp.now(),
+        lastLoginAt: Timestamp.now(),
       });
     });
 
@@ -109,8 +147,42 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
       setDoc(doc(musicianDb, "users", "musician-uid"), {
         email: "musician@example.com",
         displayName: "Musician",
+        username: "musician",
+        usernameLower: "musician",
         role: "admin",
+        avatarInitials: "MU",
         createdAt: Timestamp.now(),
+        lastLoginAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("denies musician changing username", async () => {
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "users", "musician-uid"), {
+        email: "musician@example.com",
+        displayName: "Musician",
+        username: "musician",
+        usernameLower: "musician",
+        role: "musician",
+        avatarInitials: "MU",
+        createdAt: Timestamp.now(),
+        lastLoginAt: Timestamp.now(),
+      });
+    });
+
+    await assertFails(
+      setDoc(doc(musicianDb, "users", "musician-uid"), {
+        email: "musician@example.com",
+        displayName: "Musician",
+        username: "othername",
+        usernameLower: "othername",
+        role: "musician",
+        avatarInitials: "MU",
+        createdAt: Timestamp.now(),
+        lastLoginAt: Timestamp.now(),
       }),
     );
   });
@@ -131,5 +203,34 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
 
     const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
     await assertSucceeds(getDoc(doc(musicianDb, "songIndex", "chunk0")));
+  });
+
+  it("allows public username availability lookup", async () => {
+    const anonDb = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(anonDb, "usernames", "available-name")));
+  });
+
+  it("allows authed user to reserve username doc", async () => {
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(musicianDb, "usernames", "musician"), {
+        uid: "musician-uid",
+        usernameLower: "musician",
+        createdAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("denies reserving username for another uid", async () => {
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    await assertFails(
+      setDoc(doc(musicianDb, "usernames", "musician"), {
+        uid: "someone-else",
+        usernameLower: "musician",
+        createdAt: Timestamp.now(),
+      }),
+    );
   });
 });

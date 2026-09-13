@@ -71,20 +71,62 @@ service cloud.firestore {
       }
     }
 
+    function validUsernameFields() {
+      return request.resource.data.username is string
+        && request.resource.data.usernameLower is string
+        && request.resource.data.username == request.resource.data.usernameLower
+        && request.resource.data.username.size() >= 3
+        && request.resource.data.username.size() <= 20;
+    }
+
+    function validUserCreate() {
+      return request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.role == 'musician'
+        && request.resource.data.avatarInitials is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.lastLoginAt is timestamp
+        && validUsernameFields();
+    }
+
+    function validLegacyUserCreate() {
+      return request.resource.data.email is string
+        && request.resource.data.displayName is string
+        && request.resource.data.role == 'musician'
+        && request.resource.data.createdAt is timestamp
+        && !('username' in request.resource.data)
+        && (!('lastLoginAt' in request.resource.data)
+            || request.resource.data.lastLoginAt is timestamp);
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
 
       allow create: if isOwner(uid)
-        && request.resource.data.email is string
-        && request.resource.data.displayName is string
-        && request.resource.data.role == 'musician';
+        && (validUserCreate() || validLegacyUserCreate());
 
       allow update: if isOwner(uid)
         && request.resource.data.role == resource.data.role
+        && (!('username' in resource.data) || (
+          request.resource.data.username == resource.data.username
+          && request.resource.data.usernameLower == resource.data.usernameLower
+        ))
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['displayName', 'lastLoginAt']);
+            .hasOnly(['displayName', 'lastLoginAt', 'avatarInitials']);
 
       allow delete: if false;
+    }
+
+    match /usernames/{usernameLower} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAuth()
+        && request.resource.data.uid == request.auth.uid
+        && usernameLower == request.resource.data.usernameLower
+        && request.resource.data.usernameLower.size() >= 3
+        && request.resource.data.usernameLower.size() <= 20
+        && request.resource.data.createdAt is timestamp;
+      allow update, delete: if false;
     }
 
     match /meta/{docId} {
