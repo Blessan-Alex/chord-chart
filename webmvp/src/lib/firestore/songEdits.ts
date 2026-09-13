@@ -15,6 +15,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
+import { normalizeSections, serializeSectionsForPublish } from "@/lib/chordMarks";
 import { getDb } from "@/lib/firebase";
 import {
   songToIndexEntry,
@@ -44,7 +45,12 @@ function resolveDb(db?: Firestore): Firestore {
 }
 
 function mapSongEdit(snap: QueryDocumentSnapshot): SongEdit {
-  return { id: snap.id, ...(snap.data() as SongEditData) };
+  const data = snap.data() as SongEditData;
+  return {
+    id: snap.id,
+    ...data,
+    sections: normalizeSections(data.sections),
+  };
 }
 
 function assertValidDraftInput(
@@ -145,7 +151,7 @@ export async function createDraft(
     baseVersion: song.version,
     title: song.title,
     originalKey: song.originalKey,
-    sections: song.sections,
+    sections: normalizeSections(song.sections),
     notes: song.notes,
     version: song.version + 1,
     editedBy,
@@ -173,17 +179,20 @@ export async function updateDraft(
     throw new Error("Draft not found");
   }
 
+  const normalizedSections =
+    patch.sections !== undefined ? normalizeSections(patch.sections) : undefined;
+
   assertValidDraftInput({
     songId: existing.songId,
     title: patch.title ?? existing.title,
     originalKey: patch.originalKey ?? existing.originalKey,
-    sections: patch.sections ?? existing.sections,
+    sections: normalizedSections ?? existing.sections,
   });
 
   const updates: Record<string, unknown> = {};
   if (patch.title !== undefined) updates.title = patch.title.trim();
   if (patch.originalKey !== undefined) updates.originalKey = patch.originalKey;
-  if (patch.sections !== undefined) updates.sections = patch.sections;
+  if (normalizedSections !== undefined) updates.sections = normalizedSections;
   if (patch.notes !== undefined) updates.notes = patch.notes;
 
   if (Object.keys(updates).length === 0) {
@@ -209,6 +218,7 @@ export async function discardDraft(
 export async function publishDraft(
   editId: string,
   editedBy: string,
+  extras?: { artist?: string },
   db?: Firestore,
 ): Promise<string> {
   const firestore = resolveDb(db);
@@ -257,9 +267,10 @@ export async function publishDraft(
     tx.update(songRef, {
       title: edit.title,
       originalKey: edit.originalKey,
-      sections: edit.sections,
+      sections: serializeSectionsForPublish(edit.sections),
       notes: edit.notes,
       version: edit.version,
+      ...(extras?.artist !== undefined ? { artist: extras.artist.trim() } : {}),
       updatedAt: serverTimestamp(),
     });
 

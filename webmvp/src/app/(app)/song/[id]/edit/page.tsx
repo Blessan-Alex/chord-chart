@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { InteractiveEditor } from "@/components/InteractiveEditor";
 import { SignInRequired } from "@/components/SignInRequired";
+import { normalizeSections } from "@/lib/chordMarks";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import {
   createDraft,
@@ -16,12 +17,9 @@ import {
   publishDraft,
   updateDraft,
 } from "@/lib/firestore/songEdits";
+import { getSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { Section, SongEdit } from "@/lib/types";
-
-function isKey(value: string): value is Key {
-  return (ALL_KEYS as readonly string[]).includes(value);
-}
 
 export default function SongEditPage() {
   const params = useParams();
@@ -31,6 +29,7 @@ export default function SongEditPage() {
 
   const [draft, setDraft] = useState<SongEdit | null>(null);
   const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
   const [originalKey, setOriginalKey] = useState<Key>("C");
   const [notes, setNotes] = useState("");
   const [sections, setSections] = useState<Section[]>([]);
@@ -43,7 +42,12 @@ export default function SongEditPage() {
     setLoading(true);
     setError(null);
     try {
-      let nextDraft = await getDraftForSong(songId);
+      const [song, existingDraft] = await Promise.all([
+        getSong(songId),
+        getDraftForSong(songId),
+      ]);
+
+      let nextDraft = existingDraft;
       if (!nextDraft && user) {
         nextDraft = await createDraft(songId, user.uid);
       }
@@ -51,11 +55,13 @@ export default function SongEditPage() {
         setDraft(null);
         return;
       }
+
       setDraft(nextDraft);
       setTitle(nextDraft.title);
+      setArtist(song?.artist ?? "");
       setOriginalKey(nextDraft.originalKey);
       setNotes(nextDraft.notes ?? "");
-      setSections(nextDraft.sections);
+      setSections(normalizeSections(nextDraft.sections));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load draft.");
     } finally {
@@ -71,7 +77,7 @@ export default function SongEditPage() {
     }
   }, [authLoading, user, isAdmin, loadDraft]);
 
-  const saveDraft = async (nextSections: Section[]) => {
+  const saveDraft = async () => {
     if (!draft) {
       return;
     }
@@ -82,7 +88,7 @@ export default function SongEditPage() {
       await updateDraft(draft.id, {
         title: title.trim(),
         originalKey,
-        sections: nextSections,
+        sections,
         notes: notes.trim() || null,
       });
       const refreshed = await getDraftForSong(songId);
@@ -108,7 +114,7 @@ export default function SongEditPage() {
         sections,
         notes: notes.trim() || null,
       });
-      await publishDraft(draft.id, user!.uid);
+      await publishDraft(draft.id, user!.uid, { artist: artist.trim() });
       router.push(`/song/${songId}`);
     } catch (err) {
       if (err instanceof DraftVersionConflictError) {
@@ -141,12 +147,12 @@ export default function SongEditPage() {
 
   if (!authLoading && user && !isAdmin) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 p-4 sm:p-8">
-        <h1 className="text-2xl font-semibold">Admin only</h1>
-        <p className="text-neutral-600 dark:text-neutral-400">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-6">
+        <h1 className="text-2xl font-semibold text-lf-text-primary">Admin only</h1>
+        <p className="text-lf-text-secondary">
           Only admins can edit songs.
         </p>
-        <Link href={`/song/${songId}`} className="text-sm text-neutral-500 hover:underline">
+        <Link href={`/song/${songId}`} className="text-sm text-lf-brand hover:underline">
           ← Back to song
         </Link>
       </main>
@@ -166,65 +172,108 @@ export default function SongEditPage() {
         onCancel={() => setShowDiscard(false)}
       />
 
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
-        <Link
-          href={`/song/${songId}`}
-          className="text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-        >
-          ← Back to song
-        </Link>
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 pb-24 sm:p-6 sm:pb-8">
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href={`/song/${songId}`}
+            className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
+          >
+            ← Back
+          </Link>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void saveDraft();
+              }}
+              className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
+            >
+              Save draft
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void handlePublish();
+              }}
+              className="rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
+            >
+              Publish
+            </button>
+          </div>
+        </div>
 
         <div>
-          <h1 className="text-2xl font-semibold">Edit song</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Draft changes are saved before publishing.
+          <h1 className="text-2xl font-semibold text-lf-text-primary">Edit song</h1>
+          <p className="mt-1 text-sm text-lf-text-secondary">
+            Highlight lyrics to place chords. Draft changes are saved before publishing.
           </p>
         </div>
 
-        {loading && <p className="text-neutral-400">Loading draft…</p>}
+        {loading && <p className="text-lf-text-tertiary">Loading draft…</p>}
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="text-sm text-lf-danger" role="alert">
+            {error}
+          </p>
         )}
 
         {!loading && draft && (
           <>
-            <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Title</span>
+            <div className="flex flex-col gap-5">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-lf-text-primary">Title</span>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
                 />
               </label>
 
-              <label className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Original key</span>
-                <select
-                  value={originalKey}
-                  onChange={(e) => {
-                    if (isKey(e.target.value)) {
-                      setOriginalKey(e.target.value);
-                    }
-                  }}
-                  className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950"
-                >
-                  {ALL_KEYS.map((key) => (
-                    <option key={key} value={key}>
-                      {key}
-                    </option>
-                  ))}
-                </select>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-lf-text-primary">Artist</span>
+                <input
+                  type="text"
+                  value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                  placeholder="Optional"
+                  className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+                />
               </label>
 
-              <label className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Notes</span>
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-lf-text-primary">
+                  Original key
+                </span>
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                  {ALL_KEYS.map((key) => {
+                    const isSelected = key === originalKey;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setOriginalKey(key)}
+                        className={`min-h-12 rounded-[var(--lf-radius-md)] border px-2 text-sm font-semibold transition-colors ${
+                          isSelected
+                            ? "border-lf-brand bg-lf-bg-active text-lf-brand"
+                            : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
+                        }`}
+                      >
+                        {key}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-lf-text-primary">Notes</span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  className="rounded-lg border border-neutral-300 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-950"
+                  className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-sm text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
                 />
               </label>
             </div>
@@ -233,46 +282,23 @@ export default function SongEditPage() {
               sections={sections}
               originalKey={originalKey}
               onSectionsChange={setSections}
-              onSave={(nextSections) => {
-                void saveDraft(nextSections);
-              }}
             />
 
-            <div className="flex flex-wrap gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  void saveDraft(sections);
-                }}
-                className="rounded border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700"
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  void handlePublish();
-                }}
-                className="rounded bg-black px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-black"
-              >
-                Publish
-              </button>
+            <div className="flex flex-wrap gap-2 border-t border-lf-border pt-4">
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => setShowDiscard(true)}
-                className="rounded border border-red-300 px-4 py-2 text-sm font-medium text-red-600 dark:border-red-900 dark:text-red-400"
+                className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
               >
-                Discard
+                Discard draft
               </button>
             </div>
           </>
         )}
 
         {!loading && !draft && (
-          <p className="text-neutral-600 dark:text-neutral-400">
+          <p className="text-lf-text-secondary">
             Could not open a draft for this song.
           </p>
         )}

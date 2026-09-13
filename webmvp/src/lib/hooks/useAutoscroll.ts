@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 
 const MIN_SPEED = 0.5;
 const MAX_SPEED = 2;
@@ -11,12 +17,28 @@ export function clampAutoscrollSpeed(speed: number): number {
   return Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(speed.toFixed(1))));
 }
 
-export function useAutoscroll() {
+function applyScroll(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
+  const container = scrollRef?.current;
+  if (container && container.scrollHeight - container.clientHeight > 1) {
+    container.scrollTop += delta;
+    return;
+  }
+
+  const root = document.scrollingElement ?? document.documentElement;
+  root.scrollTop += delta;
+}
+
+export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   const [active, setActive] = useState(false);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
+  const scrollRefStable = useRef(scrollRef);
+
+  useEffect(() => {
+    scrollRefStable.current = scrollRef;
+  }, [scrollRef]);
 
   const stop = useCallback(() => {
     setActive(false);
@@ -57,7 +79,10 @@ export function useAutoscroll() {
     const tick = (time: number) => {
       if (lastTimeRef.current !== null) {
         const deltaSeconds = (time - lastTimeRef.current) / 1000;
-        window.scrollBy(0, deltaSeconds * BASE_PIXELS_PER_SECOND * speed);
+        applyScroll(
+          deltaSeconds * BASE_PIXELS_PER_SECOND * speed,
+          scrollRefStable.current,
+        );
       }
       lastTimeRef.current = time;
       frameRef.current = requestAnimationFrame(tick);

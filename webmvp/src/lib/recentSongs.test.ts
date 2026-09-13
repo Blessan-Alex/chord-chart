@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getRecentSongs, recordRecentSong } from "./recentSongs";
+import { getRecentSongs, recordRecentSong, filterRecentByKnownIds } from "./recentSongs";
 
 describe("recentSongs", () => {
   const storage = new Map<string, string>();
@@ -83,5 +83,26 @@ describe("recentSongs", () => {
   it("returns empty array for invalid stored JSON", () => {
     storage.set("lf-recent-songs", "{not-json");
     expect(getRecentSongs()).toEqual([]);
+  });
+
+  it("filters out entries missing from the known library", () => {
+    recordRecentSong({
+      songId: "gone",
+      title: "Removed",
+      artist: "",
+      key: "C",
+    });
+    recordRecentSong({
+      songId: "kept",
+      title: "Kept",
+      artist: "",
+      key: "G",
+    });
+
+    expect(
+      filterRecentByKnownIds(getRecentSongs(), new Set(["kept"])).map(
+        (entry) => entry.songId,
+      ),
+    ).toEqual(["kept"]);
   });
 });

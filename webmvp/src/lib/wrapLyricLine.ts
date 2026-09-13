@@ -1,3 +1,4 @@
+import { getMarkStart, normalizeChordMark } from "@/lib/chordMarks";
 import type { ChordMark, LyricLine } from "@/lib/types";
 
 export type WrappedSegment = {
@@ -21,21 +22,28 @@ function chordsForSegment(
   segEnd: number,
 ): ChordMark[] {
   return chords
-    .filter((chord) => chord.position >= segStart && chord.position < segEnd)
-    .map((chord) => ({
-      ...chord,
-      position: chord.position - segStart,
-    }));
+    .filter((chord) => {
+      const start = getMarkStart(chord);
+      return start >= segStart && start < segEnd;
+    })
+    .map((chord) =>
+      normalizeChordMark({
+        ...chord,
+        start: getMarkStart(chord) - segStart,
+        end: getMarkStart(chord) - segStart + 1,
+      }),
+    );
 }
 
 export function wrapLyricLine(line: LyricLine, maxChars: number): WrappedSegment[] {
   const text = line.lyrics;
+  const normalizedChords = line.chords.map(normalizeChordMark);
 
   if (maxChars <= 0 || text.length <= maxChars) {
     return [
       {
         lyrics: text,
-        chords: line.chords.map((chord) => ({ ...chord })),
+        chords: normalizedChords,
       },
     ];
   }
@@ -48,7 +56,7 @@ export function wrapLyricLine(line: LyricLine, maxChars: number): WrappedSegment
     if (remaining <= maxChars) {
       segments.push({
         lyrics: text.slice(offset),
-        chords: chordsForSegment(line.chords, offset, text.length),
+        chords: chordsForSegment(normalizedChords, offset, text.length),
       });
       break;
     }
@@ -66,7 +74,7 @@ export function wrapLyricLine(line: LyricLine, maxChars: number): WrappedSegment
 
     segments.push({
       lyrics: chunk,
-      chords: chordsForSegment(line.chords, offset, offset + chunkLen),
+      chords: chordsForSegment(normalizedChords, offset, offset + chunkLen),
     });
 
     offset += chunkLen;
@@ -77,5 +85,5 @@ export function wrapLyricLine(line: LyricLine, maxChars: number): WrappedSegment
 
   return segments.length > 0
     ? segments
-    : [{ lyrics: text, chords: line.chords.map((chord) => ({ ...chord })) }];
+    : [{ lyrics: text, chords: normalizedChords }];
 }

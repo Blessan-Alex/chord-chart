@@ -2,10 +2,13 @@ import type { Timestamp } from "firebase/firestore";
 
 import type { Key } from "@/lib/engine";
 
-// A chord placed at a character position in a lyric line
+// A chord placed on a lyric line using character range indices
 export type ChordMark = {
-  chord: string; // e.g. "Am7", "G/B", "Dsus4"
-  position: number; // character index in the lyric text
+  chord: string;
+  start: number;
+  end: number;
+  /** Legacy field kept for backward compatibility during migration. */
+  position?: number;
 };
 
 // A lyric line with chords positioned above it
@@ -29,6 +32,8 @@ export type Song = {
 };
 
 export type SongStatus = "active" | "archived";
+
+export type SongViewMode = "chords" | "numbers";
 
 /** Denormalized search row embedded in `songIndex` chunks. */
 export type SongIndexEntry = {

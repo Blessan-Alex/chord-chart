@@ -171,6 +171,21 @@ body.song-performance-page {
   letter-spacing: 0;
 }
 
+/* Index-based chord placement requires fixed-width lyrics (ch units). */
+.chord-chart .chord-row,
+.chord-chart-editor .chord-row {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.chord-chart .lyric-row,
+.chord-chart-editor .lyric-editor-line {
+  color: var(--lyric-color, var(--lf-text-primary));
+  font-family: inherit;
+  font-size: 1em;
+  line-height: inherit;
+}
+
 .lyric-row {
   color: var(--lyric-color, var(--lf-text-primary));
   font-family: var(--font-lora), Georgia, serif;
@@ -181,4 +196,25 @@ body.song-performance-page {
 /* First section label has no top margin */
 .chord-chart > div:first-child > .section-label {
   margin-top: 0;
+}
+
+.chord-chart-editor {
+  user-select: text;
+  white-space: normal;
+}
+
+.lyric-editor-line {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.lyric-editor-line::selection {
+  background: var(--lf-brand-soft);
+  color: var(--lf-text-primary);
+}
+
+[data-theme="dark"] .lyric-editor-line::selection {
+  background: var(--lf-brand-soft);
+  color: var(--lf-text-primary);
 }

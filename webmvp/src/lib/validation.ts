@@ -1,4 +1,6 @@
 import { ALL_KEYS, isValidChord, type Key } from "@/lib/engine";
+import { getMarkEnd, getMarkStart } from "@/lib/chordMarks";
+import type { ChordMark } from "@/lib/types";
 
 export const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
 
@@ -47,8 +49,21 @@ function validateChordMark(mark: unknown, path: string, errors: string[]): void 
     errors.push(`${path}: invalid chord "${m.chord}"`);
   }
 
-  if (typeof m.position !== "number" || !Number.isInteger(m.position) || m.position < 0) {
-    errors.push(`${path}: position must be a non-negative integer`);
+  const hasStartEnd =
+    typeof m.start === "number" &&
+    typeof m.end === "number" &&
+    Number.isInteger(m.start) &&
+    Number.isInteger(m.end) &&
+    m.start >= 0 &&
+    m.end > m.start;
+
+  const hasLegacyPosition =
+    typeof m.position === "number" &&
+    Number.isInteger(m.position) &&
+    m.position >= 0;
+
+  if (!hasStartEnd && !hasLegacyPosition) {
+    errors.push(`${path}: start/end or legacy position is required`);
   }
 }
 
@@ -70,6 +85,28 @@ function validateLyricLine(line: unknown, path: string, errors: string[]): void 
     l.chords.forEach((mark, ci) => {
       validateChordMark(mark, `${path}.chords[${ci}]`, errors);
     });
+
+    if (typeof l.lyrics === "string") {
+      const lyricLength = l.lyrics.length;
+      l.chords.forEach((mark, ci) => {
+        if (!mark || typeof mark !== "object") {
+          return;
+        }
+        const chordMark = mark as ChordMark;
+        const start = getMarkStart(chordMark);
+        const end = getMarkEnd(chordMark);
+        if (start > lyricLength) {
+          errors.push(
+            `${path}.chords[${ci}]: start ${start} exceeds lyrics length ${lyricLength}`,
+          );
+        }
+        if (end > lyricLength) {
+          errors.push(
+            `${path}.chords[${ci}]: end ${end} exceeds lyrics length ${lyricLength}`,
+          );
+        }
+      });
+    }
   }
 }
 

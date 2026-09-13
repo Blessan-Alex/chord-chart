@@ -73,7 +73,7 @@ describe.skipIf(!emulatorEnabled).sequential("songEdits integration", () => {
       adminDb,
     );
 
-    await publishDraft(draft.id, "admin-uid", adminDb);
+    await publishDraft(draft.id, "admin-uid", undefined, adminDb);
 
     const song = await getSong("editable-song", adminDb);
     expect(song?.title).toBe("Editable Song (edited)");
@@ -122,7 +122,7 @@ describe.skipIf(!emulatorEnabled).sequential("songEdits integration", () => {
     );
 
     const draft = await createDraft("conflict-song", "admin-uid", adminDb);
-    await publishDraft(draft.id, "admin-uid", adminDb);
+    await publishDraft(draft.id, "admin-uid", undefined, adminDb);
 
     const staleDraft = await createDraft("conflict-song", "admin-uid", adminDb);
     await updateDoc(doc(adminDb, "songEdits", staleDraft.id), {
@@ -130,7 +130,7 @@ describe.skipIf(!emulatorEnabled).sequential("songEdits integration", () => {
     });
 
     await expect(
-      publishDraft(staleDraft.id, "admin-uid", adminDb),
+      publishDraft(staleDraft.id, "admin-uid", undefined, adminDb),
     ).rejects.toBeInstanceOf(DraftVersionConflictError);
   });
 });

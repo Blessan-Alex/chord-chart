@@ -10,6 +10,7 @@ type PerformanceBottomBarProps = {
   originalKey: Key;
   onTransposeDown: () => void;
   onTransposeUp: () => void;
+  onOpenKeyModal: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   scalePercent: number;
@@ -91,6 +92,7 @@ export function PerformanceBottomBar({
   originalKey,
   onTransposeDown,
   onTransposeUp,
+  onOpenKeyModal,
   onZoomOut,
   onZoomIn,
   scalePercent,
@@ -138,9 +140,11 @@ export function PerformanceBottomBar({
             <IconButton label="Transpose down" onClick={onTransposeDown}>
               −
             </IconButton>
-            <div
+            <button
+              type="button"
+              onClick={onOpenKeyModal}
               className="inline-flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center rounded-[var(--lf-radius-md)] bg-lf-bg-active px-2 text-center"
-              aria-label={`Key ${displayKey}`}
+              aria-label={`Key ${displayKey}. Tap to choose key.`}
               aria-live="polite"
             >
               <span className="text-base font-bold leading-none text-lf-brand">
@@ -151,7 +155,7 @@ export function PerformanceBottomBar({
                   from {originalKey}
                 </span>
               )}
-            </div>
+            </button>
             <IconButton label="Transpose up" onClick={onTransposeUp}>
               +
             </IconButton>

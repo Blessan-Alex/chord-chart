@@ -2,7 +2,7 @@
 
 import type { Key } from "@/lib/engine";
 
-import type { SongViewMode } from "@/components/SongToolbar";
+import type { SongViewMode } from "@/lib/types";
 
 type SongControlBarProps = {
   targetKey: Key;
@@ -66,7 +66,7 @@ export function SongControlBar({
   return (
     <div className="mt-3 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        {!showMobileControls && (
+        {!showMobileControls ? (
           <div className="flex items-center gap-1 rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated p-1">
             <button
               type="button"
@@ -93,6 +93,15 @@ export function SongControlBar({
               +
             </button>
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenKeyModal}
+            className="inline-flex min-h-10 min-w-14 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-sm font-semibold text-lf-brand"
+            aria-label={`Key ${displayKey}`}
+          >
+            {displayKey}
+          </button>
         )}
 
         <div className="flex overflow-hidden rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated">

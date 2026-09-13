@@ -67,6 +67,18 @@ describe("filterSongIndex", () => {
       "Way Maker",
     ]);
   });
+
+  it("handles legacy entries missing artist or tags", () => {
+    const legacy = [
+      {
+        id: "legacy",
+        title: "Legacy Song",
+        key: "C" as const,
+      } as SongIndexEntry,
+    ];
+    expect(() => filterSongIndex(legacy, "legacy")).not.toThrow();
+    expect(filterSongIndex(legacy, "legacy")).toHaveLength(1);
+  });
 });
 
 describe("mergeIndexEntry", () => {

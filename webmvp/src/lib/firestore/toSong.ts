@@ -1,3 +1,4 @@
+import { normalizeSections } from "@/lib/chordMarks";
 import type { FirestoreSong, Song } from "@/lib/types";
 
 export function firestoreSongToSong(song: FirestoreSong): Song {
@@ -5,6 +6,6 @@ export function firestoreSongToSong(song: FirestoreSong): Song {
     id: song.id,
     title: song.title,
     originalKey: song.originalKey,
-    sections: song.sections,
+    sections: normalizeSections(song.sections),
   };
 }

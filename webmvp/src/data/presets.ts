@@ -11,7 +11,11 @@ function L(input: string): LyricLine {
     if (input[i] === "[") {
       const end = input.indexOf("]", i);
       if (end !== -1) {
-        chords.push({ chord: input.slice(i + 1, end), position: lyrics.length });
+        chords.push({
+          chord: input.slice(i + 1, end),
+          start: lyrics.length,
+          end: lyrics.length + 1,
+        });
         i = end + 1;
         continue;
       }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { adminSongActionLabels } from "./SongHeader";
 
-describe("SongToolbar", () => {
+describe("SongHeader", () => {
   it("shows admin actions only for admins", () => {
     expect(adminSongActionLabels(true)).toEqual(["Edit", "+ Session", "Delete"]);
     expect(adminSongActionLabels(false)).toEqual([]);

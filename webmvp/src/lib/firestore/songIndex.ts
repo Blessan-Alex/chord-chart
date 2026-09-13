@@ -91,8 +91,8 @@ export function filterSongIndex(
     .filter(
       (entry) =>
         entry.title.toLowerCase().includes(q) ||
-        entry.artist.toLowerCase().includes(q) ||
-        entry.tags.some((tag) => tag.toLowerCase().includes(q)),
+        (entry.artist ?? "").toLowerCase().includes(q) ||
+        (entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q)),
     )
     .sort((a, b) => a.title.localeCompare(b.title));
 }

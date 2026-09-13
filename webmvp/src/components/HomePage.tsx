@@ -1,21 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PageError } from "@/components/PageError";
-import { PlaylistPreviewCard } from "@/components/PlaylistPreviewCard";
+import {
+  PlaylistPreviewCard,
+  type PlaylistPreviewSong,
+} from "@/components/PlaylistPreviewCard";
 import { SongRow } from "@/components/SongRow";
 import { LIBRARY_BROWSE_CAP } from "@/lib/constants";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
+import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import { listSessions } from "@/lib/firestore/sessions";
 import { archiveSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
+import { filterRecentByKnownIds } from "@/lib/recentSongs";
 import { deleteSong, getSongs } from "@/lib/storage";
 import type { Session, Song, SongIndexEntry } from "@/lib/types";
 
@@ -72,6 +77,9 @@ export function HomePage() {
   const [indexLoading, setIndexLoading] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [myPlaylists, setMyPlaylists] = useState<Session[]>([]);
+  const [playlistPreviews, setPlaylistPreviews] = useState<
+    Record<string, PlaylistPreviewSong[]>
+  >({});
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [keyFilter, setKeyFilter] = useState<Key | "">("");
@@ -93,6 +101,21 @@ export function HomePage() {
   const libraryCapped =
     isBrowsingAll && libraryResults.length > LIBRARY_BROWSE_CAP;
 
+  const knownSongIds = useMemo(() => {
+    if (user) {
+      return new Set(indexEntries.map((entry) => entry.id));
+    }
+    return new Set(savedSongs.map((song) => song.id));
+  }, [user, indexEntries, savedSongs]);
+
+  const visibleRecent = useMemo(
+    () => filterRecentByKnownIds(recentSongs, knownSongIds),
+    [recentSongs, knownSongIds],
+  );
+
+  const showRecent =
+    visibleRecent.length > 0 && !searchQuery.trim() && !keyFilter;
+
   const refreshLocalSongs = useCallback(() => {
     setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
     setLoaded(true);
@@ -110,6 +133,7 @@ export function HomePage() {
       setIndexEntries([]);
       setIndexError(null);
       setMyPlaylists([]);
+      setPlaylistPreviews({});
       return;
     }
 
@@ -129,11 +153,28 @@ export function HomePage() {
 
         if (!cancelled) {
           setIndexEntries(entries);
+          const artistBySongId = new Map(
+            entries.map((entry) => [entry.id, entry.artist ?? ""]),
+          );
           const owned = [...published, ...drafts]
             .filter((session) => session.createdBy === user.uid)
             .sort((a, b) => b.date.toMillis() - a.date.toMillis())
             .slice(0, 2);
           setMyPlaylists(owned);
+
+          const previewEntries = await Promise.all(
+            owned.map(async (session) => {
+              const songs = await listSessionSongs(session.id);
+              return [
+                session.id,
+                songs.slice(0, 3).map((song) => ({
+                  title: song.songTitle,
+                  artist: artistBySongId.get(song.songId) ?? "",
+                })),
+              ] as const;
+            }),
+          );
+          setPlaylistPreviews(Object.fromEntries(previewEntries));
         }
       } catch (error) {
         if (!cancelled) {
@@ -176,7 +217,6 @@ export function HomePage() {
   };
 
   const showAddSong = !user || isAdmin;
-  const showRecent = user && recentSongs.length > 0 && !searchQuery.trim() && !keyFilter;
 
   return (
     <div className="mx-auto w-full max-w-3xl p-4 sm:p-8">
@@ -258,7 +298,7 @@ export function HomePage() {
             <section>
               <SectionHeader title="Recently viewed" />
               <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                {recentSongs.map((entry) => (
+                {visibleRecent.map((entry) => (
                   <SongRow
                     key={entry.songId}
                     title={entry.title}
@@ -287,6 +327,7 @@ export function HomePage() {
                           session.songCount === 1 ? "song" : "songs"
                         }`}
                         href={`/sessions/${session.id}`}
+                        previewSongs={playlistPreviews[session.id] ?? []}
                       />
                     ))}
                   </ul>
@@ -359,6 +400,23 @@ export function HomePage() {
               </Link>{" "}
               to access the shared song library, or add songs on this device only.
             </p>
+          )}
+
+          {showRecent && (
+            <section>
+              <SectionHeader title="Recently viewed" />
+              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
+                {visibleRecent.map((entry) => (
+                  <SongRow
+                    key={entry.songId}
+                    title={entry.title}
+                    artist={entry.artist}
+                    songKey={entry.key}
+                    href={`/song/${entry.songId}`}
+                  />
+                ))}
+              </ul>
+            </section>
           )}
 
           {loaded && savedSongs.length > 0 ? (

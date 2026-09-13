@@ -64,6 +64,47 @@ describe("validateSong", () => {
       );
     }
   });
+
+  it("rejects chord marks outside lyric bounds", () => {
+    const result = validateSong({
+      ...validSong,
+      sections: [
+        {
+          label: "Verse 1",
+          lines: [
+            {
+              lyrics: "Hi",
+              chords: [{ chord: "C", start: 0, end: 5 }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.some((e) => e.includes("exceeds lyrics length"))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("accepts start/end chord marks", () => {
+    const result = validateSong({
+      ...validSong,
+      sections: [
+        {
+          label: "Verse 1",
+          lines: [
+            {
+              lyrics: "Hello world",
+              chords: [{ chord: "C", start: 0, end: 1 }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(result).toEqual({ ok: true });
+  });
 });
 
 describe("validateUsername", () => {

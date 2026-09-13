@@ -18,22 +18,6 @@ export function sessionSongHref(
   return `/song/${entry.songId}?${params.toString()}`;
 }
 
-/** @deprecated Use sessionSongHref — kept for callers migrating gradually. */
-export function legacySessionSongHref(
-  sessionId: string,
-  entry: SessionSong,
-  index: number,
-): string {
-  const params = new URLSearchParams({
-    [LEGACY_SESSION_PARAM]: sessionId,
-    index: String(index),
-  });
-  if (entry.keyOverride) {
-    params.set("key", entry.keyOverride);
-  }
-  return `/song/${entry.songId}?${params.toString()}`;
-}
-
 export function startSetHref(
   sessionId: string,
   songs: SessionSong[],

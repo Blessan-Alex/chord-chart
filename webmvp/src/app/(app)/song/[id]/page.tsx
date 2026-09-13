@@ -14,7 +14,6 @@ import { PageLoading } from "@/components/PageLoading";
 import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
 import { SongControlBar } from "@/components/SongControlBar";
 import { SongHeader } from "@/components/SongHeader";
-import { type SongViewMode } from "@/components/SongToolbar";
 import { type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
@@ -46,7 +45,7 @@ import {
 } from "@/lib/sessionNavigation";
 import { recordRecentSong } from "@/lib/recentSongs";
 import { getSong as getLocalSong } from "@/lib/storage";
-import type { Session, SessionSong, Song, SongEdit } from "@/lib/types";
+import type { Session, SessionSong, Song, SongEdit, SongViewMode } from "@/lib/types";
 
 const THEME_CYCLE: ChartTheme[] = ["system", "dark", "stage"];
 
@@ -78,11 +77,12 @@ export default function SongPage() {
   const [transposeFlash, setTransposeFlash] = useState<Key | null>(null);
 
   const swipeStartX = useRef<number | null>(null);
+  const recordedRecentRef = useRef<string | null>(null);
   const isMobile = useIsMobile();
   const performanceMode = usePerformanceMode(sessionId);
   const zoom = useChartZoom({ sessionId });
   const { containerRef, maxChars } = useChartLayout(zoom.scale, performanceMode);
-  const autoscroll = useAutoscroll();
+  const autoscroll = useAutoscroll(containerRef);
 
   useEffect(() => {
     const canonical = canonicalPlaylistSearchParams(searchParams);
@@ -122,6 +122,26 @@ export default function SongPage() {
   }, [performanceMode]);
 
   useEffect(() => {
+    recordedRecentRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (!loaded || !song) {
+      return;
+    }
+    if (recordedRecentRef.current === song.id) {
+      return;
+    }
+    recordedRecentRef.current = song.id;
+    recordRecentSong({
+      songId: song.id,
+      title: song.title,
+      artist,
+      key: song.originalKey,
+    });
+  }, [loaded, song, artist]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadSong() {
@@ -136,12 +156,6 @@ export default function SongPage() {
               const found = firestoreSongToSong(firestoreSong);
               setSong(found);
               setArtist(firestoreSong.artist ?? "");
-              recordRecentSong({
-                songId: found.id,
-                title: found.title,
-                artist: firestoreSong.artist ?? "",
-                key: found.originalKey,
-              });
               setVersion(firestoreSong.version);
               if (keyParam && isKey(keyParam)) {
                 setTargetKey(keyParam);
@@ -182,12 +196,6 @@ export default function SongPage() {
         setSong(found ?? null);
         setArtist("");
         if (found) {
-          recordRecentSong({
-            songId: found.id,
-            title: found.title,
-            artist: "",
-            key: found.originalKey,
-          });
           if (keyParam && isKey(keyParam)) {
             setTargetKey(keyParam);
           } else if (isKey(found.originalKey)) {
@@ -438,55 +446,28 @@ export default function SongPage() {
         <p className="text-xs text-lf-text-tertiary">Library version {version}</p>
       )}
 
-      {!isMobile && (
-        <SongControlBar
-          targetKey={currentKey}
-          originalKey={originalKey}
-          viewMode={viewMode}
-          scalePercent={zoom.scalePercent}
-          transposeFlash={transposeFlash}
-          showMobileControls={false}
-          onTransposeDown={() => handleTranspose(-1)}
-          onTransposeUp={() => handleTranspose(1)}
-          onOpenKeyModal={() => setShowKeyModal(true)}
-          onViewModeChange={setViewMode}
-          onZoomOut={zoom.zoomOut}
-          onZoomIn={zoom.zoomIn}
-          autoscrollActive={autoscroll.active}
-          onToggleAutoscroll={() => {
-            if (autoscroll.active) {
-              autoscroll.stop();
-            } else {
-              autoscroll.start();
-            }
-          }}
-        />
-      )}
-
-      {isMobile && !performanceMode && (
-        <SongControlBar
-          targetKey={currentKey}
-          originalKey={originalKey}
-          viewMode={viewMode}
-          scalePercent={zoom.scalePercent}
-          transposeFlash={transposeFlash}
-          showMobileControls
-          onTransposeDown={() => handleTranspose(-1)}
-          onTransposeUp={() => handleTranspose(1)}
-          onOpenKeyModal={() => setShowKeyModal(true)}
-          onViewModeChange={setViewMode}
-          onZoomOut={zoom.zoomOut}
-          onZoomIn={zoom.zoomIn}
-          autoscrollActive={autoscroll.active}
-          onToggleAutoscroll={() => {
-            if (autoscroll.active) {
-              autoscroll.stop();
-            } else {
-              autoscroll.start();
-            }
-          }}
-        />
-      )}
+      <SongControlBar
+        targetKey={currentKey}
+        originalKey={originalKey}
+        viewMode={viewMode}
+        scalePercent={zoom.scalePercent}
+        transposeFlash={transposeFlash}
+        showMobileControls={isMobile}
+        onTransposeDown={() => handleTranspose(-1)}
+        onTransposeUp={() => handleTranspose(1)}
+        onOpenKeyModal={() => setShowKeyModal(true)}
+        onViewModeChange={setViewMode}
+        onZoomOut={zoom.zoomOut}
+        onZoomIn={zoom.zoomIn}
+        autoscrollActive={autoscroll.active}
+        onToggleAutoscroll={() => {
+          if (autoscroll.active) {
+            autoscroll.stop();
+          } else {
+            autoscroll.start();
+          }
+        }}
+      />
 
       <KeySelectModal
         open={showKeyModal}
@@ -534,7 +515,11 @@ export default function SongPage() {
         onPinchScale={handlePinchScale}
         onPinchEnd={handlePinchEnd}
         onDoubleTap={zoom.toggleZoomPreset}
-        className="mt-2 min-w-0 flex-1 sm:mt-4"
+        className={`mt-2 min-w-0 flex-1 sm:mt-4 ${
+          autoscroll.active
+            ? "max-h-[calc(100vh-16rem)] overflow-y-auto overscroll-y-contain"
+            : ""
+        }`}
       >
         <div className="chord-chart">
           {song.sections.map((section, si) => (
@@ -562,6 +547,7 @@ export default function SongPage() {
           originalKey={originalKey}
           onTransposeDown={() => handleTranspose(-1)}
           onTransposeUp={() => handleTranspose(1)}
+          onOpenKeyModal={() => setShowKeyModal(true)}
           onZoomOut={zoom.zoomOut}
           onZoomIn={zoom.zoomIn}
           scalePercent={zoom.scalePercent}

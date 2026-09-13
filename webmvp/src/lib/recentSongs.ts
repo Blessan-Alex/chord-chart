@@ -9,6 +9,7 @@ export type RecentSongEntry = {
 };
 
 const STORAGE_KEY = "lf-recent-songs";
+export const RECENT_SONGS_STORAGE_KEY = STORAGE_KEY;
 const MAX_RECENT = 10;
 
 export function getRecentSongs(): RecentSongEntry[] {
@@ -62,4 +63,12 @@ export function recordRecentSong(
   ].slice(0, MAX_RECENT);
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
+
+/** Drop entries whose songs no longer exist in the current library. */
+export function filterRecentByKnownIds(
+  entries: RecentSongEntry[],
+  validIds: ReadonlySet<string>,
+): RecentSongEntry[] {
+  return entries.filter((entry) => validIds.has(entry.songId));
 }

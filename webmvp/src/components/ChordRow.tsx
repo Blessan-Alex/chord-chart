@@ -1,3 +1,4 @@
+import { getMarkStart, markKey, normalizeChordMark } from "@/lib/chordMarks";
 import { chordToDegree, transposeChord } from "@/lib/engine";
 import type { ChordMark } from "@/lib/types";
 
@@ -47,19 +48,21 @@ export function ChordRow({
     return null;
   }
 
-  const sorted = [...chords].sort((a, b) => a.position - b.position);
+  const sorted = [...chords]
+    .map(normalizeChordMark)
+    .sort((a, b) => getMarkStart(a) - getMarkStart(b));
 
   return (
     <div className="chord-row relative min-h-[1.3em]">
       {sorted.map((mark) => (
         <span
-          key={mark.position}
+          key={markKey(mark)}
           className={
             onChordClick
-              ? "absolute bottom-0 cursor-pointer text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-              : "absolute bottom-0"
+              ? "absolute bottom-0 cursor-pointer text-lf-brand hover:opacity-80"
+              : "absolute bottom-0 text-lf-brand"
           }
-          style={{ left: `${mark.position}ch` }}
+          style={{ left: `${getMarkStart(mark)}ch` }}
           onClick={onChordClick ? () => onChordClick(mark) : undefined}
         >
           {displayChord(mark, originalKey, targetKey, viewMode)}
