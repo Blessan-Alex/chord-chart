@@ -67,6 +67,7 @@ describe.skipIf(!emulatorEnabled).sequential("sessions integration", () => {
         date: new Date("2026-09-14T10:00:00"),
       },
       "admin-uid",
+      "admin",
       adminDb,
     );
 

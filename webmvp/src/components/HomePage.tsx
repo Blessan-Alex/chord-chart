@@ -15,7 +15,7 @@ import { ALL_KEYS, type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
-import { listSessions } from "@/lib/firestore/sessions";
+import { listOwnedPlaylists } from "@/lib/firestore/sessions";
 import { archiveSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
@@ -145,10 +145,9 @@ export function HomePage() {
       setIndexError(null);
 
       try {
-        const [entries, published, drafts] = await Promise.all([
+        const [entries, ownedPlaylists] = await Promise.all([
           loadSongIndex(),
-          listSessions({ status: "published" }),
-          isAdmin ? listSessions({ status: "draft" }) : Promise.resolve([]),
+          listOwnedPlaylists(user.uid),
         ]);
 
         if (!cancelled) {
@@ -156,10 +155,7 @@ export function HomePage() {
           const artistBySongId = new Map(
             entries.map((entry) => [entry.id, entry.artist ?? ""]),
           );
-          const owned = [...published, ...drafts]
-            .filter((session) => session.createdBy === user.uid)
-            .sort((a, b) => b.date.toMillis() - a.date.toMillis())
-            .slice(0, 2);
+          const owned = ownedPlaylists.slice(0, 2);
           setMyPlaylists(owned);
 
           const previewEntries = await Promise.all(
@@ -314,7 +310,7 @@ export function HomePage() {
           {!searchQuery.trim() && !keyFilter && (
             <>
               <section>
-                <SectionHeader title="My playlists" seeAllHref="/sessions" />
+                <SectionHeader title="My playlists" seeAllHref="/playlists" />
                 {playlistsLoading ? (
                   <p className="text-sm text-lf-text-secondary">Loading…</p>
                 ) : myPlaylists.length > 0 ? (
@@ -326,7 +322,7 @@ export function HomePage() {
                         subtitle={`${session.songCount} ${
                           session.songCount === 1 ? "song" : "songs"
                         }`}
-                        href={`/sessions/${session.id}`}
+                        href={`/playlists/${session.id}`}
                         previewSongs={playlistPreviews[session.id] ?? []}
                       />
                     ))}
@@ -334,7 +330,7 @@ export function HomePage() {
                 ) : (
                   <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">
                     No playlists yet.{" "}
-                    <Link href="/sessions" className="font-medium text-lf-brand hover:underline">
+                    <Link href="/playlists" className="font-medium text-lf-brand hover:underline">
                       Browse playlists
                     </Link>
                   </div>

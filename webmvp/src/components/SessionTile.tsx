@@ -19,7 +19,7 @@ export function SessionTile({ session, showStatus }: SessionTileProps) {
   return (
     <li>
       <Link
-        href={`/sessions/${session.id}`}
+        href={`/playlists/${session.id}`}
         className="group flex min-h-[4.5rem] items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/5"
       >
         <div

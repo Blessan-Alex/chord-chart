@@ -36,7 +36,7 @@ const MAIN_NAV: NavItem[] = [
     ),
   },
   {
-    href: "/sessions",
+    href: "/playlists",
     label: "Playlists",
     matchPrefix: true,
     icon: (

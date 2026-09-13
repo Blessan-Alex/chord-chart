@@ -53,21 +53,60 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    function playlistOwnerId(data) {
+      return data.ownerId != null ? data.ownerId : data.createdBy;
+    }
+
+    function canReadPlaylist(sessionId) {
+      let playlist = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isAuth() && (
+        playlist.status == 'published'
+        || playlistOwnerId(playlist) == request.auth.uid
+        || request.auth.uid in playlist.get('sharedWith', [])
+        || isAdmin()
+      );
+    }
+
+    function isPlaylistOwner(sessionId) {
+      let playlist = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isAuth() && playlistOwnerId(playlist) == request.auth.uid;
+    }
+
+    function validPlaylistCreate() {
+      return request.resource.data.title is string
+        && request.resource.data.date is timestamp
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.sharedWith is list
+        && request.resource.data.status in ['draft', 'published'];
+    }
+
     match /sessions/{sessionId} {
-      allow read: if isAuth();
-      allow create: if isAdmin()
-        && request.resource.data.serviceType in ['friday', 'sunday_morning', 'sunday_evening']
-        && request.resource.data.date is timestamp;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read: if isAuth() && (
+        resource.data.status == 'published'
+        || playlistOwnerId(resource.data) == request.auth.uid
+        || request.auth.uid in resource.data.get('sharedWith', [])
+        || isAdmin()
+      );
+
+      allow create: if isAuth() && validPlaylistCreate();
+
+      allow update: if isAuth() && (
+        playlistOwnerId(resource.data) == request.auth.uid
+        || isAdmin()
+      );
+
+      allow delete: if isAuth() && (
+        playlistOwnerId(resource.data) == request.auth.uid
+        || isAdmin()
+      );
 
       match /sessionSongs/{entryId} {
-        allow read: if isAuth();
-        allow create: if isAdmin()
+        allow read: if canReadPlaylist(sessionId);
+        allow create: if isAuth() && (isPlaylistOwner(sessionId) || isAdmin())
           && request.resource.data.songId is string
           && request.resource.data.order is number;
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
+        allow update: if isAuth() && (isPlaylistOwner(sessionId) || isAdmin());
+        allow delete: if isAuth() && (isPlaylistOwner(sessionId) || isAdmin());
       }
     }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AddToSessionModal } from "@/components/AddToSessionModal";
+import { AddToPlaylistModal } from "@/components/AddToPlaylistModal";
 import { AutoscrollBar } from "@/components/AutoscrollBar";
 import { ChordChartViewport } from "@/components/ChordChartViewport";
 import { ChordLine } from "@/components/ChordLine";
@@ -397,7 +397,7 @@ export default function SongPage() {
     (isMobile && !autoscroll.active) || autoscroll.active
       ? "pb-28 sm:pb-32"
       : "pb-8";
-  const backHref = sessionId ? `/sessions/${sessionId}` : "/";
+  const backHref = sessionId ? `/playlists/${sessionId}` : "/";
   const backLabel = sessionId ? "Back to playlist" : "Back to home";
 
   return (
@@ -418,8 +418,8 @@ export default function SongPage() {
         onCancel={() => setShowDelete(false)}
       />
 
-      {user && isAdmin && (
-        <AddToSessionModal
+      {user && (
+        <AddToPlaylistModal
           open={showAddToSession}
           songId={id}
           songTitle={song.title}
@@ -558,7 +558,7 @@ export default function SongPage() {
           sessionPosition={sessionPosition}
           prevHref={prevHref}
           nextHref={nextHref}
-          sessionBackHref={sessionId ? `/sessions/${sessionId}` : null}
+          sessionBackHref={sessionId ? `/playlists/${sessionId}` : null}
         />
       )}
 

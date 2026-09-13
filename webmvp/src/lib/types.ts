@@ -133,8 +133,9 @@ export type SessionData = {
   songCount: number;
   status: SessionStatus;
   createdBy: string;
-  ownerId?: string;
+  ownerId: string;
   ownerUsername?: string;
+  sharedWith: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

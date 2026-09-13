@@ -3,7 +3,7 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 import {
@@ -232,5 +232,125 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
         createdAt: Timestamp.now(),
       }),
     );
+  });
+
+  it("allows musician to create own playlist", async () => {
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    await assertSucceeds(
+      setDoc(doc(musicianDb, "sessions", "playlist-1"), {
+        title: "My Set",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "musician-uid",
+        ownerId: "musician-uid",
+        ownerUsername: "musician",
+        sharedWith: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("denies musician creating playlist for another owner", async () => {
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    await assertFails(
+      setDoc(doc(musicianDb, "sessions", "playlist-2"), {
+        title: "Stolen Set",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "musician-uid",
+        ownerId: "other-uid",
+        sharedWith: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  it("denies stranger updating another users playlist", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "owned-playlist"), {
+        title: "Owned",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const strangerDb = testEnv.authenticatedContext("stranger-uid").firestore();
+
+    await assertFails(
+      setDoc(
+        doc(strangerDb, "sessions", "owned-playlist"),
+        {
+          title: "Hijacked",
+          serviceType: "sunday_morning",
+          date: Timestamp.now(),
+          songCount: 0,
+          status: "draft",
+          createdBy: "owner-uid",
+          ownerId: "owner-uid",
+          sharedWith: [],
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        },
+        { merge: true },
+      ),
+    );
+  });
+
+  it("allows shared user to read draft playlist", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "shared-playlist"), {
+        title: "Shared",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: ["guest-uid"],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const guestDb = testEnv.authenticatedContext("guest-uid").firestore();
+    await assertSucceeds(getDoc(doc(guestDb, "sessions", "shared-playlist")));
+  });
+
+  it("allows admin to delete any playlist", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "delete-me"), {
+        title: "Delete Me",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "published",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const adminDb = testEnv
+      .authenticatedContext("admin-uid", { admin: true })
+      .firestore();
+
+    await assertSucceeds(deleteDoc(doc(adminDb, "sessions", "delete-me")));
   });
 });
