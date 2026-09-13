@@ -67,6 +67,12 @@ export default function PlaylistsPage() {
   const ownedDrafts = filtered.filter(
     (session) => isPlaylistOwner(session, user?.uid ?? "") && session.status === "draft",
   );
+  const sharedDrafts = filtered.filter(
+    (session) =>
+      session.status === "draft" &&
+      !isPlaylistOwner(session, user?.uid ?? "") &&
+      session.sharedWith.includes(user?.uid ?? ""),
+  );
   const published = filtered.filter((session) => session.status === "published");
 
   return (
@@ -121,6 +127,19 @@ export default function PlaylistsPage() {
                 </h2>
                 <ul className="flex flex-col gap-3">
                   {ownedDrafts.map((session) => (
+                    <PlaylistCard key={session.id} session={session} showStatus />
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {sharedDrafts.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-lf-text-tertiary">
+                  Shared with me
+                </h2>
+                <ul className="flex flex-col gap-3">
+                  {sharedDrafts.map((session) => (
                     <PlaylistCard key={session.id} session={session} showStatus />
                   ))}
                 </ul>

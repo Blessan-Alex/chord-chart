@@ -27,7 +27,7 @@ export function AdminSongRow({
         <p className="truncate font-semibold text-lf-text-primary">{title}</p>
         <p className="truncate text-sm text-lf-text-secondary">{secondary}</p>
       </div>
-      <div className="flex shrink-0 items-center gap-2 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-2">
         <Link
           href={`/song/${id}/edit`}
           className="min-h-9 rounded-[var(--lf-radius-md)] px-3 py-1 text-sm font-medium text-lf-text-secondary hover:bg-lf-bg-muted hover:text-lf-text-primary"

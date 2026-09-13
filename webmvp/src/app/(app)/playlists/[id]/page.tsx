@@ -20,6 +20,7 @@ import {
 } from "@/lib/firestore/sessionSongs";
 import {
   cacheSessionOffline,
+  canViewPlaylist,
   getSession,
   isPlaylistOwner,
   sharePlaylistByUsername,
@@ -67,12 +68,8 @@ export default function PlaylistDetailPage() {
     if (!session || !user) {
       return false;
     }
-    return (
-      session.status === "published" ||
-      canEdit ||
-      session.sharedWith.includes(user.uid)
-    );
-  }, [session, user, canEdit]);
+    return canViewPlaylist(session, user.uid, isAdmin);
+  }, [session, user, isAdmin]);
 
   const refresh = useCallback(async () => {
     const [nextSession, nextSongs] = await Promise.all([
@@ -105,11 +102,7 @@ export default function PlaylistDetailPage() {
         setSongs(nextSongs);
 
         const canViewNow = Boolean(
-          nextSession &&
-            (nextSession.status === "published" ||
-              isPlaylistOwner(nextSession, user.uid) ||
-              nextSession.sharedWith.includes(user.uid) ||
-              isAdmin),
+          nextSession && user && canViewPlaylist(nextSession, user.uid, isAdmin),
         );
 
         if (canViewNow) {
@@ -437,7 +430,6 @@ export default function PlaylistDetailPage() {
                 <ol className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
                   {songs.map((entry, index) => {
                     const displayKey = resolveDisplayKey(entry);
-                    const originalKey = resolveOriginalKey(entry);
 
                     return (
                     <li
@@ -504,9 +496,6 @@ export default function PlaylistDetailPage() {
                       ) : (
                         <span className="shrink-0 rounded-full bg-lf-bg-active px-3 py-1.5 text-xs font-semibold text-lf-brand">
                           {displayKey}
-                          {entry.keyOverride && entry.keyOverride !== originalKey
-                            ? ""
-                            : ""}
                         </span>
                       )}
                     </li>

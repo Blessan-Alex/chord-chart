@@ -51,6 +51,11 @@ export async function addSongToSession(
 ): Promise<void> {
   const firestore = resolveDb(db);
 
+  const existing = await listSessionSongs(sessionId, firestore);
+  if (existing.some((entry) => entry.songId === songId)) {
+    throw new Error("Song is already in this playlist");
+  }
+
   await runTransaction(firestore, async (tx) => {
     const sessionRef = doc(firestore, "sessions", sessionId);
     const sessionSnap = await tx.get(sessionRef);

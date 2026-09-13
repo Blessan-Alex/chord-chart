@@ -351,13 +351,17 @@ export function HomePage() {
                   <p className="text-sm text-lf-text-secondary">Loading…</p>
                 ) : groupPlaylists.length > 0 ? (
                   <ul className="flex flex-col gap-3">
-                    {groupPlaylists.map((session) => (
+                    {groupPlaylists.map((session) => {
+                      const groupName = myGroups.find(
+                        (group) => group.id === session.groupId,
+                      )?.name;
+                      return (
                       <PlaylistPreviewCard
                         key={session.id}
                         title={session.title}
                         subtitle={
-                          myGroups.find((group) => group.id === session.groupId)
-                            ? `${myGroups.find((group) => group.id === session.groupId)?.name} · ${session.songCount} ${
+                          groupName
+                            ? `${groupName} · ${session.songCount} ${
                                 session.songCount === 1 ? "song" : "songs"
                               }`
                             : `${session.songCount} ${
@@ -367,7 +371,8 @@ export function HomePage() {
                         href={`/playlists/${session.id}`}
                         previewSongs={playlistPreviews[session.id] ?? []}
                       />
-                    ))}
+                      );
+                    })}
                   </ul>
                 ) : (
                   <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-6 text-sm text-lf-text-secondary">

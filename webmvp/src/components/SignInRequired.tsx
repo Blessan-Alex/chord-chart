@@ -14,7 +14,7 @@ export function SignInRequired({ children }: SignInRequiredProps) {
   if (loading) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center p-4">
-        <p className="text-neutral-400">Loading…</p>
+        <p className="text-lf-text-tertiary">Loading…</p>
       </main>
     );
   }
@@ -22,17 +22,22 @@ export function SignInRequired({ children }: SignInRequiredProps) {
   if (!user) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-4 p-4">
-        <h1 className="text-2xl font-semibold">Sign in required</h1>
-        <p className="text-neutral-600 dark:text-neutral-400">
-          Sessions are available to signed-in team members.
+        <h1 className="text-2xl font-semibold text-lf-text-primary">
+          Sign in required
+        </h1>
+        <p className="text-lf-text-secondary">
+          Playlists and groups are available to signed-in team members.
         </p>
         <Link
           href="/login"
-          className="inline-flex min-h-11 w-fit items-center justify-center rounded bg-black px-4 py-2 font-medium text-white dark:bg-white dark:text-black"
+          className="inline-flex min-h-11 w-fit items-center justify-center rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 font-medium text-lf-text-inverse hover:bg-lf-action-primary-hover"
         >
           Sign in
         </Link>
-        <Link href="/" className="text-sm text-neutral-500 hover:underline">
+        <Link
+          href="/"
+          className="text-sm text-lf-text-secondary hover:text-lf-brand"
+        >
           ← Home
         </Link>
       </main>

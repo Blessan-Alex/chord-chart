@@ -51,6 +51,19 @@ export function isPlaylistOwner(session: Session, uid: string): boolean {
   return getPlaylistOwnerId(session) === uid;
 }
 
+export function canViewPlaylist(
+  session: Session,
+  uid: string,
+  isAdmin = false,
+): boolean {
+  return (
+    session.status === "published" ||
+    isPlaylistOwner(session, uid) ||
+    session.sharedWith.includes(uid) ||
+    isAdmin
+  );
+}
+
 export async function getSession(
   sessionId: string,
   db?: Firestore,
@@ -93,24 +106,6 @@ export async function createSession(
     throw new Error("Failed to read created playlist");
   }
   return created;
-}
-
-export async function listSessions(
-  options: { status?: SessionStatus } = {},
-  db?: Firestore,
-): Promise<Session[]> {
-  const firestore = resolveDb(db);
-  const status = options.status ?? "published";
-
-  const snap = await getDocs(
-    query(
-      collection(firestore, SESSIONS_COLLECTION),
-      where("status", "==", status),
-      orderBy("date", "desc"),
-    ),
-  );
-
-  return snap.docs.map(mapSession);
 }
 
 /** Playlists visible to a user: owned, shared, and band-published. */
@@ -172,8 +167,34 @@ export async function listOwnedPlaylists(
   uid: string,
   db?: Firestore,
 ): Promise<Session[]> {
-  const all = await listPlaylistsForUser(uid, db);
-  return all.filter((session) => isPlaylistOwner(session, uid));
+  const firestore = resolveDb(db);
+  const sessionsRef = collection(firestore, SESSIONS_COLLECTION);
+
+  const [ownedByIdSnap, ownedLegacySnap] = await Promise.all([
+    getDocs(
+      query(
+        sessionsRef,
+        where("ownerId", "==", uid),
+        orderBy("date", "desc"),
+      ),
+    ),
+    getDocs(
+      query(
+        sessionsRef,
+        where("createdBy", "==", uid),
+        orderBy("date", "desc"),
+      ),
+    ),
+  ]);
+
+  const byId = new Map<string, Session>();
+  for (const snap of [...ownedByIdSnap.docs, ...ownedLegacySnap.docs]) {
+    byId.set(snap.id, mapSession(snap));
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => b.date.toMillis() - a.date.toMillis(),
+  );
 }
 
 export async function updateSessionStatus(
@@ -187,7 +208,6 @@ export async function updateSessionStatus(
   });
 }
 
-/** Prefetch playlist doc + songs for offline use. */
 export async function sharePlaylistByUsername(
   session: Session,
   usernameRaw: string,
@@ -243,6 +263,7 @@ export async function listPlaylistsForGroup(
   return snap.docs.map(mapSession);
 }
 
+/** Prefetch playlist doc + songs for offline use. */
 export async function cacheSessionOffline(
   sessionId: string,
   db?: Firestore,

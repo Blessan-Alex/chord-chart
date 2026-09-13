@@ -152,6 +152,3 @@ export function AddToPlaylistModal({
     </div>
   );
 }
-
-/** @deprecated Use AddToPlaylistModal */
-export const AddToSessionModal = AddToPlaylistModal;

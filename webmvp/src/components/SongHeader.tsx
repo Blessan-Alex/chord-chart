@@ -50,16 +50,6 @@ export function SongHeader({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                aria-label="Favorite song"
-                disabled
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-lf-text-tertiary"
-                title="Favorites coming soon"
-              >
-                ♡
-              </button>
-
               {showAddToPlaylist && (
                 <button
                   type="button"

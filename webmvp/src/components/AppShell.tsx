@@ -211,7 +211,7 @@ export function AppShellSidebar({
       )}
 
       <aside
-        role="dialog"
+        role={mobileOpen ? "dialog" : undefined}
         aria-modal={mobileOpen ? true : undefined}
         aria-label="Navigation menu"
         className={`fixed inset-y-0 left-0 z-50 flex w-[var(--lf-sidebar-width)] flex-col border-r border-lf-border bg-lf-bg-sidebar pt-[env(safe-area-inset-top)] transition-transform md:static md:w-[var(--lf-sidebar-width-compact)] md:translate-x-0 lg:w-[var(--lf-sidebar-width)] ${
@@ -304,7 +304,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onOpenMenu={() => setMobileOpen(true)}
           pathname={pathname}
         />
-        <main className="min-w-0 flex-1">{children}</main>
+        <div className="min-w-0 flex-1">{children}</div>
       </div>
     </div>
   );
