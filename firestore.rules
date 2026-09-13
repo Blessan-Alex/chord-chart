@@ -198,6 +198,22 @@ service cloud.firestore {
       );
     }
 
+    function validProfileUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'lastLoginAt', 'avatarInitials'])
+        && (!('username' in resource.data) || (
+          request.resource.data.username == resource.data.username
+          && request.resource.data.usernameLower == resource.data.usernameLower
+        ));
+    }
+
+    function validUsernameClaim() {
+      return !('username' in resource.data)
+        && validUsernameFields()
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['username', 'usernameLower']);
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
 
@@ -206,12 +222,7 @@ service cloud.firestore {
 
       allow update: if isOwner(uid)
         && request.resource.data.role == resource.data.role
-        && (!('username' in resource.data) || (
-          request.resource.data.username == resource.data.username
-          && request.resource.data.usernameLower == resource.data.usernameLower
-        ))
-        && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['displayName', 'lastLoginAt', 'avatarInitials']);
+        && (validProfileUpdate() || validUsernameClaim());
 
       allow delete: if false;
     }

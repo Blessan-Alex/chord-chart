@@ -8,16 +8,17 @@ import {
   type RefObject,
 } from "react";
 
-const MIN_SPEED = 0.5;
+const MIN_SPEED = 0.3;
 const MAX_SPEED = 2;
 const SPEED_STEP = 0.1;
-const BASE_PIXELS_PER_SECOND = 40;
+/** Slow default scroll — ~18px/s at speed 1.0 */
+const BASE_PIXELS_PER_SECOND = 18;
 
 export function clampAutoscrollSpeed(speed: number): number {
   return Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(speed.toFixed(1))));
 }
 
-function applyScroll(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
+function scrollBy(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
   const container = scrollRef?.current;
   if (container && container.scrollHeight - container.clientHeight > 1) {
     container.scrollTop += delta;
@@ -25,13 +26,15 @@ function applyScroll(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
   }
 
   const root = document.scrollingElement ?? document.documentElement;
-  root.scrollTop += delta;
+  if (root.scrollHeight - root.clientHeight > 1) {
+    root.scrollTop += delta;
+  }
 }
 
 export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   const [active, setActive] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(0.8);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const scrollRefStable = useRef(scrollRef);
@@ -79,7 +82,7 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
     const tick = (time: number) => {
       if (lastTimeRef.current !== null) {
         const deltaSeconds = (time - lastTimeRef.current) / 1000;
-        applyScroll(
+        scrollBy(
           deltaSeconds * BASE_PIXELS_PER_SECOND * speed,
           scrollRefStable.current,
         );

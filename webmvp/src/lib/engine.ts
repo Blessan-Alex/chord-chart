@@ -112,15 +112,15 @@ export function transposeChord(
   return result;
 }
 
-// ── Scale degree (number system display) ──
+// ── Nashville number system (1–7, minors as 6m etc.) ──
 
-const INTERVAL_TO_DEGREE = [
-  "I", "bII", "II", "bIII", "III", "IV", "#IV", "V", "bVI", "VI", "bVII", "VII",
+const INTERVAL_TO_NUMBER = [
+  "1", "b2", "2", "b3", "3", "4", "#4", "5", "b6", "6", "b7", "7",
 ];
 
 /**
- * Returns the scale degree of a chord relative to a key.
- * Minor chords → lowercase (e.g. "vi"), dim → "°", aug → "+".
+ * Returns the Nashville number of a chord relative to a key.
+ * Minor chords append "m" (e.g. Am in C → "6m"). Dim → "dim", aug → "+".
  */
 export function chordToDegree(chord: string, key: string): string {
   const trimmed = chord.trim();
@@ -128,13 +128,13 @@ export function chordToDegree(chord: string, key: string): string {
 
   const { rootNum, suffix } = parseChord(trimmed);
   const interval = ((rootNum - noteToNum(key)) % 12 + 12) % 12;
-  let degree = INTERVAL_TO_DEGREE[interval];
+  let degree = INTERVAL_TO_NUMBER[interval];
 
   const low = suffix.toLowerCase();
   if (low.startsWith("m") && !low.startsWith("maj")) {
-    degree = degree.toLowerCase(); // minor → lowercase
+    degree += "m";
   } else if (low.startsWith("dim") || low === "°") {
-    degree += "°";
+    degree += "dim";
   } else if (low.startsWith("aug") || low === "+") {
     degree += "+";
   }

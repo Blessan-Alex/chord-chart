@@ -9,13 +9,15 @@ import {
   writeAppTheme,
   type AppTheme,
 } from "@/lib/theme";
-import { userDisplayName } from "@/lib/userDisplay";
 
 export default function ProfilePage() {
-  const { user, profile, isAdmin, signOut, updateDisplayName } = useAuth();
+  const { user, profile, isAdmin, signOut, updateDisplayName, claimUsername } =
+    useAuth();
   const [theme, setThemeState] = useState<AppTheme>("light");
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
+  const [claimingUsername, setClaimingUsername] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -36,12 +38,6 @@ export default function ProfilePage() {
     setThemeState(next);
   };
 
-  const name = profile
-    ? profile.displayName
-    : user
-      ? userDisplayName(user.displayName, user.email)
-      : "Guest";
-
   const handleSaveDisplayName = async () => {
     setSaveError(null);
     setSaveMessage(null);
@@ -55,6 +51,23 @@ export default function ProfilePage() {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleClaimUsername = async () => {
+    setSaveError(null);
+    setSaveMessage(null);
+    setClaimingUsername(true);
+    try {
+      await claimUsername(username);
+      setSaveMessage("Username saved. Others can share playlists with you now.");
+      setUsername("");
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Could not save username.",
+      );
+    } finally {
+      setClaimingUsername(false);
     }
   };
 
@@ -72,7 +85,7 @@ export default function ProfilePage() {
       ) : (
         <>
           <div className="mt-6 space-y-4 rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-4">
-            {profile?.username && (
+            {profile?.username ? (
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-lf-text-tertiary">
                   Username
@@ -80,6 +93,34 @@ export default function ProfilePage() {
                 <p className="mt-1 font-medium text-lf-brand">
                   @{profile.username}
                 </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-lf-text-tertiary">
+                  Username
+                </p>
+                <p className="mt-1 text-sm text-lf-text-secondary">
+                  Required for playlist sharing.
+                </p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="yourname"
+                    className="min-h-11 flex-1 rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-3 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+                  />
+                  <button
+                    type="button"
+                    disabled={claimingUsername || !username.trim()}
+                    onClick={() => {
+                      void handleClaimUsername();
+                    }}
+                    className="min-h-11 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
+                  >
+                    {claimingUsername ? "Saving…" : "Set username"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -104,9 +145,6 @@ export default function ProfilePage() {
             <h2 className="text-sm font-semibold text-lf-text-primary">
               Display name
             </h2>
-            <p className="mt-1 text-sm text-lf-text-secondary">
-              Shown in the sidebar and on shared playlists.
-            </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
@@ -131,20 +169,12 @@ export default function ProfilePage() {
             {saveMessage && (
               <p className="mt-2 text-sm text-lf-text-secondary">{saveMessage}</p>
             )}
-            {!profile?.username && (
-              <p className="mt-2 text-sm text-lf-text-secondary">
-                Current name: {name}
-              </p>
-            )}
           </section>
         </>
       )}
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold text-lf-text-primary">Appearance</h2>
-        <p className="mt-1 text-sm text-lf-text-secondary">
-          Choose light or dark theme for the app shell.
-        </p>
+        <h2 className="text-sm font-semibold text-lf-text-primary">Theme</h2>
         <div className="mt-3 inline-flex rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted p-1">
           <button
             type="button"

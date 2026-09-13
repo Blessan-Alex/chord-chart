@@ -4,7 +4,7 @@ import { clampAutoscrollSpeed } from "./useAutoscroll";
 
 describe("clampAutoscrollSpeed", () => {
   it("clamps to minimum speed", () => {
-    expect(clampAutoscrollSpeed(0.2)).toBe(0.5);
+    expect(clampAutoscrollSpeed(0.2)).toBe(0.3);
   });
 
   it("clamps to maximum speed", () => {

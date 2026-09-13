@@ -101,6 +101,47 @@ export async function updateUserDisplayName(
   });
 }
 
+export async function claimUsername(
+  uid: string,
+  usernameRaw: string,
+  db?: Firestore,
+): Promise<void> {
+  const usernameResult = validateUsername(usernameRaw);
+  if (!usernameResult.ok) {
+    throw new Error(usernameResult.error);
+  }
+
+  const usernameLower = usernameResult.normalized;
+  const firestore = resolveDb(db);
+  const userRef = doc(firestore, USERS_COLLECTION, uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    throw new Error("Profile not found");
+  }
+
+  const existing = userSnap.data() as UserProfile;
+  if (existing.username) {
+    throw new Error("Username is already set");
+  }
+
+  if (!(await isUsernameAvailable(usernameLower, firestore))) {
+    throw new Error("That username is already taken");
+  }
+
+  const batch = writeBatch(firestore);
+  batch.update(userRef, {
+    username: usernameLower,
+    usernameLower,
+  });
+  batch.set(doc(firestore, USERNAMES_COLLECTION, usernameLower), {
+    uid,
+    usernameLower,
+    createdAt: serverTimestamp(),
+  });
+  await batch.commit();
+}
+
 export async function resolveUsernameToUid(
   usernameLower: string,
   db?: Firestore,

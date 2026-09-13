@@ -74,7 +74,7 @@ export function SharePlaylistModal({
           />
         </label>
         <p className="mt-2 text-sm text-lf-text-secondary">
-          Invited users can view this playlist in their list.
+          They need this exact username on their Profile.
         </p>
 
         {error && <p className="mt-3 text-sm text-lf-danger">{error}</p>}

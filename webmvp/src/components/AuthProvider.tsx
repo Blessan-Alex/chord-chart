@@ -26,6 +26,7 @@ import {
   isFirebaseEnabled,
 } from "@/lib/firebase";
 import {
+  claimUsername,
   createUserProfile,
   getUserProfile,
   isUsernameAvailable,
@@ -49,6 +50,7 @@ export type AuthContextValue = {
   ) => Promise<void>;
   signOut: () => Promise<void>;
   updateDisplayName: (displayName: string) => Promise<void>;
+  claimUsername: (username: string) => Promise<void>;
   checkUsernameAvailable: (username: string) => Promise<boolean>;
 };
 
@@ -227,6 +229,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
+  const claimUsernameForUser = useCallback(
+    async (username: string) => {
+      if (!user) {
+        throw new Error("Not signed in");
+      }
+
+      await claimUsername(user.uid, username);
+      setProfile(await loadProfile(user.uid));
+    },
+    [user],
+  );
+
   const checkUsernameAvailable = useCallback(async (username: string) => {
     const result = validateUsername(username);
     if (!result.ok) {
@@ -245,6 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       updateDisplayName,
+      claimUsername: claimUsernameForUser,
       checkUsernameAvailable,
     }),
     [
@@ -256,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       updateDisplayName,
+      claimUsernameForUser,
       checkUsernameAvailable,
     ],
   );

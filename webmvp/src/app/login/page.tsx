@@ -25,14 +25,13 @@ export default function LoginPage() {
   if (!isFirebaseEnabled()) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-lf-bg-page p-4">
-        <div className="w-full max-w-md space-y-4">
+        <div className="w-full max-w-sm space-y-4 text-center">
           <AppLogo showTagline />
           <p className="text-sm text-lf-text-secondary">
-            Firebase is not configured. Copy <code>.env.example</code> to{" "}
-            <code>.env.local</code> and add your project keys.
+            Firebase is not configured.
           </p>
           <Link href="/" className="text-sm text-lf-brand hover:underline">
-            ← Browse songs
+            Browse songs
           </Link>
         </div>
       </main>
@@ -45,20 +44,17 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-lf-bg-page px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-6 shadow-sm sm:p-8">
-          <div className="mb-8 flex flex-col items-center gap-3 text-center">
-            <AppLogo size="lg" showTagline />
-            <p className="text-sm text-lf-text-secondary">
-              Sign in to save playlists, join groups, and sync across devices.
-            </p>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-lf-bg-page px-4 py-8">
+      <div className="w-full max-w-sm">
+        <div className="rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-6 shadow-sm">
+          <div className="mb-6 flex justify-center">
+            <AppLogo size="lg" />
           </div>
 
           <LoginForm onSubmit={handleSignIn} loading={loading} />
 
           {showDemoAccounts && (
-            <div className="mt-6 border-t border-lf-border pt-6">
+            <div className="mt-5 border-t border-lf-border pt-5">
               <DemoAccounts
                 onSelect={(email, password) => {
                   void handleSignIn(email, password);
@@ -68,9 +64,9 @@ export default function LoginPage() {
           )}
         </div>
 
-        <p className="mt-6 text-center text-sm text-lf-text-secondary">
-          <Link href="/" className="font-medium text-lf-brand hover:underline">
-            Continue browsing songs without signing in
+        <p className="mt-5 text-center text-sm">
+          <Link href="/" className="text-lf-brand hover:underline">
+            Browse without signing in
           </Link>
         </p>
       </div>

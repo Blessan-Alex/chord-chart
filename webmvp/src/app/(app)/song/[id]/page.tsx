@@ -365,7 +365,7 @@ export default function SongPage() {
     <main
       className={`song-page--landscape mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
         performanceMode ? "song-page--performance" : ""
-      }`}
+      } ${autoscroll.active ? "min-h-0 overflow-hidden" : ""}`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -457,9 +457,9 @@ export default function SongPage() {
         onPinchScale={handlePinchScale}
         onPinchEnd={handlePinchEnd}
         onDoubleTap={zoom.toggleZoomPreset}
-        className={`mt-2 min-w-0 flex-1 sm:mt-4 ${
+        className={`mt-2 min-w-0 sm:mt-4 ${
           autoscroll.active
-            ? "max-h-[calc(100vh-16rem)] overflow-y-auto overscroll-y-contain"
+            ? "min-h-0 max-h-[calc(100dvh-15rem)] flex-1 overflow-y-auto overscroll-y-contain"
             : ""
         }`}
       >

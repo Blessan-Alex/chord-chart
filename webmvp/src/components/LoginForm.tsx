@@ -41,7 +41,7 @@ export function LoginForm({ onSubmit, loading = false }: LoginFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="min-h-11 rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+          className="min-h-11 rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-3 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
         />
       </label>
 
@@ -56,8 +56,7 @@ export function LoginForm({ onSubmit, loading = false }: LoginFormProps) {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          className="min-h-11 rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+          className="min-h-11 rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-3 text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
         />
       </label>
 
@@ -76,14 +75,9 @@ export function LoginForm({ onSubmit, loading = false }: LoginFormProps) {
       </button>
 
       <p className="text-center text-sm text-lf-text-secondary">
-        <span className="text-lf-text-tertiary">Forgot password?</span>{" "}
-        <span className="text-lf-text-tertiary">(coming soon)</span>
-      </p>
-
-      <p className="text-center text-sm text-lf-text-secondary">
-        Need an account?{" "}
+        New here?{" "}
         <Link href="/signup" className="font-medium text-lf-brand hover:underline">
-          Sign up
+          Create account
         </Link>
       </p>
     </form>

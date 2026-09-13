@@ -227,7 +227,9 @@ export async function sharePlaylistByUsername(
 
   const inviteeUid = await resolveUsernameToUid(validated.normalized, db);
   if (!inviteeUid) {
-    throw new Error("Username not found");
+    throw new Error(
+      `No user @${validated.normalized}. They need an account with that username in Profile.`,
+    );
   }
 
   if (inviteeUid === inviterUid) {

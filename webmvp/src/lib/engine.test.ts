@@ -107,13 +107,13 @@ describe("line transpose", () => {
 });
 
 describe("chordToDegree", () => {
-  it("maps diatonic chords in key C", () => {
-    expect(chordToDegree("C", "C")).toBe("I");
-    expect(chordToDegree("F", "C")).toBe("IV");
-    expect(chordToDegree("G", "C")).toBe("V");
-    expect(chordToDegree("Am", "C")).toBe("vi");
-    expect(chordToDegree("Em", "C")).toBe("iii");
-    expect(chordToDegree("Bb", "C")).toBe("bVII");
+  it("maps diatonic chords in key C to Nashville numbers", () => {
+    expect(chordToDegree("C", "C")).toBe("1");
+    expect(chordToDegree("F", "C")).toBe("4");
+    expect(chordToDegree("G", "C")).toBe("5");
+    expect(chordToDegree("Am", "C")).toBe("6m");
+    expect(chordToDegree("Em", "C")).toBe("3m");
+    expect(chordToDegree("Bb", "C")).toBe("b7");
   });
 });
 

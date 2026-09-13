@@ -28,13 +28,14 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
-  // Network-only — used by useOnlineStatus; must not be served from cache.
   if (url.pathname === "/connectivity.txt") {
     event.respondWith(fetch(event.request));
     return;
   }
 
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request)),
+    fetch(event.request)
+      .catch(() => caches.match(event.request))
+      .then((response) => response ?? new Response("", { status: 504 })),
   );
 });
