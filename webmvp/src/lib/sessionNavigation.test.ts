@@ -32,7 +32,15 @@ const songs: SessionSong[] = [
 ];
 
 describe("sessionNavigation", () => {
-  it("parses session params", () => {
+  it("parses playlist params", () => {
+    const params = new URLSearchParams("playlist=s1&index=1&key=G");
+    expect(parseSessionNavParams(params)).toEqual({
+      sessionId: "s1",
+      index: 1,
+    });
+  });
+
+  it("parses legacy session params", () => {
     const params = new URLSearchParams("session=s1&index=1&key=G");
     expect(parseSessionNavParams(params)).toEqual({
       sessionId: "s1",
@@ -40,24 +48,24 @@ describe("sessionNavigation", () => {
     });
   });
 
-  it("builds song href with session context", () => {
+  it("builds song href with playlist context", () => {
     expect(sessionSongHref("s1", songs[0], 0)).toBe(
-      "/song/song-1?session=s1&index=0&key=G",
+      "/song/song-1?playlist=s1&index=0&key=G",
     );
   });
 
   it("builds start set href", () => {
     expect(startSetHref("s1", songs)).toBe(
-      "/song/song-1?session=s1&index=0&key=G",
+      "/song/song-1?playlist=s1&index=0&key=G",
     );
   });
 
   it("builds adjacent hrefs", () => {
     expect(buildAdjacentSongHref("s1", songs, 1, -1)).toBe(
-      "/song/song-1?session=s1&index=0&key=G",
+      "/song/song-1?playlist=s1&index=0&key=G",
     );
     expect(buildAdjacentSongHref("s1", songs, 0, 1)).toBe(
-      "/song/song-2?session=s1&index=1",
+      "/song/song-2?playlist=s1&index=1",
     );
     expect(buildAdjacentSongHref("s1", songs, 0, -1)).toBeNull();
   });

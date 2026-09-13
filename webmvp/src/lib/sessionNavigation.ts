@@ -1,12 +1,31 @@
 import type { SessionSong } from "@/lib/types";
 
+const PLAYLIST_PARAM = "playlist";
+const LEGACY_SESSION_PARAM = "session";
+
 export function sessionSongHref(
   sessionId: string,
   entry: SessionSong,
   index: number,
 ): string {
   const params = new URLSearchParams({
-    session: sessionId,
+    [PLAYLIST_PARAM]: sessionId,
+    index: String(index),
+  });
+  if (entry.keyOverride) {
+    params.set("key", entry.keyOverride);
+  }
+  return `/song/${entry.songId}?${params.toString()}`;
+}
+
+/** @deprecated Use sessionSongHref — kept for callers migrating gradually. */
+export function legacySessionSongHref(
+  sessionId: string,
+  entry: SessionSong,
+  index: number,
+): string {
+  const params = new URLSearchParams({
+    [LEGACY_SESSION_PARAM]: sessionId,
     index: String(index),
   });
   if (entry.keyOverride) {
@@ -29,7 +48,8 @@ export function parseSessionNavParams(searchParams: URLSearchParams): {
   sessionId: string | null;
   index: number | null;
 } {
-  const sessionId = searchParams.get("session");
+  const sessionId =
+    searchParams.get(PLAYLIST_PARAM) ?? searchParams.get(LEGACY_SESSION_PARAM);
   const indexRaw = searchParams.get("index");
   if (!sessionId || indexRaw === null) {
     return { sessionId: null, index: null };
@@ -52,4 +72,18 @@ export function buildAdjacentSongHref(
     return null;
   }
   return sessionSongHref(sessionId, songs[nextIndex], nextIndex);
+}
+
+export function canonicalPlaylistSearchParams(
+  searchParams: URLSearchParams,
+): URLSearchParams | null {
+  const legacySession = searchParams.get(LEGACY_SESSION_PARAM);
+  if (!legacySession || searchParams.get(PLAYLIST_PARAM)) {
+    return null;
+  }
+
+  const params = new URLSearchParams(searchParams.toString());
+  params.delete(LEGACY_SESSION_PARAM);
+  params.set(PLAYLIST_PARAM, legacySession);
+  return params;
 }

@@ -5,12 +5,16 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AddToSessionModal } from "@/components/AddToSessionModal";
+import { AutoscrollBar } from "@/components/AutoscrollBar";
 import { ChordChartViewport } from "@/components/ChordChartViewport";
 import { ChordLine } from "@/components/ChordLine";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { KeySelectModal } from "@/components/KeySelectModal";
 import { PageLoading } from "@/components/PageLoading";
 import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
-import { SongToolbar, type SongViewMode } from "@/components/SongToolbar";
+import { SongControlBar } from "@/components/SongControlBar";
+import { SongHeader } from "@/components/SongHeader";
+import { type SongViewMode } from "@/components/SongToolbar";
 import { type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
@@ -22,8 +26,10 @@ import {
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import { getSession } from "@/lib/firestore/sessions";
 import { archiveSong, getSong as getFirestoreSong } from "@/lib/firestore/songs";
+import { useAutoscroll } from "@/lib/hooks/useAutoscroll";
 import { useChartZoom } from "@/lib/hooks/useChartZoom";
 import { useChartLayout } from "@/lib/hooks/useChartLayout";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { usePerformanceMode } from "@/lib/hooks/usePerformanceMode";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { isKey, transposeKeyBy } from "@/lib/keyUtils";
@@ -35,6 +41,7 @@ import {
 } from "@/lib/performancePreferences";
 import {
   buildAdjacentSongHref,
+  canonicalPlaylistSearchParams,
   parseSessionNavParams,
 } from "@/lib/sessionNavigation";
 import { recordRecentSong } from "@/lib/recentSongs";
@@ -53,11 +60,13 @@ export default function SongPage() {
   const { user, loading: authLoading, isAdmin } = useAuth();
 
   const [song, setSong] = useState<Song | null>(null);
+  const [artist, setArtist] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [targetKey, setTargetKey] = useState<string>("C");
   const [viewMode, setViewMode] = useState<SongViewMode>("chords");
   const [showDelete, setShowDelete] = useState(false);
   const [showAddToSession, setShowAddToSession] = useState(false);
+  const [showKeyModal, setShowKeyModal] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [version, setVersion] = useState<number | null>(null);
   const [draft, setDraft] = useState<SongEdit | null>(null);
@@ -69,9 +78,18 @@ export default function SongPage() {
   const [transposeFlash, setTransposeFlash] = useState<Key | null>(null);
 
   const swipeStartX = useRef<number | null>(null);
+  const isMobile = useIsMobile();
   const performanceMode = usePerformanceMode(sessionId);
   const zoom = useChartZoom({ sessionId });
   const { containerRef, maxChars } = useChartLayout(zoom.scale, performanceMode);
+  const autoscroll = useAutoscroll();
+
+  useEffect(() => {
+    const canonical = canonicalPlaylistSearchParams(searchParams);
+    if (canonical) {
+      router.replace(`/song/${id}?${canonical.toString()}`);
+    }
+  }, [id, router, searchParams]);
 
   useEffect(() => {
     setChartTheme(readChartTheme());
@@ -117,6 +135,7 @@ export default function SongPage() {
             if (firestoreSong) {
               const found = firestoreSongToSong(firestoreSong);
               setSong(found);
+              setArtist(firestoreSong.artist ?? "");
               recordRecentSong({
                 songId: found.id,
                 title: found.title,
@@ -141,6 +160,7 @@ export default function SongPage() {
               }
             } else {
               setSong(null);
+              setArtist("");
               setVersion(null);
               setDraft(null);
               setArchives([]);
@@ -160,6 +180,7 @@ export default function SongPage() {
       const found = getLocalSong(id);
       if (!cancelled) {
         setSong(found ?? null);
+        setArtist("");
         if (found) {
           recordRecentSong({
             songId: found.id,
@@ -364,9 +385,16 @@ export default function SongPage() {
       ? `${sessionIndex + 1}/${sessionSongs.length}`
       : null;
 
+  const bottomPadding =
+    (isMobile && !autoscroll.active) || autoscroll.active
+      ? "pb-28 sm:pb-32"
+      : "pb-8";
+  const backHref = sessionId ? `/sessions/${sessionId}` : "/";
+  const backLabel = sessionId ? "Back to playlist" : "Back to home";
+
   return (
     <main
-      className={`mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 pb-28 sm:p-8 sm:pb-32 ${
+      className={`mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
         performanceMode ? "song-page--performance" : ""
       }`}
       onTouchStart={onTouchStart}
@@ -391,38 +419,103 @@ export default function SongPage() {
         />
       )}
 
-      {!performanceMode && (
-        <Link
-          href={sessionId ? `/sessions/${sessionId}` : "/"}
-          className="mb-2 inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-        >
-          {sessionId ? "← Session" : "← Home"}
-        </Link>
-      )}
-
-      {deleteError && (
-        <p className="mb-2 text-sm text-red-600 dark:text-red-400">
-          {deleteError}
-        </p>
-      )}
-
-      <SongToolbar
+      <SongHeader
         title={song.title}
-        originalKey={originalKey}
-        version={version}
-        viewMode={viewMode}
-        targetKey={targetKey}
+        artist={artist}
+        backHref={backHref}
+        backLabel={backLabel}
+        compact={isMobile || performanceMode}
         isAdmin={Boolean(user && isAdmin)}
         editBusy={editBusy}
-        performanceMode={performanceMode}
-        onViewModeChange={setViewMode}
-        onTargetKeyChange={setTargetKey}
         onEdit={() => {
           void handleEdit();
         }}
         onAddToSession={() => setShowAddToSession(true)}
         onDelete={() => setShowDelete(true)}
       />
+
+      {version !== null && isAdmin && (
+        <p className="text-xs text-lf-text-tertiary">Library version {version}</p>
+      )}
+
+      {!isMobile && (
+        <SongControlBar
+          targetKey={currentKey}
+          originalKey={originalKey}
+          viewMode={viewMode}
+          scalePercent={zoom.scalePercent}
+          transposeFlash={transposeFlash}
+          showMobileControls={false}
+          onTransposeDown={() => handleTranspose(-1)}
+          onTransposeUp={() => handleTranspose(1)}
+          onOpenKeyModal={() => setShowKeyModal(true)}
+          onViewModeChange={setViewMode}
+          onZoomOut={zoom.zoomOut}
+          onZoomIn={zoom.zoomIn}
+          autoscrollActive={autoscroll.active}
+          onToggleAutoscroll={() => {
+            if (autoscroll.active) {
+              autoscroll.stop();
+            } else {
+              autoscroll.start();
+            }
+          }}
+        />
+      )}
+
+      {isMobile && !performanceMode && (
+        <SongControlBar
+          targetKey={currentKey}
+          originalKey={originalKey}
+          viewMode={viewMode}
+          scalePercent={zoom.scalePercent}
+          transposeFlash={transposeFlash}
+          showMobileControls
+          onTransposeDown={() => handleTranspose(-1)}
+          onTransposeUp={() => handleTranspose(1)}
+          onOpenKeyModal={() => setShowKeyModal(true)}
+          onViewModeChange={setViewMode}
+          onZoomOut={zoom.zoomOut}
+          onZoomIn={zoom.zoomIn}
+          autoscrollActive={autoscroll.active}
+          onToggleAutoscroll={() => {
+            if (autoscroll.active) {
+              autoscroll.stop();
+            } else {
+              autoscroll.start();
+            }
+          }}
+        />
+      )}
+
+      <KeySelectModal
+        open={showKeyModal}
+        originalKey={originalKey}
+        selectedKey={currentKey}
+        onSelect={(key) => setTargetKey(key)}
+        onClose={() => setShowKeyModal(false)}
+      />
+
+      {autoscroll.active && (
+        <AutoscrollBar
+          speed={autoscroll.speed}
+          paused={autoscroll.paused}
+          onDecrease={autoscroll.decreaseSpeed}
+          onIncrease={autoscroll.increaseSpeed}
+          onTogglePause={() => {
+            if (autoscroll.paused) {
+              autoscroll.resume();
+            } else {
+              autoscroll.pause();
+            }
+          }}
+          onClose={autoscroll.stop}
+        />
+      )}
+
+      {deleteError && (
+        <p className="mb-2 text-sm text-lf-danger">{deleteError}</p>
+      )}
 
       {!performanceMode && draft && (
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
@@ -446,7 +539,7 @@ export default function SongPage() {
         <div className="chord-chart">
           {song.sections.map((section, si) => (
             <div key={`${section.label}-${si}`}>
-              <div className="section-label">[{section.label}]</div>
+              <div className="section-label">{section.label}</div>
               {section.lines.map((line, li) => (
                 <ChordLine
                   key={`${si}-${li}`}
@@ -463,23 +556,25 @@ export default function SongPage() {
         </div>
       </ChordChartViewport>
 
-      <PerformanceBottomBar
-        targetKey={currentKey}
-        originalKey={originalKey}
-        onTransposeDown={() => handleTranspose(-1)}
-        onTransposeUp={() => handleTranspose(1)}
-        onZoomOut={zoom.zoomOut}
-        onZoomIn={zoom.zoomIn}
-        scalePercent={zoom.scalePercent}
-        chartTheme={chartTheme}
-        onToggleTheme={handleToggleTheme}
-        transposeFlash={transposeFlash}
-        sessionLabel={session?.title ?? null}
-        sessionPosition={sessionPosition}
-        prevHref={prevHref}
-        nextHref={nextHref}
-        sessionBackHref={sessionId ? `/sessions/${sessionId}` : null}
-      />
+      {isMobile && !autoscroll.active && (
+        <PerformanceBottomBar
+          targetKey={currentKey}
+          originalKey={originalKey}
+          onTransposeDown={() => handleTranspose(-1)}
+          onTransposeUp={() => handleTranspose(1)}
+          onZoomOut={zoom.zoomOut}
+          onZoomIn={zoom.zoomIn}
+          scalePercent={zoom.scalePercent}
+          chartTheme={chartTheme}
+          onToggleTheme={handleToggleTheme}
+          transposeFlash={transposeFlash}
+          sessionLabel={session?.title ?? null}
+          sessionPosition={sessionPosition}
+          prevHref={prevHref}
+          nextHref={nextHref}
+          sessionBackHref={sessionId ? `/sessions/${sessionId}` : null}
+        />
+      )}
 
       {user && isAdmin && archives.length > 0 && (
         <section className="mt-8 border-t border-neutral-200 pt-6 dark:border-neutral-800">

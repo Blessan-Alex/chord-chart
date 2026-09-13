@@ -88,7 +88,7 @@ body.song-performance-page {
 /* ── Chord chart ── */
 
 .chord-chart {
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-geist-mono), "Courier New", Courier, monospace;
   font-size: calc(var(--chart-base-size, 16px) * var(--chart-scale, 1));
   line-height: 1.55;
   overflow-x: auto;
@@ -136,15 +136,26 @@ body.song-performance-page {
 }
 
 .section-label {
-  font-weight: 700;
-  color: var(--section-color);
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-top: 1.75rem;
-  margin-bottom: 0.5rem;
-  padding: 2px 8px;
-  background: var(--section-bg);
-  border-radius: 4px;
-  display: inline-block;
+  margin-bottom: 0.75rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lf-text-tertiary, var(--section-color));
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--lf-border, #e5e7eb);
 }
 
 .chord-line {
@@ -153,14 +164,18 @@ body.song-performance-page {
 }
 
 .chord-row {
-  color: var(--chord-color);
+  color: var(--lf-brand, var(--chord-color));
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-weight: 700;
   min-height: 1.6em;
   letter-spacing: 0;
 }
 
 .lyric-row {
-  color: var(--lyric-color);
+  color: var(--lyric-color, var(--lf-text-primary));
+  font-family: var(--font-lora), Georgia, serif;
+  font-size: 1.05em;
+  line-height: 1.55;
 }
 
 /* First section label has no top margin */

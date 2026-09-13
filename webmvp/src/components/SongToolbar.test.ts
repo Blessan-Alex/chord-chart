@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { adminSongActionLabels } from "./SongToolbar";
+import { adminSongActionLabels } from "./SongHeader";
 
 describe("SongToolbar", () => {
   it("shows admin actions only for admins", () => {

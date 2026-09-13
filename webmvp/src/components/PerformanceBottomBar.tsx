@@ -40,7 +40,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-sm font-semibold text-neutral-200 transition-colors hover:bg-white/10 disabled:opacity-30"
+      className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-sm font-semibold text-lf-text-primary transition-colors hover:bg-lf-bg-muted disabled:opacity-30"
     >
       {children}
     </button>
@@ -73,7 +73,7 @@ function NavLink({
     <Link
       href={href}
       aria-label={label}
-      className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-lg text-neutral-100 transition-colors hover:bg-white/10"
+      className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-lg text-lf-text-primary transition-colors hover:bg-lf-bg-muted"
     >
       {children}
     </Link>
@@ -107,19 +107,19 @@ export function PerformanceBottomBar({
   const transposed = displayKey !== originalKey;
 
   return (
-    <div className="performance-bottom-bar fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-neutral-950/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md">
+    <div className="performance-bottom-bar fixed inset-x-0 bottom-0 z-30 border-t border-lf-border bg-lf-bg-sidebar/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md">
       <div className="mx-auto flex max-w-2xl flex-col gap-1.5 px-2">
         {sessionLabel && (
-          <div className="truncate px-1 text-[11px] text-neutral-400">
+          <div className="truncate px-1 text-[11px] text-lf-text-secondary">
             {sessionBackHref ? (
-              <Link href={sessionBackHref} className="hover:text-neutral-200">
+              <Link href={sessionBackHref} className="hover:text-lf-text-primary">
                 {sessionLabel}
               </Link>
             ) : (
               sessionLabel
             )}
             {sessionPosition && (
-              <span className="text-neutral-500"> · {sessionPosition}</span>
+              <span className="text-lf-text-tertiary"> · {sessionPosition}</span>
             )}
           </div>
         )}
@@ -139,15 +139,15 @@ export function PerformanceBottomBar({
               −
             </IconButton>
             <div
-              className="inline-flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center rounded-xl bg-white/10 px-2 text-center"
+              className="inline-flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center rounded-[var(--lf-radius-md)] bg-lf-bg-active px-2 text-center"
               aria-label={`Key ${displayKey}`}
               aria-live="polite"
             >
-              <span className="text-base font-bold leading-none text-white">
+              <span className="text-base font-bold leading-none text-lf-brand">
                 {displayKey}
               </span>
               {transposed && (
-                <span className="text-[10px] leading-none text-neutral-400">
+                <span className="text-[10px] leading-none text-lf-text-secondary">
                   from {originalKey}
                 </span>
               )}
@@ -161,7 +161,7 @@ export function PerformanceBottomBar({
             <IconButton label="Text smaller" onClick={onZoomOut}>
               A−
             </IconButton>
-            <span className="inline-flex h-11 min-w-10 items-center justify-center text-xs tabular-nums text-neutral-300">
+            <span className="inline-flex h-11 min-w-10 items-center justify-center text-xs tabular-nums text-lf-text-secondary">
               {scalePercent}%
             </span>
             <IconButton label="Text larger" onClick={onZoomIn}>
