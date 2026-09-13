@@ -6,7 +6,10 @@ import {
   buildIndexChunks,
   filterSongIndex,
   mergeIndexEntry,
+  SONG_INDEX_CAPACITY,
+  SongIndexCapacityError,
   songToIndexEntry,
+  writeSongIndexEntries,
 } from "./songIndex";
 
 const sampleEntries: SongIndexEntry[] = [
@@ -118,5 +121,24 @@ describe("buildIndexChunks", () => {
     const chunks = buildIndexChunks(sampleEntries);
     expect(chunks.size).toBe(1);
     expect(chunks.get("chunk0")).toHaveLength(3);
+  });
+});
+
+describe("writeSongIndexEntries capacity guard", () => {
+  it("rejects entry counts over capacity before touching Firestore", async () => {
+    const overCapacity: SongIndexEntry[] = Array.from(
+      { length: SONG_INDEX_CAPACITY + 1 },
+      (_, i) => ({
+        id: `song-${i}`,
+        title: `Song ${i}`,
+        artist: "",
+        key: "C",
+        tags: [],
+      }),
+    );
+
+    await expect(writeSongIndexEntries(overCapacity)).rejects.toBeInstanceOf(
+      SongIndexCapacityError,
+    );
   });
 });

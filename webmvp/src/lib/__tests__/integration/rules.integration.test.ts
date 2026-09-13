@@ -3,7 +3,15 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  Timestamp,
+} from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 import {
@@ -500,5 +508,29 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
       .authenticatedContext("admin-uid", { admin: true })
       .firestore();
     await assertSucceeds(getDoc(doc(adminDb, "groups", "admin-read-group")));
+  });
+
+  it("allows get of a known invite code but denies listing all codes", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(
+        doc(context.firestore(), "groupInviteCodes", "KNOWN001"),
+        {
+          groupId: "some-group",
+          ownerId: "owner-uid",
+          name: "Worship Team",
+          createdAt: Timestamp.now(),
+        },
+      );
+    });
+
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+
+    // A member joining with the exact code can read that one doc.
+    await assertSucceeds(
+      getDoc(doc(musicianDb, "groupInviteCodes", "KNOWN001")),
+    );
+
+    // But nobody can enumerate the whole collection of active invite codes.
+    await assertFails(getDocs(collection(musicianDb, "groupInviteCodes")));
   });
 });

@@ -157,7 +157,10 @@ service cloud.firestore {
     }
 
     match /groupInviteCodes/{code} {
-      allow read: if isAuth();
+      // get-only: a join requires the exact code. Listing is denied so the
+      // full set of active invite codes cannot be enumerated.
+      allow get: if isAuth();
+      allow list: if false;
       allow create: if isAuth()
         && request.resource.data.groupId is string
         && request.resource.data.ownerId == request.auth.uid

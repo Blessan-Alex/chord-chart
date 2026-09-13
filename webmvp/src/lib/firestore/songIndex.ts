@@ -24,6 +24,24 @@ export const SONG_INDEX_CHUNK_IDS = [
 
 export const SONG_INDEX_CHUNK_SIZE = 2000;
 
+/**
+ * Maximum songs the fixed-chunk index can hold (chunks × size).
+ * Entries beyond this would be dropped by buildIndexChunks and silently
+ * vanish from browse/search, so writes are hard-stopped at this limit.
+ */
+export const SONG_INDEX_CAPACITY =
+  SONG_INDEX_CHUNK_IDS.length * SONG_INDEX_CHUNK_SIZE;
+
+export class SongIndexCapacityError extends Error {
+  constructor(attempted: number) {
+    super(
+      `Song index is full: ${attempted} entries exceeds capacity of ${SONG_INDEX_CAPACITY}. ` +
+        `Add another index chunk before creating more songs.`,
+    );
+    this.name = "SongIndexCapacityError";
+  }
+}
+
 export type SongIndexChunkId = (typeof SONG_INDEX_CHUNK_IDS)[number];
 
 export function songToIndexEntry(song: {
@@ -135,6 +153,10 @@ export async function writeSongIndexEntries(
   entries: SongIndexEntry[],
   db?: Firestore,
 ): Promise<void> {
+  if (entries.length > SONG_INDEX_CAPACITY) {
+    throw new SongIndexCapacityError(entries.length);
+  }
+
   const firestore = resolveDb(db);
   const chunks = buildIndexChunks(entries);
   const updatedAt = serverTimestamp();

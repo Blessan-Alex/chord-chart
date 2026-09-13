@@ -38,7 +38,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Yes | Firestore (`songs`, `songIndex`, `sessions`, `songEdits`) |
 | No | `localStorage` on this device only |
 
-Search uses cached `songIndex` chunks (no per-keystroke Firestore reads). See [`../docs/`](../docs/).
+Search uses cached `songIndex` chunks (no per-keystroke Firestore reads). See [`../docs/chords/`](../docs/chords/).
 
 ## Dev tools
 
@@ -51,8 +51,8 @@ Config at repo root: `firebase.json`, `firestore.rules`, `firestore.indexes.json
 
 Deploy rules: `npx firebase-tools deploy --only firestore:rules` (from repo root).
 
-App Check enforce: [`../docs/ops-app-check-enforce.md`](../docs/ops-app-check-enforce.md)
+App Check enforce: [`../docs/chords/ops-app-check-enforce.md`](../docs/chords/ops-app-check-enforce.md)
 
 ## Responsive QA
 
-[`../docs/responsive-qa.md`](../docs/responsive-qa.md)
+[`../docs/chords/responsive-qa.md`](../docs/chords/responsive-qa.md)
