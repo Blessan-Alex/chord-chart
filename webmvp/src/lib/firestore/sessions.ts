@@ -14,6 +14,7 @@ import {
   where,
   arrayUnion,
   type Firestore,
+  type Query,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
@@ -33,6 +34,38 @@ const SESSIONS_COLLECTION = "sessions";
 
 function resolveDb(db?: Firestore): Firestore {
   return db ?? getDb();
+}
+
+/** Run playlist queries independently so one failure does not block the rest. */
+async function mergeSessionQueries(
+  queries: Array<{ label: string; q: Query }>,
+): Promise<Session[]> {
+  const batches = await Promise.all(
+    queries.map(async ({ label, q }) => {
+      try {
+        const snap = await getDocs(q);
+        return snap.docs.map(mapSession);
+      } catch (error) {
+        console.warn(`[sessions] ${label} query failed:`, error);
+        return [] as Session[];
+      }
+    }),
+  );
+
+  const byId = new Map<string, Session>();
+  for (const sessions of batches) {
+    for (const session of sessions) {
+      byId.set(session.id, session);
+    }
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => b.date.toMillis() - a.date.toMillis(),
+  );
+}
+
+function sessionsRef(db?: Firestore) {
+  return collection(resolveDb(db), SESSIONS_COLLECTION);
 }
 
 function mapSession(snap: QueryDocumentSnapshot): Session {
@@ -117,89 +150,53 @@ export async function listPlaylistsForUser(
   db?: Firestore,
 ): Promise<Session[]> {
   const publishedLimit = options.publishedLimit ?? PUBLISHED_PLAYLIST_CAP;
-  const firestore = resolveDb(db);
-  const sessionsRef = collection(firestore, SESSIONS_COLLECTION);
+  const ref = sessionsRef(db);
 
-  const [ownedByIdSnap, ownedLegacySnap, sharedSnap, publishedSnap] =
-    await Promise.all([
-      getDocs(
-        query(
-          sessionsRef,
-          where("ownerId", "==", uid),
-          orderBy("date", "desc"),
-        ),
+  return mergeSessionQueries([
+    {
+      label: "owned-by-ownerId",
+      q: query(ref, where("ownerId", "==", uid), orderBy("date", "desc")),
+    },
+    {
+      label: "owned-by-createdBy",
+      q: query(ref, where("createdBy", "==", uid), orderBy("date", "desc")),
+    },
+    {
+      label: "shared-with",
+      q: query(
+        ref,
+        where("sharedWith", "array-contains", uid),
+        orderBy("date", "desc"),
       ),
-      getDocs(
-        query(
-          sessionsRef,
-          where("createdBy", "==", uid),
-          orderBy("date", "desc"),
-        ),
+    },
+    {
+      label: "published",
+      q: query(
+        ref,
+        where("status", "==", "published"),
+        orderBy("date", "desc"),
+        limit(publishedLimit),
       ),
-      getDocs(
-        query(
-          sessionsRef,
-          where("sharedWith", "array-contains", uid),
-          orderBy("date", "desc"),
-        ),
-      ),
-      getDocs(
-        query(
-          sessionsRef,
-          where("status", "==", "published"),
-          orderBy("date", "desc"),
-          limit(publishedLimit),
-        ),
-      ),
-    ]);
-
-  const byId = new Map<string, Session>();
-  for (const snap of [
-    ...ownedByIdSnap.docs,
-    ...ownedLegacySnap.docs,
-    ...sharedSnap.docs,
-    ...publishedSnap.docs,
-  ]) {
-    byId.set(snap.id, mapSession(snap));
-  }
-
-  return [...byId.values()].sort(
-    (a, b) => b.date.toMillis() - a.date.toMillis(),
-  );
+    },
+  ]);
 }
 
 export async function listOwnedPlaylists(
   uid: string,
   db?: Firestore,
 ): Promise<Session[]> {
-  const firestore = resolveDb(db);
-  const sessionsRef = collection(firestore, SESSIONS_COLLECTION);
+  const ref = sessionsRef(db);
 
-  const [ownedByIdSnap, ownedLegacySnap] = await Promise.all([
-    getDocs(
-      query(
-        sessionsRef,
-        where("ownerId", "==", uid),
-        orderBy("date", "desc"),
-      ),
-    ),
-    getDocs(
-      query(
-        sessionsRef,
-        where("createdBy", "==", uid),
-        orderBy("date", "desc"),
-      ),
-    ),
+  return mergeSessionQueries([
+    {
+      label: "owned-by-ownerId",
+      q: query(ref, where("ownerId", "==", uid), orderBy("date", "desc")),
+    },
+    {
+      label: "owned-by-createdBy",
+      q: query(ref, where("createdBy", "==", uid), orderBy("date", "desc")),
+    },
   ]);
-
-  const byId = new Map<string, Session>();
-  for (const snap of [...ownedByIdSnap.docs, ...ownedLegacySnap.docs]) {
-    byId.set(snap.id, mapSession(snap));
-  }
-
-  return [...byId.values()].sort(
-    (a, b) => b.date.toMillis() - a.date.toMillis(),
-  );
 }
 
 export async function updateSessionStatus(
@@ -260,15 +257,21 @@ export async function listPlaylistsForGroup(
   db?: Firestore,
 ): Promise<Session[]> {
   let q = query(
-    collection(resolveDb(db), SESSIONS_COLLECTION),
+    sessionsRef(db),
     where("groupId", "==", groupId),
     orderBy("date", "desc"),
   );
   if (options.limit !== undefined) {
     q = query(q, limit(options.limit));
   }
-  const snap = await getDocs(q);
-  return snap.docs.map(mapSession);
+
+  try {
+    const snap = await getDocs(q);
+    return snap.docs.map(mapSession);
+  } catch (error) {
+    console.warn(`[sessions] group ${groupId} query failed:`, error);
+    return [];
+  }
 }
 
 /** Prefetch playlist doc + songs for offline use. */

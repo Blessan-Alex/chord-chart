@@ -77,6 +77,7 @@ service cloud.firestore {
         playlist.status == 'published'
         || playlistOwnerId(playlist) == request.auth.uid
         || request.auth.uid in playlist.get('sharedWith', [])
+        || playlist.get('createdBy', null) == request.auth.uid
         || (playlist.get('groupId', null) != null
             && isGroupMember(playlist.groupId))
         || isAdmin()
@@ -101,6 +102,7 @@ service cloud.firestore {
         resource.data.status == 'published'
         || playlistOwnerId(resource.data) == request.auth.uid
         || request.auth.uid in resource.data.get('sharedWith', [])
+        || resource.data.get('createdBy', null) == request.auth.uid
         || (resource.data.get('groupId', null) != null
             && isGroupMember(resource.data.groupId))
         || isAdmin()

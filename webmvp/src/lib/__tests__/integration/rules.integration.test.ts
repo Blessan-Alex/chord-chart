@@ -9,8 +9,12 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
+  query,
   setDoc,
   Timestamp,
+  where,
 } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -251,6 +255,91 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
         usernameLower: "musician",
         createdAt: Timestamp.now(),
       }),
+    );
+  });
+
+  it("allows musician to list own playlists by ownerId", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "owned-playlist"), {
+        title: "My Set",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "musician-uid",
+        ownerId: "musician-uid",
+        sharedWith: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(musicianDb, "sessions"),
+          where("ownerId", "==", "musician-uid"),
+          orderBy("date", "desc"),
+        ),
+      ),
+    );
+  });
+
+  it("allows musician to list playlists shared with them", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "shared-list-test"), {
+        title: "Shared Set",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: ["musician-uid"],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(musicianDb, "sessions"),
+          where("sharedWith", "array-contains", "musician-uid"),
+          orderBy("date", "desc"),
+        ),
+      ),
+    );
+  });
+
+  it("allows musician to list published playlists", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "published-list-test"), {
+        title: "Band Set",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "published",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: [],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(musicianDb, "sessions"),
+          where("status", "==", "published"),
+          orderBy("date", "desc"),
+          limit(10),
+        ),
+      ),
     );
   });
 

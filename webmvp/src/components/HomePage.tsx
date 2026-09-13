@@ -192,10 +192,7 @@ export function HomePage() {
       setSocialError(null);
 
       try {
-        const [ownedPlaylists, groups] = await Promise.all([
-          listOwnedPlaylists(user.uid),
-          listGroupsForMember(user.uid),
-        ]);
+        const ownedPlaylists = await listOwnedPlaylists(user.uid);
 
         if (cancelled) {
           return;
@@ -206,6 +203,18 @@ export function HomePage() {
         );
         const owned = ownedPlaylists.slice(0, 2);
         setMyPlaylists(owned);
+
+        let groups: Group[] = [];
+        try {
+          groups = await listGroupsForMember(user.uid);
+        } catch (groupError) {
+          console.warn("[HomePage] groups query failed:", groupError);
+        }
+
+        if (cancelled) {
+          return;
+        }
+
         setMyGroups(groups.slice(0, 2));
 
         const groupPlaylistLists = await Promise.all(
