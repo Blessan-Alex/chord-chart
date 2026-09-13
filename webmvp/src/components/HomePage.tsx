@@ -210,7 +210,9 @@ export function HomePage() {
 
         const groupPlaylistLists = await Promise.all(
           groups.slice(0, 2).map((group) =>
-            listPlaylistsForGroup(group.id).catch(() => [] as Session[]),
+            listPlaylistsForGroup(group.id, { limit: 2 }).catch(
+              () => [] as Session[],
+            ),
           ),
         );
         const groupSessions = groupPlaylistLists.flat().slice(0, 2);

@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocFromServer,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
@@ -16,6 +17,7 @@ import {
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
+import { PUBLISHED_PLAYLIST_CAP } from "@/lib/constants";
 import { getDb } from "@/lib/firebase";
 import { resolveUsernameToUid } from "@/lib/firestore/users";
 import { validateUsername } from "@/lib/validation";
@@ -108,11 +110,13 @@ export async function createSession(
   return created;
 }
 
-/** Playlists visible to a user: owned, shared, and band-published. */
+/** Playlists visible to a user: owned, shared, and recent band-published. */
 export async function listPlaylistsForUser(
   uid: string,
+  options: { publishedLimit?: number } = {},
   db?: Firestore,
 ): Promise<Session[]> {
+  const publishedLimit = options.publishedLimit ?? PUBLISHED_PLAYLIST_CAP;
   const firestore = resolveDb(db);
   const sessionsRef = collection(firestore, SESSIONS_COLLECTION);
 
@@ -144,6 +148,7 @@ export async function listPlaylistsForUser(
           sessionsRef,
           where("status", "==", "published"),
           orderBy("date", "desc"),
+          limit(publishedLimit),
         ),
       ),
     ]);
@@ -251,15 +256,18 @@ export async function sharePlaylistByUsername(
 
 export async function listPlaylistsForGroup(
   groupId: string,
+  options: { limit?: number } = {},
   db?: Firestore,
 ): Promise<Session[]> {
-  const snap = await getDocs(
-    query(
-      collection(resolveDb(db), SESSIONS_COLLECTION),
-      where("groupId", "==", groupId),
-      orderBy("date", "desc"),
-    ),
+  let q = query(
+    collection(resolveDb(db), SESSIONS_COLLECTION),
+    where("groupId", "==", groupId),
+    orderBy("date", "desc"),
   );
+  if (options.limit !== undefined) {
+    q = query(q, limit(options.limit));
+  }
+  const snap = await getDocs(q);
   return snap.docs.map(mapSession);
 }
 

@@ -1,4 +1,4 @@
-import { collection, getDocs, type Firestore } from "firebase/firestore";
+import { collection, getCountFromServer, type Firestore } from "firebase/firestore";
 
 import { getDb } from "@/lib/firebase";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
@@ -16,17 +16,21 @@ export type AdminStats = {
   groupCount: number;
 };
 
+/** Admin dashboard counts — uses index length + count aggregations (not full scans). */
 export async function getAdminStats(db?: Firestore): Promise<AdminStats> {
   const firestore = resolveDb(db);
-  const [indexEntries, sessionsSnap, groupsSnap] = await Promise.all([
+  const sessionsRef = collection(firestore, SESSIONS_COLLECTION);
+  const groupsRef = collection(firestore, GROUPS_COLLECTION);
+
+  const [indexEntries, playlistCountSnap, groupCountSnap] = await Promise.all([
     loadSongIndex(firestore),
-    getDocs(collection(firestore, SESSIONS_COLLECTION)),
-    getDocs(collection(firestore, GROUPS_COLLECTION)),
+    getCountFromServer(sessionsRef),
+    getCountFromServer(groupsRef),
   ]);
 
   return {
     songCount: indexEntries.length,
-    playlistCount: sessionsSnap.size,
-    groupCount: groupsSnap.size,
+    playlistCount: playlistCountSnap.data().count,
+    groupCount: groupCountSnap.data().count,
   };
 }

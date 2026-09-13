@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect } from "react";
 
 import { PlaylistCard } from "@/components/PlaylistCard";
 import { SignInRequired } from "@/components/SignInRequired";
+import { PUBLISHED_PLAYLIST_CAP } from "@/lib/constants";
 import {
   isPlaylistOwner,
   listPlaylistsForUser,
@@ -167,6 +168,12 @@ export default function PlaylistsPage() {
                 </div>
               ) : (
                 <ul className="flex flex-col gap-3">
+                  {published.length >= PUBLISHED_PLAYLIST_CAP && (
+                    <li className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted px-4 py-3 text-sm text-lf-text-secondary">
+                      Showing the {PUBLISHED_PLAYLIST_CAP} most recent published
+                      playlists. Use search to narrow the list.
+                    </li>
+                  )}
                   {published.map((session) => (
                     <PlaylistCard key={session.id} session={session} />
                   ))}

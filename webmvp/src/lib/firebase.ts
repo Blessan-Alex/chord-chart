@@ -84,6 +84,16 @@ export function initAppCheck(): void {
 
   const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_KEY;
   if (!siteKey) {
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR !== "true"
+    ) {
+      console.warn(
+        "[LF ChordApp] App Check is not configured. Set NEXT_PUBLIC_FIREBASE_APP_CHECK_KEY " +
+          "and enforce App Check on Firestore before public launch. " +
+          "See docs/chords/ops-app-check-enforce.md",
+      );
+    }
     return;
   }
 
