@@ -17,7 +17,6 @@ import { loadSongIndex } from "@/lib/firestore/songIndex";
 import { listGroupsForMember } from "@/lib/firestore/groups";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessions";
-import { archiveSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
@@ -70,7 +69,7 @@ function SearchIcon() {
 }
 
 export function HomePage() {
-  const { user, loading: authLoading, isAdmin } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { recentSongs } = useRecentSongs();
   const [savedSongs, setSavedSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -89,7 +88,7 @@ export function HomePage() {
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
     title: string;
-    source: "local" | "firestore";
+    source: "local";
   } | null>(null);
 
   const libraryResults = useSongSearch(
@@ -202,7 +201,7 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, isAdmin]);
+  }, [user]);
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) {
@@ -213,11 +212,6 @@ export function HomePage() {
       if (pendingDelete.source === "local") {
         deleteSong(pendingDelete.id);
         refreshLocalSongs();
-      } else {
-        await archiveSong(pendingDelete.id);
-        setIndexEntries((prev) =>
-          prev.filter((entry) => entry.id !== pendingDelete.id),
-        );
       }
     } catch (error) {
       setIndexError(formatError(error));
@@ -226,7 +220,7 @@ export function HomePage() {
     }
   };
 
-  const showAddSong = !user || isAdmin;
+  const showAddSong = !user;
 
   return (
     <div className="mx-auto w-full max-w-3xl p-4 sm:p-8">
@@ -411,16 +405,6 @@ export function HomePage() {
                       artist={entry.artist ?? ""}
                       songKey={entry.key}
                       href={`/song/${entry.id}`}
-                      onDelete={
-                        isAdmin
-                          ? () =>
-                              setPendingDelete({
-                                id: entry.id,
-                                title: entry.title,
-                                source: "firestore",
-                              })
-                          : undefined
-                      }
                     />
                   ))}
                 </ul>

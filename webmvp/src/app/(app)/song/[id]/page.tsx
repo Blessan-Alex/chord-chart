@@ -8,23 +8,20 @@ import { AddToPlaylistModal } from "@/components/AddToPlaylistModal";
 import { AutoscrollBar } from "@/components/AutoscrollBar";
 import { ChordChartViewport } from "@/components/ChordChartViewport";
 import { ChordLine } from "@/components/ChordLine";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { KeySelectModal } from "@/components/KeySelectModal";
 import { PageLoading } from "@/components/PageLoading";
 import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
 import { SongControlBar } from "@/components/SongControlBar";
 import { SongHeader } from "@/components/SongHeader";
 import { type Key } from "@/lib/engine";
-import { formatError } from "@/lib/formatError";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
 import {
-  createDraft,
   getDraftForSong,
   listArchivedVersions,
 } from "@/lib/firestore/songEdits";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import { getSession } from "@/lib/firestore/sessions";
-import { archiveSong, getSong as getFirestoreSong } from "@/lib/firestore/songs";
+import { getSong as getFirestoreSong } from "@/lib/firestore/songs";
 import { useAutoscroll } from "@/lib/hooks/useAutoscroll";
 import { useChartZoom } from "@/lib/hooks/useChartZoom";
 import { useChartLayout } from "@/lib/hooks/useChartLayout";
@@ -63,14 +60,11 @@ export default function SongPage() {
   const [loaded, setLoaded] = useState(false);
   const [targetKey, setTargetKey] = useState<string>("C");
   const [viewMode, setViewMode] = useState<SongViewMode>("chords");
-  const [showDelete, setShowDelete] = useState(false);
   const [showAddToSession, setShowAddToSession] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [version, setVersion] = useState<number | null>(null);
   const [draft, setDraft] = useState<SongEdit | null>(null);
   const [archives, setArchives] = useState<SongEdit[]>([]);
-  const [editBusy, setEditBusy] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [sessionSongs, setSessionSongs] = useState<SessionSong[]>([]);
   const [chartTheme, setChartTheme] = useState<ChartTheme>("system");
@@ -146,7 +140,6 @@ export default function SongPage() {
 
     async function loadSong() {
       setLoaded(false);
-      setDeleteError(null);
 
       if (user) {
         try {
@@ -249,38 +242,6 @@ export default function SongPage() {
       cancelled = true;
     };
   }, [sessionId, sessionIndex]);
-
-  const handleEdit = async () => {
-    if (!user || !isAdmin) {
-      return;
-    }
-
-    setEditBusy(true);
-    try {
-      if (!draft) {
-        await createDraft(id, user.uid);
-      }
-      router.push(`/song/${id}/edit`);
-    } catch (error) {
-      setDeleteError(formatError(error));
-      setEditBusy(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!song || !user || !isAdmin) {
-      return;
-    }
-
-    setDeleteError(null);
-    try {
-      await archiveSong(id);
-      router.push("/");
-    } catch (error) {
-      setDeleteError(formatError(error));
-      setShowDelete(false);
-    }
-  };
 
   const handleTranspose = useCallback((direction: -1 | 1) => {
     setTargetKey((current) => {
@@ -408,16 +369,6 @@ export default function SongPage() {
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <ConfirmDialog
-        open={showDelete}
-        title="Delete song?"
-        message={`"${song.title}" will be removed from the shared library.`}
-        onConfirm={() => {
-          void handleDelete();
-        }}
-        onCancel={() => setShowDelete(false)}
-      />
-
       {user && (
         <AddToPlaylistModal
           open={showAddToSession}
@@ -433,13 +384,8 @@ export default function SongPage() {
         backHref={backHref}
         backLabel={backLabel}
         compact={isMobile || performanceMode}
-        isAdmin={Boolean(user && isAdmin)}
-        editBusy={editBusy}
-        onEdit={() => {
-          void handleEdit();
-        }}
-        onAddToSession={() => setShowAddToSession(true)}
-        onDelete={() => setShowDelete(true)}
+        showAddToPlaylist={Boolean(user)}
+        onAddToPlaylist={() => setShowAddToSession(true)}
       />
 
       {version !== null && isAdmin && (
@@ -492,10 +438,6 @@ export default function SongPage() {
           }}
           onClose={autoscroll.stop}
         />
-      )}
-
-      {deleteError && (
-        <p className="mb-2 text-sm text-lf-danger">{deleteError}</p>
       )}
 
       {!performanceMode && draft && (

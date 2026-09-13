@@ -122,7 +122,7 @@ function SidebarNav({
             Administration
           </p>
           <Link
-            href="/admin/songs"
+            href="/admin"
             onClick={onNavigate}
             className={`flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-sm font-medium transition-colors ${
               pathname.startsWith("/admin")

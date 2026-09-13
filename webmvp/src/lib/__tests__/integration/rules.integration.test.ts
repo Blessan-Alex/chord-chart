@@ -443,4 +443,24 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
     const memberDb = testEnv.authenticatedContext("member-uid").firestore();
     await assertSucceeds(getDoc(doc(memberDb, "sessions", "group-set")));
   });
+
+  it("allows admin to read any group", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "groups", "admin-read-group"), {
+        name: "Private",
+        ownerId: "owner-uid",
+        memberIds: ["owner-uid"],
+        members: [{ uid: "owner-uid", displayName: "Owner" }],
+        inviteCode: "ADMIN001",
+        playlistCount: 0,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const adminDb = testEnv
+      .authenticatedContext("admin-uid", { admin: true })
+      .firestore();
+    await assertSucceeds(getDoc(doc(adminDb, "groups", "admin-read-group")));
+  });
 });

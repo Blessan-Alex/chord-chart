@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         destination: "/playlists/:path*",
         permanent: true,
       },
+      {
+        source: "/admin/songs",
+        destination: "/admin",
+        permanent: true,
+      },
     ];
   },
 };
