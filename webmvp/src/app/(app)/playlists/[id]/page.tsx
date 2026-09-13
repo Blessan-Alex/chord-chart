@@ -5,8 +5,10 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { KeySelectModal } from "@/components/KeySelectModal";
+import { SharePlaylistModal } from "@/components/SharePlaylistModal";
 import { SignInRequired } from "@/components/SignInRequired";
-import { ALL_KEYS, type Key } from "@/lib/engine";
+import { type Key } from "@/lib/engine";
 import { loadSongIndex } from "@/lib/firestore/songIndex";
 import {
   addSongToSession,
@@ -20,6 +22,7 @@ import {
   cacheSessionOffline,
   getSession,
   isPlaylistOwner,
+  sharePlaylistByUsername,
   updateSessionStatus,
 } from "@/lib/firestore/sessions";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -32,10 +35,6 @@ import {
 } from "@/lib/sessionDisplay";
 import { sessionSongHref, startSetHref } from "@/lib/sessionNavigation";
 import type { Session, SessionSong, SongIndexEntry } from "@/lib/types";
-
-function isKey(value: string): value is Key {
-  return (ALL_KEYS as readonly string[]).includes(value);
-}
 
 export default function PlaylistDetailPage() {
   const params = useParams();
@@ -50,12 +49,20 @@ export default function PlaylistDetailPage() {
   const [indexEntries, setIndexEntries] = useState<SongIndexEntry[]>([]);
   const [addSearch, setAddSearch] = useState("");
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [keyModalEntry, setKeyModalEntry] = useState<SessionSong | null>(null);
   const [pendingRemove, setPendingRemove] = useState<SessionSong | null>(null);
   const [busy, setBusy] = useState(false);
 
   const addResults = useSongSearch(indexEntries, addSearch);
   const isOwner = Boolean(user && session && isPlaylistOwner(session, user.uid));
   const canEdit = isOwner || isAdmin;
+  const showRowEdit = isOwner && editMode;
+  const keyBySongId = useMemo(
+    () => new Map(indexEntries.map((entry) => [entry.id, entry.key])),
+    [indexEntries],
+  );
   const canView = useMemo(() => {
     if (!session || !user) {
       return false;
@@ -77,18 +84,41 @@ export default function PlaylistDetailPage() {
   }, [sessionId]);
 
   useEffect(() => {
+    if (!user) {
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
 
     void (async () => {
       try {
-        await refresh();
-        if (canEdit) {
+        const [nextSession, nextSongs] = await Promise.all([
+          getSession(sessionId),
+          listSessionSongs(sessionId),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setSession(nextSession);
+        setSongs(nextSongs);
+
+        const canViewNow = Boolean(
+          nextSession &&
+            (nextSession.status === "published" ||
+              isPlaylistOwner(nextSession, user.uid) ||
+              nextSession.sharedWith.includes(user.uid) ||
+              isAdmin),
+        );
+
+        if (canViewNow) {
           const entries = await loadSongIndex();
           if (!cancelled) {
             setIndexEntries(entries);
           }
+        } else {
+          setIndexEntries([]);
         }
       } catch (err) {
         if (!cancelled) {
@@ -106,7 +136,39 @@ export default function PlaylistDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, canEdit, refresh]);
+  }, [sessionId, user, isAdmin]);
+
+  const resolveOriginalKey = (entry: SessionSong): Key => {
+    return keyBySongId.get(entry.songId) ?? "C";
+  };
+
+  const resolveDisplayKey = (entry: SessionSong): Key => {
+    return entry.keyOverride ?? resolveOriginalKey(entry);
+  };
+
+  const handleShare = async (username: string) => {
+    if (!session || !user) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await sharePlaylistByUsername(session, username, user.uid);
+      setSession(updated);
+      setActionMessage(`Shared with @${username.trim().toLowerCase()}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not share playlist.");
+      throw err;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleKeySelect = (entry: SessionSong, key: Key) => {
+    void runAction(() =>
+      updateSessionSongKeyOverride(sessionId, entry.id, key),
+    );
+  };
 
   const runAction = async (action: () => Promise<void>, successMsg?: string) => {
     setBusy(true);
@@ -164,13 +226,6 @@ export default function PlaylistDetailPage() {
     void runAction(() => moveSessionSongDown(sessionId, songs, index));
   };
 
-  const handleKeyOverride = (entry: SessionSong, value: string) => {
-    const keyOverride = value && isKey(value) ? value : null;
-    void runAction(() =>
-      updateSessionSongKeyOverride(sessionId, entry.id, keyOverride),
-    );
-  };
-
   const playHref = startSetHref(sessionId, songs);
   const heroGradient = session ? sessionTileGradient(session.id) : "";
 
@@ -190,6 +245,23 @@ export default function PlaylistDetailPage() {
         }}
         onCancel={() => setPendingRemove(null)}
       />
+
+      <SharePlaylistModal
+        open={showShareModal}
+        busy={busy}
+        onClose={() => setShowShareModal(false)}
+        onShare={handleShare}
+      />
+
+      {keyModalEntry && (
+        <KeySelectModal
+          open
+          originalKey={resolveOriginalKey(keyModalEntry)}
+          selectedKey={resolveDisplayKey(keyModalEntry)}
+          onSelect={(key) => handleKeySelect(keyModalEntry, key)}
+          onClose={() => setKeyModalEntry(null)}
+        />
+      )}
 
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 pb-10 sm:p-8">
         <Link
@@ -258,12 +330,46 @@ export default function PlaylistDetailPage() {
                   type="button"
                   disabled={busy}
                   onClick={handleCacheOffline}
-                  className="inline-flex h-11 min-w-11 items-center justify-center rounded-full border border-lf-border text-lf-text-secondary transition-colors hover:bg-lf-bg-muted"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-lf-border text-lf-text-secondary transition-colors hover:bg-lf-bg-muted hover:text-lf-brand"
                   aria-label="Cache for offline"
                   title="Cache for offline"
                 >
-                  ⬇
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path d="M12 3v12" />
+                    <path d="m7 10 5 5 5-5" />
+                    <path d="M5 21h14" />
+                  </svg>
                 </button>
+
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setShowShareModal(true)}
+                    className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
+                  >
+                    Share
+                  </button>
+                )}
+
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditMode((open) => !open);
+                      setShowAddPanel(false);
+                    }}
+                    className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
+                  >
+                    {editMode ? "Done" : "Edit"}
+                  </button>
+                )}
 
                 {canEdit && session.status === "draft" && (
                   <button
@@ -329,10 +435,14 @@ export default function PlaylistDetailPage() {
                 </div>
               ) : (
                 <ol className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                  {songs.map((entry, index) => (
+                  {songs.map((entry, index) => {
+                    const displayKey = resolveDisplayKey(entry);
+                    const originalKey = resolveOriginalKey(entry);
+
+                    return (
                     <li
                       key={entry.id}
-                      className="group flex min-h-16 items-center gap-3 border-b border-lf-border px-4 py-2 last:border-b-0"
+                      className="group flex min-h-14 items-center gap-3 border-b border-lf-border px-4 py-2 last:border-b-0"
                     >
                       <span className="w-5 shrink-0 text-sm tabular-nums text-lf-text-tertiary">
                         {index + 1}
@@ -352,29 +462,22 @@ export default function PlaylistDetailPage() {
                         </p>
                       </Link>
 
-                      {canEdit ? (
+                      {showRowEdit ? (
                         <div className="flex shrink-0 items-center gap-1">
-                          <select
-                            value={entry.keyOverride ?? ""}
-                            onChange={(e) =>
-                              handleKeyOverride(entry, e.target.value)
-                            }
+                          <button
+                            type="button"
                             disabled={busy}
-                            className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-2 py-1 text-xs text-lf-text-primary"
+                            onClick={() => setKeyModalEntry(entry)}
+                            className="min-h-11 rounded-full bg-lf-bg-active px-3 text-xs font-semibold text-lf-brand hover:bg-lf-bg-muted"
                             aria-label={`Key for ${entry.songTitle}`}
                           >
-                            <option value="">Orig</option>
-                            {ALL_KEYS.map((key) => (
-                              <option key={key} value={key}>
-                                {key}
-                              </option>
-                            ))}
-                          </select>
+                            {displayKey}
+                          </button>
                           <button
                             type="button"
                             disabled={busy || index === 0}
                             onClick={() => handleMoveUp(index)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm hover:bg-lf-bg-muted disabled:opacity-30"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-lf-bg-muted disabled:opacity-30"
                             title="Move up"
                           >
                             ↑
@@ -383,7 +486,7 @@ export default function PlaylistDetailPage() {
                             type="button"
                             disabled={busy || index === songs.length - 1}
                             onClick={() => handleMoveDown(index)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm hover:bg-lf-bg-muted disabled:opacity-30"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-sm hover:bg-lf-bg-muted disabled:opacity-30"
                             title="Move down"
                           >
                             ↓
@@ -392,21 +495,23 @@ export default function PlaylistDetailPage() {
                             type="button"
                             disabled={busy}
                             onClick={() => setPendingRemove(entry)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-lf-text-tertiary hover:bg-lf-danger-bg hover:text-lf-danger"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-lf-text-tertiary hover:bg-lf-danger-bg hover:text-lf-danger"
                             title="Remove"
                           >
                             ✕
                           </button>
                         </div>
                       ) : (
-                        entry.keyOverride && (
-                          <span className="shrink-0 rounded-full bg-lf-bg-active px-2.5 py-1 text-xs font-semibold text-lf-brand">
-                            {entry.keyOverride}
-                          </span>
-                        )
+                        <span className="shrink-0 rounded-full bg-lf-bg-active px-3 py-1.5 text-xs font-semibold text-lf-brand">
+                          {displayKey}
+                          {entry.keyOverride && entry.keyOverride !== originalKey
+                            ? ""
+                            : ""}
+                        </span>
                       )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ol>
               )}
             </section>

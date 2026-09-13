@@ -1,49 +1,42 @@
-# Responsive & Dark Mode QA Checklist
+# Responsive & theme QA checklist
 
-Use after Phase I. Mark pass/fail per cell.
+Use before release. Test each cell in **light** and **dark** (Profile → Appearance).
 
-## Breakpoints
+Breakpoints: **320**, **390**, **768**, **1280** px width.
 
-- **320** — iPhone SE
-- **390** — iPhone 14
-- **768** — iPad portrait
-- **1280** — Laptop
+| Route | 320 | 390 | 768 | 1280 | Light | Dark | Notes |
+|-------|-----|-----|-----|------|-------|------|-------|
+| `/` Home | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | No horizontal scroll; search usable |
+| `/playlists` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Cards full width on mobile |
+| `/playlists/[id]` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Rows ≥56px; key badge visible |
+| `/groups` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Join/Create in header |
+| `/groups/[id]` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Member pills wrap |
+| `/song/[id]` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Chords readable; no lyric clip |
+| `/song/[id]` landscape phone | ☐ | — | — | — | ☐ | ☐ | Chart uses max `dvh` |
+| `/song/[id]/edit` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Editor selection works |
+| `/admin` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Stats + row actions |
+| `/login` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Form inputs readable |
+| `/profile` | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | Theme toggle applies |
 
-## Themes
+## Shell
 
-- **Light** — default
-- **Dark** — `data-theme=dark`
-- **Stage** — song view only (`data-chart-theme=stage`)
+| Check | Pass |
+|-------|------|
+| Mobile drawer opens/closes (≤767px) | ☐ |
+| Tablet icon-only sidebar (768–1023px) | ☐ |
+| Full sidebar with labels (≥1024px) | ☐ |
+| Sidebar + main contrast (WCAG AA) | ☐ |
 
----
+## Song chart themes
 
-## Routes
+| Theme | Pass |
+|-------|------|
+| App light + chart default | ☐ |
+| App dark + chart default | ☐ |
+| Performance stage (`data-chart-theme=stage`) | ☐ |
 
-| Route | 320 L | 390 L | 768 L | 1280 L | 390 D | Notes |
-|-------|-------|-------|-------|--------|-------|-------|
-| /login | | | | | | |
-| /signup | | | | | | |
-| / | | | | | | |
-| /song/[id] | | | | | | No lyric clip |
-| /song/[id] edit | | | | | | Admin only |
-| /playlists | | | | | | |
-| /playlists/[id] | | | | | | |
-| /groups | | | | | | |
-| /groups/[id] | | | | | | |
-| /admin | | | | | | Admin only |
-| /profile | | | | | | |
+## Sign-off
 
-## Song view specific
-
-- [ ] Long lyric line fully visible (no right clip)
-- [ ] Autoscroll bar 44px targets
-- [ ] Key modal grid tappable
-- [ ] Bottom bar not hiding last line
-- [ ] Pinch zoom works
-- [ ] Playlist ◀ ▶ when `?playlist=`
-
-## Accessibility
-
-- [ ] Focus visible on all buttons
-- [ ] Contrast AA on chord text
-- [ ] `prefers-reduced-motion` disables autoscroll
+- Tester: _______________
+- Date: _______________
+- Build / commit: _______________

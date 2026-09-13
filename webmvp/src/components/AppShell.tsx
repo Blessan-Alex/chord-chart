@@ -107,9 +107,10 @@ function SidebarNav({
                     ? "bg-lf-bg-active text-lf-brand"
                     : "text-lf-text-secondary hover:bg-lf-bg-muted hover:text-lf-text-primary"
                 }`}
+                title={item.label}
               >
                 {item.icon}
-                {item.label}
+                <span className="hidden lg:inline">{item.label}</span>
               </Link>
             </li>
           );
@@ -129,6 +130,7 @@ function SidebarNav({
                 ? "bg-lf-bg-active text-lf-brand"
                 : "text-lf-text-secondary hover:bg-lf-bg-muted hover:text-lf-text-primary"
             }`}
+            title="Admin"
           >
             <NavIcon>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -136,7 +138,7 @@ function SidebarNav({
                 <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
               </svg>
             </NavIcon>
-            Admin
+            <span className="hidden lg:inline">Admin</span>
           </Link>
         </div>
       )}
@@ -203,7 +205,7 @@ export function AppShellSidebar({
         <button
           type="button"
           aria-label="Close menu"
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -212,7 +214,7 @@ export function AppShellSidebar({
         role="dialog"
         aria-modal={mobileOpen ? true : undefined}
         aria-label="Navigation menu"
-        className={`fixed inset-y-0 left-0 z-50 flex w-[var(--lf-sidebar-width)] flex-col border-r border-lf-border bg-lf-bg-sidebar pt-[env(safe-area-inset-top)] transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[var(--lf-sidebar-width)] flex-col border-r border-lf-border bg-lf-bg-sidebar pt-[env(safe-area-inset-top)] transition-transform md:static md:w-[var(--lf-sidebar-width-compact)] md:translate-x-0 lg:w-[var(--lf-sidebar-width)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -241,7 +243,7 @@ function MobileTopBar({
   const pageTitle = MAIN_NAV.find((item) => isActive(pathname, item))?.label;
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-lf-border bg-lf-bg-sidebar/95 px-4 py-3 backdrop-blur-sm md:hidden">
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-lf-border bg-lf-bg-sidebar/95 px-4 py-3 backdrop-blur-sm lg:hidden">
       <button
         type="button"
         aria-label="Open menu"

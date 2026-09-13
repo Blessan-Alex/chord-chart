@@ -223,7 +223,7 @@ export function HomePage() {
   const showAddSong = !user;
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-4 sm:p-8">
+    <div className="mx-auto w-full max-w-3xl overflow-x-clip p-4 sm:p-8">
       <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete song?"

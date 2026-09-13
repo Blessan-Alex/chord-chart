@@ -11,11 +11,14 @@ import {
   Timestamp,
   updateDoc,
   where,
+  arrayUnion,
   type Firestore,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
 import { getDb } from "@/lib/firebase";
+import { resolveUsernameToUid } from "@/lib/firestore/users";
+import { validateUsername } from "@/lib/validation";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import type {
   CreateSessionInput,
@@ -185,6 +188,47 @@ export async function updateSessionStatus(
 }
 
 /** Prefetch playlist doc + songs for offline use. */
+export async function sharePlaylistByUsername(
+  session: Session,
+  usernameRaw: string,
+  inviterUid: string,
+  db?: Firestore,
+): Promise<Session> {
+  if (!isPlaylistOwner(session, inviterUid)) {
+    throw new Error("Only the playlist owner can share");
+  }
+
+  const validated = validateUsername(usernameRaw);
+  if (!validated.ok) {
+    throw new Error(validated.error);
+  }
+
+  const inviteeUid = await resolveUsernameToUid(validated.normalized, db);
+  if (!inviteeUid) {
+    throw new Error("Username not found");
+  }
+
+  if (inviteeUid === inviterUid) {
+    throw new Error("You cannot share with yourself");
+  }
+
+  if (session.sharedWith.includes(inviteeUid)) {
+    throw new Error("That user already has access");
+  }
+
+  const firestore = resolveDb(db);
+  await updateDoc(doc(firestore, SESSIONS_COLLECTION, session.id), {
+    sharedWith: arrayUnion(inviteeUid),
+    updatedAt: serverTimestamp(),
+  });
+
+  const updated = await getSession(session.id, firestore);
+  if (!updated) {
+    throw new Error("Playlist not found after sharing");
+  }
+  return updated;
+}
+
 export async function listPlaylistsForGroup(
   groupId: string,
   db?: Firestore,

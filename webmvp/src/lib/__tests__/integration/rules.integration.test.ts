@@ -444,6 +444,32 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
     await assertSucceeds(getDoc(doc(memberDb, "sessions", "group-set")));
   });
 
+  it("denies shared user updating playlist", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "sessions", "shared-write-test"), {
+        title: "Shared",
+        serviceType: "sunday_morning",
+        date: Timestamp.now(),
+        songCount: 0,
+        status: "draft",
+        createdBy: "owner-uid",
+        ownerId: "owner-uid",
+        sharedWith: ["guest-uid"],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const guestDb = testEnv.authenticatedContext("guest-uid").firestore();
+    await assertFails(
+      setDoc(
+        doc(guestDb, "sessions", "shared-write-test"),
+        { title: "Hijacked" },
+        { merge: true },
+      ),
+    );
+  });
+
   it("allows admin to read any group", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), "groups", "admin-read-group"), {

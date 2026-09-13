@@ -363,7 +363,7 @@ export default function SongPage() {
 
   return (
     <main
-      className={`mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
+      className={`song-page--landscape mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
         performanceMode ? "song-page--performance" : ""
       }`}
       onTouchStart={onTouchStart}
@@ -505,20 +505,20 @@ export default function SongPage() {
       )}
 
       {user && isAdmin && archives.length > 0 && (
-        <section className="mt-8 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-neutral-500">
+        <section className="mt-8 border-t border-lf-border pt-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-lf-text-tertiary">
             Version history
           </h2>
-          <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+          <ul className="divide-y divide-lf-border overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
             {archives.map((archive) => (
               <li
                 key={archive.id}
-                className="flex items-center justify-between px-4 py-3 text-sm"
+                className="flex items-center justify-between px-4 py-3 text-sm text-lf-text-primary"
               >
                 <span>
                   v{archive.version} · {archive.title}
                 </span>
-                <span className="text-neutral-500">
+                <span className="text-lf-text-secondary">
                   {archive.publishedAt
                     ? archive.publishedAt.toDate().toLocaleDateString()
                     : archive.createdAt.toDate().toLocaleDateString()}

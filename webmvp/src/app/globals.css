@@ -41,20 +41,29 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #0a0a0a;
     --foreground: #ededed;
-    --chord-color: #ffffff;
+    --chord-color: #6b9aff;
     --lyric-color: #c8c8c8;
     --section-color: #d0d0d0;
     --section-bg: #1a1a1a;
   }
 }
 
+:root[data-theme="dark"] {
+  --background: #0f1115;
+  --foreground: #f3f4f6;
+  --chord-color: #6b9aff;
+  --lyric-color: #c8c8c8;
+  --section-color: #d0d0d0;
+  --section-bg: #1c2028;
+}
+
 :root[data-chart-theme="dark"] {
   --background: #0a0a0a;
   --foreground: #ededed;
-  --chord-color: #ffffff;
+  --chord-color: #6b9aff;
   --lyric-color: #c8c8c8;
   --section-color: #d0d0d0;
   --section-bg: #1a1a1a;
@@ -74,8 +83,8 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--lf-bg-page, var(--background));
+  color: var(--lf-text-primary, var(--foreground));
   font-family: Arial, Helvetica, sans-serif;
   overflow-x: clip;
 }
@@ -212,6 +221,18 @@ body.song-performance-page {
 .lyric-editor-line::selection {
   background: var(--lf-brand-soft);
   color: var(--lf-text-primary);
+}
+
+@media (max-width: 767px) and (orientation: landscape) {
+  main.song-page--landscape {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  main.song-page--landscape .chord-chart-viewport {
+    max-height: calc(100dvh - 7rem);
+    overflow-y: auto;
+  }
 }
 
 [data-theme="dark"] .lyric-editor-line::selection {
