@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { MemberPills } from "@/components/MemberPills";
 import { PlaylistCard } from "@/components/PlaylistCard";
 import { SignInRequired } from "@/components/SignInRequired";
 import {
+  deleteGroup,
   getGroup,
   incrementGroupPlaylistCount,
   inviteGroupMemberByUsername,
@@ -21,8 +23,9 @@ import type { Group, Session } from "@/lib/types";
 
 export default function GroupDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const groupId = typeof params.id === "string" ? params.id : "";
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const [group, setGroup] = useState<Group | null>(null);
   const [playlists, setPlaylists] = useState<Session[]>([]);
@@ -30,6 +33,7 @@ export default function GroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [inviteUsername, setInviteUsername] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -77,6 +81,7 @@ export default function GroupDetailPage() {
   }, [user, groupId]);
 
   const isOwner = Boolean(user && group && isGroupOwner(group, user.uid));
+  const canDelete = isOwner || isAdmin;
   const canView = Boolean(user && group && isGroupMember(group, user.uid));
 
   const handleCopyInvite = async () => {
@@ -143,26 +148,72 @@ export default function GroupDetailPage() {
     }
   };
 
+  const handleDeleteGroup = async () => {
+    if (!group || !user) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteGroup(group, user.uid, { isAdmin });
+      router.replace("/groups");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete group.");
+      setShowDeleteConfirm(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <SignInRequired>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete group?"
+        message={
+          group
+            ? `"${group.name}" and all ${group.playlistCount} group playlist${
+                group.playlistCount === 1 ? "" : "s"
+              } will be removed permanently. Members will lose access.`
+            : ""
+        }
+        confirmLabel="Delete group"
+        onConfirm={() => {
+          void handleDeleteGroup();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-8">
-        <div>
-          <Link
-            href="/groups"
-            className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
-          >
-            ← Groups
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-lf-text-primary sm:text-3xl">
-            {group?.name ?? "Group"}
-          </h1>
-          {group && (
-            <p className="mt-1 text-sm text-lf-text-secondary">
-              {group.memberIds.length}{" "}
-              {group.memberIds.length === 1 ? "member" : "members"} ·{" "}
-              {group.playlistCount}{" "}
-              {group.playlistCount === 1 ? "playlist" : "playlists"}
-            </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <Link
+              href="/groups"
+              className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
+            >
+              ← Groups
+            </Link>
+            <h1 className="mt-2 text-2xl font-semibold text-lf-text-primary sm:text-3xl">
+              {group?.name ?? "Group"}
+            </h1>
+            {group && (
+              <p className="mt-1 text-sm text-lf-text-secondary">
+                {group.memberIds.length}{" "}
+                {group.memberIds.length === 1 ? "member" : "members"} ·{" "}
+                {group.playlistCount}{" "}
+                {group.playlistCount === 1 ? "playlist" : "playlists"}
+              </p>
+            )}
+          </div>
+          {canDelete && group && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setShowDeleteConfirm(true)}
+              className="min-h-11 self-start rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
+            >
+              Delete group
+            </button>
           )}
         </div>
 

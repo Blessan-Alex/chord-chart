@@ -97,6 +97,31 @@ service cloud.firestore {
         && request.resource.data.status in ['draft', 'published'];
     }
 
+    function isGroupOwnerOf(groupId) {
+      let group = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      return isAuth() && group.ownerId == request.auth.uid;
+    }
+
+    function canDeletePlaylist(sessionId) {
+      let playlist = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isAuth() && (
+        playlistOwnerId(playlist) == request.auth.uid
+        || isAdmin()
+        || (playlist.get('groupId', null) != null
+            && isGroupOwnerOf(playlist.groupId))
+      );
+    }
+
+    function canDeletePlaylistInviteToken(sessionId) {
+      let playlist = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isAuth() && (
+        isAdmin()
+        || playlistOwnerId(playlist) == request.auth.uid
+        || (playlist.get('groupId', null) != null
+            && isGroupOwnerOf(playlist.groupId))
+      );
+    }
+
     match /playlistInviteTokens/{token} {
       allow get: if isAuth();
       allow list: if false;
@@ -106,7 +131,10 @@ service cloud.firestore {
         && isPlaylistOwner(request.resource.data.sessionId)
         && request.resource.data.title is string
         && request.resource.data.createdAt is timestamp;
-      allow delete: if isAuth() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuth() && (
+        resource.data.ownerId == request.auth.uid
+        || canDeletePlaylistInviteToken(resource.data.sessionId)
+      );
       allow update: if false;
     }
 
@@ -128,10 +156,7 @@ service cloud.firestore {
         || isAdmin()
       );
 
-      allow delete: if isAuth() && (
-        playlistOwnerId(resource.data) == request.auth.uid
-        || isAdmin()
-      );
+      allow delete: if canDeletePlaylist(sessionId);
 
       match /sessionSongs/{entryId} {
         allow read: if canReadPlaylist(sessionId);
@@ -139,7 +164,7 @@ service cloud.firestore {
           && request.resource.data.songId is string
           && request.resource.data.order is number;
         allow update: if isAuth() && (isPlaylistOwner(sessionId) || isAdmin());
-        allow delete: if isAuth() && (isPlaylistOwner(sessionId) || isAdmin());
+        allow delete: if canDeletePlaylist(sessionId);
       }
     }
 
@@ -181,7 +206,10 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.createdAt is timestamp;
-      allow update, delete: if isAuth() && resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isAuth() && (
+        resource.data.ownerId == request.auth.uid
+        || isAdmin()
+      );
     }
 
     match /groups/{groupId} {

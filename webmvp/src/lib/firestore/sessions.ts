@@ -13,6 +13,7 @@ import {
   where,
   arrayUnion,
   writeBatch,
+  type DocumentReference,
   type Firestore,
   type Query,
   type QueryDocumentSnapshot,
@@ -20,6 +21,7 @@ import {
 
 import { PUBLISHED_PLAYLIST_CAP } from "@/lib/constants";
 import { getDb } from "@/lib/firebase";
+import { commitBatchedDeletes } from "@/lib/firestore/batchDelete";
 import { generatePlaylistInviteToken } from "@/lib/playlistInviteToken";
 import { resolveUsernameToUid } from "@/lib/firestore/users";
 import { validateUsername } from "@/lib/validation";
@@ -291,7 +293,7 @@ export async function sharePlaylistByUsername(
 
 export async function listPlaylistsForGroup(
   groupId: string,
-  options: { limit?: number } = {},
+  options: { limit?: number; strict?: boolean } = {},
   db?: Firestore,
 ): Promise<Session[]> {
   let q = query(
@@ -307,8 +309,86 @@ export async function listPlaylistsForGroup(
     const snap = await getDocs(q);
     return snap.docs.map(mapSession);
   } catch (error) {
+    if (options.strict) {
+      throw error instanceof Error
+        ? error
+        : new Error("Could not load group playlists");
+    }
     console.warn(`[sessions] group ${groupId} query failed:`, error);
     return [];
+  }
+}
+
+type DeleteSessionOptions = {
+  isAdmin?: boolean;
+  /** Group owner deleting all playlists in a group cascade. */
+  asGroupOwner?: boolean;
+  /** Skip group playlistCount decrement (e.g. when deleting the whole group). */
+  skipGroupCountUpdate?: boolean;
+  db?: Firestore;
+};
+
+async function decrementGroupPlaylistCount(
+  groupId: string,
+  db: Firestore,
+): Promise<void> {
+  const groupRef = doc(db, "groups", groupId);
+  const snap = await getDoc(groupRef);
+  if (!snap.exists()) {
+    return;
+  }
+  const current = (snap.data() as { playlistCount?: number }).playlistCount ?? 0;
+  await updateDoc(groupRef, {
+    playlistCount: Math.max(0, current - 1),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Permanently delete a playlist and related data (session songs, invite token).
+ * Owner or admin only — enforced here and in Firestore rules.
+ */
+export async function deleteSession(
+  session: Session,
+  actorUid: string,
+  options: DeleteSessionOptions = {},
+): Promise<void> {
+  const {
+    isAdmin = false,
+    asGroupOwner = false,
+    skipGroupCountUpdate = false,
+    db,
+  } = options;
+
+  const allowed =
+    isAdmin ||
+    isPlaylistOwner(session, actorUid) ||
+    (asGroupOwner && Boolean(session.groupId));
+
+  if (!allowed) {
+    throw new Error("Only the playlist owner can delete this playlist");
+  }
+
+  const firestore = resolveDb(db);
+  const sessionRef = doc(firestore, SESSIONS_COLLECTION, session.id);
+
+  const songRefs = (
+    await getDocs(collection(firestore, SESSIONS_COLLECTION, session.id, "sessionSongs"))
+  ).docs.map((snap) => snap.ref);
+
+  const refsToDelete: DocumentReference[] = [...songRefs];
+
+  if (session.shareToken) {
+    refsToDelete.push(
+      doc(firestore, PLAYLIST_INVITE_TOKENS, session.shareToken),
+    );
+  }
+
+  refsToDelete.push(sessionRef);
+  await commitBatchedDeletes(firestore, refsToDelete);
+
+  if (session.groupId && !skipGroupCountUpdate) {
+    await decrementGroupPlaylistCount(session.groupId, firestore);
   }
 }
 

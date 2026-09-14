@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -25,6 +25,7 @@ import {
 import {
   cacheSessionOffline,
   canViewPlaylist,
+  deleteSession,
   getSession,
   isPlaylistOwner,
   sharePlaylistByUsername,
@@ -40,7 +41,6 @@ import {
 } from "@/lib/sessionDisplay";
 import { sessionSongHref, startSetHref } from "@/lib/sessionNavigation";
 import {
-  copyPlaylistInviteLink,
   playlistShareResultMessage,
   sharePlaylistNative,
 } from "@/lib/sharePlaylist";
@@ -48,6 +48,7 @@ import type { Session, SessionSong, SongIndexEntry } from "@/lib/types";
 
 export default function PlaylistDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const sessionId = typeof params.id === "string" ? params.id : "";
   const { user, isAdmin } = useAuth();
 
@@ -63,12 +64,14 @@ export default function PlaylistDetailPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [keyModalEntry, setKeyModalEntry] = useState<SessionSong | null>(null);
   const [pendingRemove, setPendingRemove] = useState<SessionSong | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
 
   const addResults = useSongSearch(indexEntries, addSearch);
   const isOwner = Boolean(user && session && isPlaylistOwner(session, user.uid));
   const canEdit = isOwner || isAdmin;
+  const canDelete = canEdit;
   const showRowEdit = isOwner && editMode;
   const keyBySongId = useMemo(
     () => new Map(indexEntries.map((entry) => [entry.id, entry.key])),
@@ -225,19 +228,18 @@ export default function PlaylistDetailPage() {
     }
   };
 
-  const handleCopyLink = async () => {
-    if (!inviteToken) {
+  const handleDeletePlaylist = async () => {
+    if (!session || !user) {
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const copied = await copyPlaylistInviteLink(inviteToken);
-      if (copied) {
-        setActionMessage("Invite link copied.");
-      } else {
-        setError("Could not copy link.");
-      }
+      await deleteSession(session, user.uid, { isAdmin });
+      router.replace("/playlists");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete playlist.");
+      setShowDeleteConfirm(false);
     } finally {
       setBusy(false);
     }
@@ -319,6 +321,21 @@ export default function PlaylistDetailPage() {
 
   return (
     <SignInRequired>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete playlist?"
+        message={
+          session
+            ? `"${session.title}" and its songs will be removed permanently. Shared members will lose access.`
+            : ""
+        }
+        confirmLabel="Delete playlist"
+        onConfirm={() => {
+          void handleDeletePlaylist();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
       <ConfirmDialog
         open={pendingRemove !== null}
         title="Remove from playlist?"
@@ -457,34 +474,23 @@ export default function PlaylistDetailPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={busy || !inviteToken}
-                      onClick={() => {
-                        void handleCopyLink();
-                      }}
-                      className="inline-flex h-11 min-w-11 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
-                      aria-label="Copy playlist link"
-                      title="Copy link"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        aria-hidden
-                      >
-                        <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" />
-                        <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setShowShareModal(true)}
                       className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
                     >
                       Invite
                     </button>
                   </>
+                )}
+
+                {canDelete && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg"
+                  >
+                    Delete
+                  </button>
                 )}
 
                 {isOwner && (

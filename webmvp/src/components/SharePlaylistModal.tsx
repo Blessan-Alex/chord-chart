@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 import {
-  canUseNativeShare,
-  copyPlaylistInviteLink,
   playlistInviteUrl,
   playlistShareResultMessage,
   sharePlaylistNative,
@@ -46,25 +44,8 @@ export function SharePlaylistModal({
   }
 
   const shareUrl = playlistInviteUrl(session.inviteToken);
-  const nativeShareAvailable = canUseNativeShare();
 
-  const handleCopyLink = async () => {
-    setLinkBusy(true);
-    setError(null);
-    try {
-      const copied = await copyPlaylistInviteLink(session.inviteToken);
-      if (copied) {
-        onLinkAction?.("Invite link copied.");
-        onClose();
-      } else {
-        setError("Could not copy link.");
-      }
-    } finally {
-      setLinkBusy(false);
-    }
-  };
-
-  const handleNativeShare = async () => {
+  const handleShareLink = async () => {
     setLinkBusy(true);
     setError(null);
     try {
@@ -142,27 +123,15 @@ export function SharePlaylistModal({
         </p>
 
         <div className="mt-4 flex flex-col gap-2">
-          {nativeShareAvailable && (
-            <button
-              type="button"
-              disabled={actionsDisabled}
-              onClick={() => {
-                void handleNativeShare();
-              }}
-              className="min-h-12 w-full rounded-[var(--lf-radius-md)] bg-lf-action-primary text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
-            >
-              Share to WhatsApp, Messages…
-            </button>
-          )}
           <button
             type="button"
             disabled={actionsDisabled}
             onClick={() => {
-              void handleCopyLink();
+              void handleShareLink();
             }}
-            className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border text-sm font-semibold text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
+            className="min-h-12 w-full rounded-[var(--lf-radius-md)] bg-lf-action-primary text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
           >
-            Copy invite link
+            Share link
           </button>
           {onRegenerateLink && (
             <button

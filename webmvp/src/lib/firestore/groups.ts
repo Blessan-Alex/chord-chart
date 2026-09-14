@@ -15,6 +15,8 @@ import {
 } from "firebase/firestore";
 
 import { getDb } from "@/lib/firebase";
+import { commitBatchedDeletes } from "@/lib/firestore/batchDelete";
+import { deleteSession, listPlaylistsForGroup } from "@/lib/firestore/sessions";
 import type {
   CreateGroupInput,
   Group,
@@ -245,4 +247,42 @@ export async function incrementGroupPlaylistCount(
     playlistCount: current + 1,
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Permanently delete a group, its invite code, and all group playlists.
+ * Owner or admin only — enforced here and in Firestore rules.
+ */
+export async function deleteGroup(
+  group: Group,
+  actorUid: string,
+  options: { isAdmin?: boolean; db?: Firestore } = {},
+): Promise<void> {
+  const { isAdmin = false, db } = options;
+
+  if (!isGroupOwner(group, actorUid) && !isAdmin) {
+    throw new Error("Only the group owner can delete this group");
+  }
+
+  const firestore = resolveDb(db);
+  const asGroupOwner = isGroupOwner(group, actorUid);
+  const playlists = await listPlaylistsForGroup(
+    group.id,
+    { strict: true },
+    firestore,
+  );
+
+  for (const session of playlists) {
+    await deleteSession(session, actorUid, {
+      isAdmin,
+      asGroupOwner,
+      skipGroupCountUpdate: true,
+      db: firestore,
+    });
+  }
+
+  await commitBatchedDeletes(firestore, [
+    doc(firestore, GROUP_INVITE_CODES_COLLECTION, group.inviteCode),
+    doc(firestore, GROUPS_COLLECTION, group.id),
+  ]);
 }
