@@ -100,18 +100,6 @@ export default function SongPage() {
   }, [sessionId]);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (chartTheme === "system") {
-      root.removeAttribute("data-chart-theme");
-    } else {
-      root.dataset.chartTheme = chartTheme;
-    }
-    return () => {
-      root.removeAttribute("data-chart-theme");
-    };
-  }, [chartTheme]);
-
-  useEffect(() => {
     if (!performanceMode) {
       document.documentElement.classList.remove("song-performance-page");
       document.body.classList.remove("song-performance-page");
@@ -489,7 +477,7 @@ export default function SongPage() {
           gesturesEnabled={!autoscroll.active}
           className="mt-2 min-w-0 sm:mt-4"
         >
-          <div className="chord-chart">
+          <div className="chord-chart" data-chart-theme={chartTheme}>
             {song.sections.map((section, si) => (
               <div key={`${section.label}-${si}`}>
                 <div className="section-label">{section.label}</div>

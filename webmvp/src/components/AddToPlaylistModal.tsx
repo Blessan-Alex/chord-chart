@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { listOwnedPlaylists } from "@/lib/firestore/sessions";
 import { addSongToSession } from "@/lib/firestore/sessionSongs";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { playlistVisibilitySuffix } from "@/lib/playlistLabels";
 import type { Session } from "@/lib/types";
 
 type AddToPlaylistModalProps = {
@@ -131,7 +132,7 @@ export function AddToPlaylistModal({
                   </span>
                   <span className="text-xs text-lf-text-secondary">
                     {formatPlaylistDate(playlist.date)}
-                    {playlist.status === "draft" ? " · Draft" : ""}
+                    {playlistVisibilitySuffix(playlist.status)}
                   </span>
                 </button>
               </li>

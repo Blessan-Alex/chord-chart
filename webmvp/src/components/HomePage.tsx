@@ -10,13 +10,14 @@ import {
   type PlaylistPreviewSong,
 } from "@/components/PlaylistPreviewCard";
 import { SongRow } from "@/components/SongRow";
-import { LIBRARY_BROWSE_CAP } from "@/lib/constants";
+import { SongRowSkeleton } from "@/components/SongRowSkeleton";
+import { HOME_LIBRARY_PAGE_SIZE, LIBRARY_BROWSE_CAP } from "@/lib/constants";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
 import { listGroupsForMember } from "@/lib/firestore/groups";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import {
-  loadSongIndexCached,
+  loadSongIndexCachedProgressive,
   peekSongIndexCache,
 } from "@/lib/firestore/songIndexCache";
 import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessions";
@@ -72,7 +73,7 @@ function SearchIcon() {
 }
 
 export function HomePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const { recentSongs } = useRecentSongs();
   const [savedSongs, setSavedSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -93,6 +94,7 @@ export function HomePage() {
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [keyFilter, setKeyFilter] = useState<Key | "">("");
+  const [libraryPage, setLibraryPage] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
     title: string;
@@ -105,11 +107,18 @@ export function HomePage() {
     keyFilter || undefined,
   );
   const isBrowsingAll = !searchQuery.trim() && !keyFilter;
+  const libraryPageCount = Math.max(
+    1,
+    Math.ceil(libraryResults.length / HOME_LIBRARY_PAGE_SIZE),
+  );
   const displayedResults = isBrowsingAll
-    ? libraryResults.slice(0, LIBRARY_BROWSE_CAP)
-    : libraryResults;
+    ? libraryResults.slice(
+        libraryPage * HOME_LIBRARY_PAGE_SIZE,
+        (libraryPage + 1) * HOME_LIBRARY_PAGE_SIZE,
+      )
+    : libraryResults.slice(0, LIBRARY_BROWSE_CAP);
   const libraryCapped =
-    isBrowsingAll && libraryResults.length > LIBRARY_BROWSE_CAP;
+    !isBrowsingAll && libraryResults.length > LIBRARY_BROWSE_CAP;
 
   const knownSongIds = useMemo(
     () => new Set(indexEntries.map((entry) => entry.id)),
@@ -133,6 +142,10 @@ export function HomePage() {
   }, [refreshLocalSongs]);
 
   useEffect(() => {
+    setLibraryPage(0);
+  }, [searchQuery, keyFilter]);
+
+  useEffect(() => {
     let cancelled = false;
 
     void (async () => {
@@ -142,7 +155,16 @@ export function HomePage() {
       setIndexError(null);
 
       try {
-        const entries = await loadSongIndexCached();
+        let bestCount = peekSongIndexCache()?.length ?? 0;
+        const entries = await loadSongIndexCachedProgressive((partial) => {
+          if (cancelled || partial.length < bestCount) {
+            return;
+          }
+          bestCount = partial.length;
+          setIndexEntries(partial);
+          setLoaded(true);
+          setIndexLoading(false);
+        });
         if (!cancelled) {
           setIndexEntries(entries);
           setLoaded(true);
@@ -157,18 +179,6 @@ export function HomePage() {
       }
     })();
 
-    void loadSongIndexCached({ preferServer: true })
-      .then((entries) => {
-        if (!cancelled) {
-          setIndexEntries(entries);
-          setLoaded(true);
-          setIndexLoading(false);
-        }
-      })
-      .catch(() => {
-        /* keep cached / prior entries */
-      });
-
     return () => {
       cancelled = true;
     };
@@ -182,6 +192,11 @@ export function HomePage() {
       setPlaylistPreviews({});
       setSocialError(null);
       setPlaylistsLoading(false);
+      return;
+    }
+
+    if (indexLoading) {
+      setPlaylistsLoading(true);
       return;
     }
 
@@ -261,7 +276,9 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, indexEntries]);
+    // Fetch social previews once when the index is ready; not on every chunk merge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- indexEntries read at fetch time only
+  }, [user, indexLoading]);
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) {
@@ -299,7 +316,7 @@ export function HomePage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-lf-text-secondary">
-          {authLoading || indexLoading
+          {indexLoading
             ? "Loading…"
             : `${indexEntries.length} songs`}
         </p>
@@ -480,33 +497,70 @@ export function HomePage() {
           </section>
         )}
 
-        {loaded && !indexLoading && (
+        {(loaded || indexLoading) && (
           <section>
             <SectionHeader title="All songs" />
-            {displayedResults.length === 0 ? (
+            {indexLoading && indexEntries.length === 0 ? (
+              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
+                {Array.from({ length: HOME_LIBRARY_PAGE_SIZE }).map((_, index) => (
+                  <SongRowSkeleton key={index} />
+                ))}
+              </ul>
+            ) : displayedResults.length === 0 ? (
               <p className="text-sm text-lf-text-secondary">
                 {indexEntries.length === 0
                   ? "No songs in the library yet."
                   : "No songs match your search."}
               </p>
             ) : (
-              <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
-                {libraryCapped && (
-                  <li className="border-b border-lf-border px-4 py-3 text-sm text-lf-text-secondary">
-                    Showing {LIBRARY_BROWSE_CAP} of {libraryResults.length}{" "}
-                    songs — search or filter to narrow the list.
-                  </li>
+              <>
+                <ul className="overflow-hidden rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated">
+                  {libraryCapped && (
+                    <li className="border-b border-lf-border px-4 py-3 text-sm text-lf-text-secondary">
+                      Showing {LIBRARY_BROWSE_CAP} of {libraryResults.length}{" "}
+                      songs — search or filter to narrow the list.
+                    </li>
+                  )}
+                  {displayedResults.map((entry) => (
+                    <SongRow
+                      key={entry.id}
+                      title={entry.title}
+                      artist={entry.artist ?? ""}
+                      songKey={entry.key}
+                      href={`/song/${entry.id}`}
+                    />
+                  ))}
+                </ul>
+                {isBrowsingAll && libraryResults.length > HOME_LIBRARY_PAGE_SIZE && (
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={libraryPage === 0}
+                      onClick={() => setLibraryPage((page) => Math.max(0, page - 1))}
+                      className="inline-flex min-h-11 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border px-4 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-40"
+                      aria-label="Previous page"
+                    >
+                      ← Prev
+                    </button>
+                    <p className="text-sm text-lf-text-secondary">
+                      {libraryPage + 1} / {libraryPageCount}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={libraryPage >= libraryPageCount - 1}
+                      onClick={() =>
+                        setLibraryPage((page) =>
+                          Math.min(libraryPageCount - 1, page + 1),
+                        )
+                      }
+                      className="inline-flex min-h-11 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border px-4 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-40"
+                      aria-label="Next page"
+                    >
+                      Next →
+                    </button>
+                  </div>
                 )}
-                {displayedResults.map((entry) => (
-                  <SongRow
-                    key={entry.id}
-                    title={entry.title}
-                    artist={entry.artist ?? ""}
-                    songKey={entry.key}
-                    href={`/song/${entry.id}`}
-                  />
-                ))}
-              </ul>
+              </>
             )}
           </section>
         )}

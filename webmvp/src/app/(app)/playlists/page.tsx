@@ -115,7 +115,7 @@ export default function PlaylistsPage() {
             {ownedDrafts.length > 0 && (
               <section>
                 <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-lf-text-tertiary">
-                  My drafts
+                  My private playlists
                 </h2>
                 <ul className="flex flex-col gap-3">
                   {ownedDrafts.map((session) => (
@@ -140,7 +140,7 @@ export default function PlaylistsPage() {
 
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-lf-text-tertiary">
-                Published
+                Public playlists
               </h2>
               {published.length === 0 ? (
                 <div className="rounded-[var(--lf-radius-lg)] border border-dashed border-lf-border bg-lf-bg-muted px-4 py-8 text-center">
@@ -161,7 +161,7 @@ export default function PlaylistsPage() {
                 <ul className="flex flex-col gap-3">
                   {published.length >= PUBLISHED_PLAYLIST_CAP && (
                     <li className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted px-4 py-3 text-sm text-lf-text-secondary">
-                      Showing the {PUBLISHED_PLAYLIST_CAP} most recent published
+                      Showing the {PUBLISHED_PLAYLIST_CAP} most recent public
                       playlists. Use search to narrow the list.
                     </li>
                   )}

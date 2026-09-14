@@ -120,7 +120,8 @@ function resolveDb(db?: Firestore): Firestore {
 }
 
 /** Fetch all index chunks. Uses local cache first for instant paint, then server. */
-export async function loadSongIndex(
+export async function loadSongIndexChunks(
+  chunkIds: readonly SongIndexChunkId[],
   db?: Firestore,
   options: { preferServer?: boolean } = {},
 ): Promise<SongIndexEntry[]> {
@@ -136,7 +137,7 @@ export async function loadSongIndex(
       };
 
   const chunks = await Promise.all(
-    SONG_INDEX_CHUNK_IDS.map(async (chunkId) => {
+    chunkIds.map(async (chunkId) => {
       const ref = doc(firestore, "songIndex", chunkId);
       trackReads(`songIndex/${chunkId}`, 1);
       return read(ref);
@@ -146,6 +147,14 @@ export async function loadSongIndex(
   return chunks
     .filter((snap) => snap.exists())
     .flatMap((snap) => (snap.data() as SongIndexChunk).entries);
+}
+
+/** Fetch all index chunks. Uses local cache first for instant paint, then server. */
+export async function loadSongIndex(
+  db?: Firestore,
+  options: { preferServer?: boolean } = {},
+): Promise<SongIndexEntry[]> {
+  return loadSongIndexChunks(SONG_INDEX_CHUNK_IDS, db, options);
 }
 
 /** Write all index chunks from a flat entry list (re-chunks by title). */

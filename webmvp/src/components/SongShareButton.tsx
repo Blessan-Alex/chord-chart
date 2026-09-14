@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 
+import { IconActionButton } from "@/components/IconActionButton";
 import {
-  canUseNativeShare,
-  copySongLink,
   shareResultMessage,
   shareSongNative,
   type SongSharePayload,
@@ -28,35 +27,14 @@ export function SongShareButton({ song, className = "" }: SongShareButtonProps) 
     }
   };
 
-  const handleCopy = async () => {
-    setMessage(null);
-    const copied = await copySongLink(song.id);
-    setMessage(copied ? "Link copied." : "Could not copy link.");
-    window.setTimeout(() => setMessage(null), 3000);
-  };
-
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      {canUseNativeShare() ? (
-        <button
-          type="button"
-          onClick={() => {
-            void handleShare();
-          }}
-          className="inline-flex h-11 min-w-11 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border px-3 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
-          aria-label={`Share ${song.title}`}
-        >
-          Share
-        </button>
-      ) : null}
-      <button
-        type="button"
+      <IconActionButton
+        label={`Share ${song.title}`}
+        variant="default"
         onClick={() => {
-          void handleCopy();
+          void handleShare();
         }}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border text-lf-text-primary hover:bg-lf-bg-muted"
-        aria-label="Copy song link"
-        title="Copy link"
       >
         <svg
           viewBox="0 0 24 24"
@@ -66,10 +44,11 @@ export function SongShareButton({ song, className = "" }: SongShareButtonProps) 
           strokeWidth="2"
           aria-hidden
         >
-          <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" />
-          <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" />
+          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          <polyline points="16 6 12 2 8 6" />
+          <line x1="12" x2="12" y1="2" y2="15" />
         </svg>
-      </button>
+      </IconActionButton>
       {message && (
         <span className="sr-only" aria-live="polite">
           {message}

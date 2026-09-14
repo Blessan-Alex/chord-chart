@@ -60,18 +60,37 @@
   --section-bg: #1c2028;
 }
 
-:root[data-chart-theme="dark"] {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+.chord-chart[data-chart-theme="system"] {
+  --chord-color: #000000;
+  --lyric-color: #1a1a1a;
+  --section-color: #333333;
+  --section-bg: #f5f5f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .chord-chart[data-chart-theme="system"] {
+    --chord-color: #6b9aff;
+    --lyric-color: #c8c8c8;
+    --section-color: #d0d0d0;
+    --section-bg: #1a1a1a;
+  }
+}
+
+:root[data-theme="dark"] .chord-chart[data-chart-theme="system"] {
   --chord-color: #6b9aff;
   --lyric-color: #c8c8c8;
   --section-color: #d0d0d0;
   --section-bg: #1a1a1a;
 }
 
-:root[data-chart-theme="stage"] {
-  --background: #000000;
-  --foreground: #ffffff;
+.chord-chart[data-chart-theme="dark"] {
+  --chord-color: #6b9aff;
+  --lyric-color: #c8c8c8;
+  --section-color: #d0d0d0;
+  --section-bg: #1a1a1a;
+}
+
+.chord-chart[data-chart-theme="stage"] {
   --chord-color: #ffff66;
   --lyric-color: #ffffff;
   --section-color: #ffffff;

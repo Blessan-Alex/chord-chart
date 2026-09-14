@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { playlistVisibilitySuffix } from "@/lib/playlistLabels";
 import { sessionInitials, sessionTileGradient } from "@/lib/sessionDisplay";
 import type { Session } from "@/lib/types";
 
@@ -30,8 +31,10 @@ export function PlaylistCard({ session, showStatus }: PlaylistCardProps) {
           </p>
           <p className="mt-0.5 truncate text-sm text-lf-text-secondary">
             {songLabel}
-            {showStatus && session.status === "draft" ? (
-              <span className="text-lf-text-tertiary"> · Draft</span>
+            {showStatus ? (
+              <span className="text-lf-text-tertiary">
+                {playlistVisibilitySuffix(session.status)}
+              </span>
             ) : null}
           </p>
         </div>

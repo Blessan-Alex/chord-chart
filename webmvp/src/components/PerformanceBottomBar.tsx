@@ -131,16 +131,18 @@ export function PerformanceBottomBar({
         )}
 
         <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center">
-            <NavLink href={prevHref ?? "#"} label="Previous song" disabled={!prevHref}>
-              ◀
-            </NavLink>
-            <NavLink href={nextHref ?? "#"} label="Next song" disabled={!nextHref}>
-              ▶
-            </NavLink>
-          </div>
+          {(prevHref || nextHref) && (
+            <div className="flex items-center">
+              <NavLink href={prevHref ?? "#"} label="Previous song" disabled={!prevHref}>
+                ◀
+              </NavLink>
+              <NavLink href={nextHref ?? "#"} label="Next song" disabled={!nextHref}>
+                ▶
+              </NavLink>
+            </div>
+          )}
 
-          <div className="flex items-center gap-0.5">
+          <div className={`flex items-center gap-0.5 ${!(prevHref || nextHref) ? "mx-auto" : ""}`}>
             <IconButton label="Transpose down" onClick={onTransposeDown}>
               −
             </IconButton>
