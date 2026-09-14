@@ -239,3 +239,14 @@ body.song-performance-page {
   background: var(--lf-brand-soft);
   color: var(--lf-text-primary);
 }
+
+/* Full-screen autoscroll: hide chrome so lyrics stay centered */
+html.song-autoscroll-active [data-app-sidebar],
+html.song-autoscroll-active [data-app-mobile-topbar] {
+  display: none !important;
+}
+
+html.song-autoscroll-active [data-app-shell-main] {
+  width: 100%;
+  max-width: 100%;
+}

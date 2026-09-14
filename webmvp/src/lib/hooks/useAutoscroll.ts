@@ -52,6 +52,14 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   }, []);
 
   const start = useCallback(() => {
+    const container = scrollRefStable.current?.current;
+    if (container) {
+      const root = document.scrollingElement ?? document.documentElement;
+      if (root.scrollTop > 0) {
+        container.scrollTop = root.scrollTop;
+        root.scrollTop = 0;
+      }
+    }
     setActive(true);
     setPaused(false);
   }, []);

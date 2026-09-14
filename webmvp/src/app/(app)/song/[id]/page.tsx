@@ -130,6 +130,17 @@ export default function SongPage() {
   }, [id]);
 
   useEffect(() => {
+    if (autoscroll.active) {
+      document.documentElement.classList.add("song-autoscroll-active");
+    } else {
+      document.documentElement.classList.remove("song-autoscroll-active");
+    }
+    return () => {
+      document.documentElement.classList.remove("song-autoscroll-active");
+    };
+  }, [autoscroll.active]);
+
+  useEffect(() => {
     if (!loaded || !song) {
       return;
     }
@@ -370,12 +381,12 @@ export default function SongPage() {
 
   return (
     <main
-      className={`song-page--landscape mx-auto flex w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
+      className={`song-page--landscape mx-auto flex w-full flex-col p-4 sm:p-8 ${bottomPadding} ${
         performanceMode ? "song-page--performance" : ""
       } ${
         autoscroll.active
-          ? "fixed inset-0 z-20 h-[100dvh] max-w-none overflow-hidden bg-lf-bg-page"
-          : "min-h-screen"
+          ? "fixed inset-0 z-[60] h-[100dvh] max-w-none overflow-hidden bg-lf-bg-page"
+          : "min-h-0 max-w-2xl flex-1"
       }`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -461,9 +472,9 @@ export default function SongPage() {
 
       <div
         ref={scrollContainerRef}
-        className={`min-w-0 ${
+        className={`min-w-0 flex-1 ${
           autoscroll.active
-            ? "min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
+            ? "min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] pb-24"
             : ""
         }`}
       >
@@ -499,7 +510,7 @@ export default function SongPage() {
         </ChordChartViewport>
       </div>
 
-      {isMobile && (
+      {isMobile && !autoscroll.active && (
         <PerformanceBottomBar
           targetKey={currentKey}
           originalKey={originalKey}

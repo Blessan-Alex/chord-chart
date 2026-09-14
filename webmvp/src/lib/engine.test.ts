@@ -115,6 +115,28 @@ describe("chordToDegree", () => {
     expect(chordToDegree("Em", "C")).toBe("3m");
     expect(chordToDegree("Bb", "C")).toBe("b7");
   });
+
+  it("maps extensions and slash chords in key C", () => {
+    expect(chordToDegree("C7", "C")).toBe("17");
+    expect(chordToDegree("Cmaj7", "C")).toBe("1maj7");
+    expect(chordToDegree("Cm7", "C")).toBe("1m7");
+    expect(chordToDegree("Csus2", "C")).toBe("1sus2");
+    expect(chordToDegree("Csus4", "C")).toBe("1sus4");
+    expect(chordToDegree("Cadd9", "C")).toBe("1add9");
+    expect(chordToDegree("Cdim", "C")).toBe("1dim");
+    expect(chordToDegree("Caug", "C")).toBe("1aug");
+    expect(chordToDegree("C+", "C")).toBe("1aug");
+    expect(chordToDegree("C6", "C")).toBe("16");
+    expect(chordToDegree("Cm6", "C")).toBe("1m6");
+    expect(chordToDegree("C9", "C")).toBe("19");
+    expect(chordToDegree("Cmaj9", "C")).toBe("1maj9");
+    expect(chordToDegree("Cm9", "C")).toBe("1m9");
+    expect(chordToDegree("C11", "C")).toBe("111");
+    expect(chordToDegree("C13", "C")).toBe("113");
+    expect(chordToDegree("C/E", "C")).toBe("1/3");
+    expect(chordToDegree("Cm/G", "C")).toBe("1m/5");
+    expect(chordToDegree("Cmaj7/E", "C")).toBe("1maj7/3");
+  });
 });
 
 describe("isValidChord", () => {

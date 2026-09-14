@@ -152,8 +152,26 @@ A group can have many playlists; sharing a playlist doesn’t require joining a 
 
 ## Security checklist
 
-- [ ] Join tokens unguessable (≥128 bits entropy)
-- [ ] Token `list` denied in Firestore rules (like `groupInviteCodes`)
+- [x] Join tokens unguessable (16 chars from secure alphabet)
+- [x] Token `list` denied in Firestore rules (like `groupInviteCodes`)
 - [ ] Expiring tokens optional (e.g. 7-day rehearsal links)
-- [ ] Owner can revoke token without deleting playlist
+- [x] Owner can revoke token without deleting playlist (reset invite link)
 - [ ] App Check enforced before public launch
+
+---
+
+## Server join API — is the service account safe on Vercel?
+
+Playlist invite join uses `POST /api/playlists/join` with the Firebase **Admin SDK** on the server only.
+
+**Yes, when configured correctly:**
+
+| Do | Don't |
+|----|-------|
+| Set `FIREBASE_SERVICE_ACCOUNT_JSON` in Vercel **Environment Variables** (server) | Never use `NEXT_PUBLIC_` prefix |
+| Never commit the JSON file to git | Never import `firebaseAdmin.ts` in client components |
+| Restrict Vercel project access to trusted admins | Never log the full JSON |
+
+The browser **never** receives this variable. Next.js API routes run on the server; only the route response (e.g. `{ sessionId }`) goes to the client. Our code only imports `firebaseAdmin` from the API route — verified, not in any `"use client"` file.
+
+**Alternative (no secret on Vercel):** deploy a **Firebase Cloud Function** `acceptPlaylistInvite(token)` and call it from the app. Credentials stay in Google Cloud only. Same security, one extra deploy step.

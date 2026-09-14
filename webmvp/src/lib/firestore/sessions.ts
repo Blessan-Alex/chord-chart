@@ -112,6 +112,28 @@ export async function getSession(
   return mapSession(snap as QueryDocumentSnapshot);
 }
 
+async function attachPlaylistInviteToken(
+  sessionId: string,
+  title: string,
+  ownerId: string,
+  db: Firestore,
+): Promise<string> {
+  const token = generatePlaylistInviteToken();
+  const batch = writeBatch(db);
+  batch.set(doc(db, PLAYLIST_INVITE_TOKENS, token), {
+    sessionId,
+    ownerId,
+    title: title.trim(),
+    createdAt: serverTimestamp(),
+  });
+  batch.update(doc(db, SESSIONS_COLLECTION, sessionId), {
+    shareToken: token,
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+  return token;
+}
+
 export async function createSession(
   input: CreateSessionInput,
   createdBy: string,
@@ -120,7 +142,6 @@ export async function createSession(
 ): Promise<Session> {
   const firestore = resolveDb(db);
   const ref = doc(collection(firestore, SESSIONS_COLLECTION));
-  const shareToken = generatePlaylistInviteToken();
 
   const data = {
     title: input.title.trim(),
@@ -132,27 +153,30 @@ export async function createSession(
     ownerId: createdBy,
     ownerUsername: ownerUsername?.trim() ?? "",
     sharedWith: [] as string[],
-    shareToken,
     ...(input.groupId ? { groupId: input.groupId } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  const batch = writeBatch(firestore);
-  batch.set(ref, data);
-  batch.set(doc(firestore, PLAYLIST_INVITE_TOKENS, shareToken), {
-    sessionId: ref.id,
-    ownerId: createdBy,
-    title: input.title.trim(),
-    createdAt: serverTimestamp(),
-  });
-  await batch.commit();
+  await writeBatch(firestore).set(ref, data).commit();
 
   const created = await getSession(ref.id, firestore);
   if (!created) {
     throw new Error("Failed to read created playlist");
   }
-  return created;
+
+  try {
+    const shareToken = await attachPlaylistInviteToken(
+      ref.id,
+      input.title,
+      createdBy,
+      firestore,
+    );
+    return { ...created, shareToken };
+  } catch (error) {
+    console.warn("[sessions] invite token create failed:", error);
+    return created;
+  }
 }
 
 /** Playlists visible to a user: owned, shared, and recent band-published. */

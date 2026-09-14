@@ -5,21 +5,25 @@ import { Suspense, useEffect } from "react";
 
 import { AppLogo } from "@/components/AppLogo";
 import { SignupForm } from "@/components/SignupForm";
+import { getFirebaseAuth, isFirebaseEnabled } from "@/lib/firebase";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { isFirebaseEnabled } from "@/lib/firebase";
-import { getSafeRedirectPath } from "@/lib/safeRedirect";
+import {
+  getSafeRedirectPath,
+  resolvePostAuthPath,
+  resolvePostAuthPathForUser,
+} from "@/lib/safeRedirect";
 
 function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = getSafeRedirectPath(searchParams.get("next"));
-  const { user, loading, signUp, checkUsernameAvailable } = useAuth();
+  const { user, loading, isAdmin, signUp, checkUsernameAvailable } = useAuth();
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace(nextPath ?? "/");
+      router.replace(resolvePostAuthPath(nextPath, isAdmin));
     }
-  }, [loading, user, router, nextPath]);
+  }, [loading, user, isAdmin, router, nextPath]);
 
   if (!isFirebaseEnabled()) {
     return (
@@ -38,7 +42,11 @@ function SignupPageContent() {
     password: string,
   ) => {
     await signUp(email, password, displayName, username);
-    router.replace(nextPath ?? "/");
+    const destination = await resolvePostAuthPathForUser(
+      nextPath,
+      getFirebaseAuth().currentUser,
+    );
+    router.replace(destination);
   };
 
   const loginHref = nextPath

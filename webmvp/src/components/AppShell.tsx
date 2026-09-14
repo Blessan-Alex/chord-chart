@@ -234,6 +234,7 @@ export function AppShellSidebar({
         role={mobileOpen ? "dialog" : undefined}
         aria-modal={mobileOpen ? true : undefined}
         aria-label="Navigation menu"
+        data-app-sidebar
         className={`fixed inset-y-0 left-0 z-50 flex w-[var(--lf-sidebar-drawer-width)] flex-col border-r border-lf-border bg-lf-bg-sidebar pt-[env(safe-area-inset-top)] transition-transform md:static md:w-[var(--lf-sidebar-width-compact)] md:translate-x-0 lg:w-[var(--lf-sidebar-width)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
@@ -266,7 +267,10 @@ function MobileTopBar({
       : MAIN_NAV.find((item) => isActive(pathname, item))?.label;
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-lf-border bg-lf-bg-sidebar/95 px-4 py-3 backdrop-blur-sm lg:hidden">
+    <header
+      data-app-mobile-topbar
+      className="sticky top-0 z-30 flex items-center gap-3 border-b border-lf-border bg-lf-bg-sidebar/95 px-4 py-3 backdrop-blur-sm lg:hidden"
+    >
       <button
         type="button"
         aria-label="Open menu"
@@ -322,7 +326,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onMobileClose={() => setMobileOpen(false)}
       />
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col" data-app-shell-main>
         <MobileTopBar
           onOpenMenu={() => setMobileOpen(true)}
           pathname={pathname}

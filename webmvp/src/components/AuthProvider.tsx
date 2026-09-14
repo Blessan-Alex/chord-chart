@@ -19,6 +19,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   getFirebaseAuth,
@@ -91,6 +92,7 @@ async function loadProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(isFirebaseEnabled());
@@ -209,7 +211,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     await firebaseSignOut(getFirebaseAuth());
-  }, []);
+    router.replace("/login");
+  }, [router]);
 
   const updateDisplayName = useCallback(
     async (displayName: string) => {

@@ -7,9 +7,13 @@ import { Suspense, useEffect } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { DemoAccounts } from "@/components/DemoAccounts";
 import { LoginForm } from "@/components/LoginForm";
+import { getFirebaseAuth, isFirebaseEnabled } from "@/lib/firebase";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { isFirebaseEnabled } from "@/lib/firebase";
-import { getSafeRedirectPath } from "@/lib/safeRedirect";
+import {
+  getSafeRedirectPath,
+  resolvePostAuthPath,
+  resolvePostAuthPathForUser,
+} from "@/lib/safeRedirect";
 
 const showDemoAccounts = process.env.NEXT_PUBLIC_DEMO_LOGIN === "true";
 
@@ -17,13 +21,13 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = getSafeRedirectPath(searchParams.get("next"));
-  const { user, loading, signIn } = useAuth();
+  const { user, loading, isAdmin, signIn } = useAuth();
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace(nextPath ?? "/");
+      router.replace(resolvePostAuthPath(nextPath, isAdmin));
     }
-  }, [loading, user, router, nextPath]);
+  }, [loading, user, isAdmin, router, nextPath]);
 
   if (!isFirebaseEnabled()) {
     return (
@@ -43,7 +47,11 @@ function LoginPageContent() {
 
   const handleSignIn = async (email: string, password: string) => {
     await signIn(email, password);
-    router.replace(nextPath ?? "/");
+    const destination = await resolvePostAuthPathForUser(
+      nextPath,
+      getFirebaseAuth().currentUser,
+    );
+    router.replace(destination);
   };
 
   const signupHref = nextPath

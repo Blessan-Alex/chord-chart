@@ -118,25 +118,47 @@ const INTERVAL_TO_NUMBER = [
   "1", "b2", "2", "b3", "3", "4", "#4", "5", "b6", "6", "b7", "7",
 ];
 
+function noteToDegree(noteNum: number, key: string): string {
+  const interval = ((noteNum - noteToNum(key)) % 12 + 12) % 12;
+  return INTERVAL_TO_NUMBER[interval];
+}
+
+/** Append parsed chord suffix in Nashville form (1m7, 1maj7, 1sus4, 1dim, 1aug, …). */
+function suffixToNashville(suffix: string): string {
+  if (!suffix) {
+    return "";
+  }
+
+  const low = suffix.toLowerCase();
+
+  if (low.startsWith("m") && !low.startsWith("maj")) {
+    return suffix;
+  }
+
+  if (low.startsWith("dim") || low === "°") {
+    return low === "°" ? "dim" : suffix;
+  }
+
+  if (low.startsWith("aug") || low === "+") {
+    return low === "+" ? "aug" : suffix;
+  }
+
+  return suffix;
+}
+
 /**
  * Returns the Nashville number of a chord relative to a key.
- * Minor chords append "m" (e.g. Am in C → "6m"). Dim → "dim", aug → "+".
+ * Supports extensions (7, maj7, sus4, add9, dim, aug, …) and slash bass (1/3).
  */
 export function chordToDegree(chord: string, key: string): string {
   const trimmed = chord.trim();
   if (!trimmed) return "";
 
-  const { rootNum, suffix } = parseChord(trimmed);
-  const interval = ((rootNum - noteToNum(key)) % 12 + 12) % 12;
-  let degree = INTERVAL_TO_NUMBER[interval];
+  const { rootNum, suffix, bassNum } = parseChord(trimmed);
+  let degree = noteToDegree(rootNum, key) + suffixToNashville(suffix);
 
-  const low = suffix.toLowerCase();
-  if (low.startsWith("m") && !low.startsWith("maj")) {
-    degree += "m";
-  } else if (low.startsWith("dim") || low === "°") {
-    degree += "dim";
-  } else if (low.startsWith("aug") || low === "+") {
-    degree += "+";
+  if (bassNum !== undefined) {
+    degree += `/${noteToDegree(bassNum, key)}`;
   }
 
   return degree;

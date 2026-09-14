@@ -142,8 +142,16 @@ export default function PlaylistDetailPage() {
   }, [sessionId, user, isAdmin]);
 
   useEffect(() => {
+    if (session?.shareToken) {
+      setInviteToken(session.shareToken);
+    }
+  }, [session?.shareToken]);
+
+  useEffect(() => {
     if (!session || !user || !isOwner) {
-      setInviteToken(null);
+      if (!session?.shareToken) {
+        setInviteToken(null);
+      }
       return;
     }
 

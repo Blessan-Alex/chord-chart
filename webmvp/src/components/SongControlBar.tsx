@@ -104,19 +104,35 @@ export function SongControlBar({
           </button>
         )}
 
-        <div className="flex overflow-hidden rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated">
-          <SegmentButton
-            active={viewMode === "chords"}
-            onClick={() => onViewModeChange("chords")}
-          >
-            Chords
-          </SegmentButton>
-          <SegmentButton
-            active={viewMode === "numbers"}
-            onClick={() => onViewModeChange("numbers")}
-          >
-            Numbers
-          </SegmentButton>
+        <div className="flex items-center gap-2">
+          <div className="flex overflow-hidden rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated">
+            <SegmentButton
+              active={viewMode === "chords"}
+              onClick={() => onViewModeChange("chords")}
+            >
+              Chords
+            </SegmentButton>
+            <SegmentButton
+              active={viewMode === "numbers"}
+              onClick={() => onViewModeChange("numbers")}
+            >
+              Numbers
+            </SegmentButton>
+          </div>
+
+          {showMobileControls && (
+            <button
+              type="button"
+              onClick={onToggleAutoscroll}
+              className={`min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold ${
+                autoscrollActive
+                  ? "bg-lf-brand text-lf-text-inverse"
+                  : "border border-lf-border bg-lf-bg-elevated text-lf-text-primary hover:bg-lf-bg-muted"
+              }`}
+            >
+              Auto
+            </button>
+          )}
         </div>
 
         {!showMobileControls && (
@@ -143,17 +159,19 @@ export function SongControlBar({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={onToggleAutoscroll}
-          className={`min-h-10 rounded-full px-4 text-sm font-semibold ${
-            autoscrollActive
-              ? "bg-lf-brand text-lf-text-inverse"
-              : "border border-lf-border bg-lf-bg-elevated text-lf-text-primary hover:bg-lf-bg-muted"
-          } ${showMobileControls ? "hidden sm:inline-flex" : "inline-flex"}`}
-        >
-          Auto
-        </button>
+        {!showMobileControls && (
+          <button
+            type="button"
+            onClick={onToggleAutoscroll}
+            className={`inline-flex min-h-10 rounded-full px-4 text-sm font-semibold ${
+              autoscrollActive
+                ? "bg-lf-brand text-lf-text-inverse"
+                : "border border-lf-border bg-lf-bg-elevated text-lf-text-primary hover:bg-lf-bg-muted"
+            }`}
+          >
+            Auto
+          </button>
+        )}
       </div>
 
       {!showMobileControls && (
