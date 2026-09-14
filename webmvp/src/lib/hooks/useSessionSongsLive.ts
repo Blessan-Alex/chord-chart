@@ -9,7 +9,7 @@ import {
   Timestamp,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { addSongToSession } from "@/lib/firestore/sessionSongs";
 import { getDb } from "@/lib/firebase";
@@ -25,7 +25,7 @@ export function sessionSongsQueryKey(sessionId: string) {
 
 export function useSessionSongsLive(sessionId: string, enabled: boolean) {
   const queryClient = useQueryClient();
-  const queryKey = sessionSongsQueryKey(sessionId);
+  const queryKey = useMemo(() => sessionSongsQueryKey(sessionId), [sessionId]);
   const isActive = enabled && Boolean(sessionId);
   const [hasSnapshot, setHasSnapshot] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<Error | null>(null);
@@ -56,6 +56,7 @@ export function useSessionSongsLive(sessionId: string, enabled: boolean) {
         );
       },
       (error) => {
+        setHasSnapshot(true);
         setSubscriptionError(error);
       },
     );

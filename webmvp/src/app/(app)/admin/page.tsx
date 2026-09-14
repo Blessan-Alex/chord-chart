@@ -12,7 +12,10 @@ import {
   getAdminStats,
   type AdminStats,
 } from "@/lib/firestore/adminStats";
-import { loadSongIndex } from "@/lib/firestore/songIndex";
+import {
+  peekFullSongIndexCache,
+  subscribeSongIndexUpdates,
+} from "@/lib/firestore/songIndexCache";
 import { archiveSong } from "@/lib/firestore/songs";
 import { formatError } from "@/lib/formatError";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -43,8 +46,13 @@ export default function AdminPage() {
     playlistCount: 0,
     groupCount: 0,
   });
-  const [entries, setEntries] = useState<SongIndexEntry[]>([]);
+  const [entries, setEntries] = useState<SongIndexEntry[]>(
+    () => peekFullSongIndexCache() ?? [],
+  );
   const [loading, setLoading] = useState(true);
+  const [indexReady, setIndexReady] = useState(
+    () => peekFullSongIndexCache() !== null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState<{
@@ -74,13 +82,9 @@ export default function AdminPage() {
       setLoading(true);
       setError(null);
       try {
-        const [nextStats, nextEntries] = await Promise.all([
-          getAdminStats(),
-          loadSongIndex(),
-        ]);
+        const nextStats = await getAdminStats();
         if (!cancelled) {
           setStats(nextStats);
-          setEntries(nextEntries);
         }
       } catch (err) {
         if (!cancelled) {
@@ -97,6 +101,23 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, [authLoading, isAdmin]);
+
+  useEffect(() => {
+    if (authLoading || !isAdmin) {
+      return;
+    }
+
+    return subscribeSongIndexUpdates((nextEntries) => {
+      setEntries(nextEntries);
+      setIndexReady(true);
+      setStats((prev) => ({
+        ...prev,
+        songCount: nextEntries.length,
+      }));
+    });
+  }, [authLoading, isAdmin]);
+
+  const pageLoading = loading || !indexReady;
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) {
@@ -157,7 +178,7 @@ export default function AdminPage() {
           </Link>
         </div>
 
-        <AdminStatsCards stats={stats} loading={loading} />
+        <AdminStatsCards stats={stats} loading={pageLoading} />
 
         <label className="relative block">
           <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lf-text-tertiary">
@@ -174,7 +195,7 @@ export default function AdminPage() {
 
         {error && <p className="text-sm text-lf-danger">{error}</p>}
 
-        {loading ? (
+        {pageLoading ? (
           <p className="text-lf-text-tertiary">Loading library…</p>
         ) : filteredSongs.length === 0 ? (
           <p className="text-sm text-lf-text-secondary">

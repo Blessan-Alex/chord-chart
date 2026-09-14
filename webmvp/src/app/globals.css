@@ -91,6 +91,10 @@
 }
 
 .chord-chart[data-chart-theme="stage"] {
+  background: #000000;
+  color: #ffffff;
+  border-radius: var(--lf-radius-lg);
+  padding: 1rem;
   --chord-color: #ffff66;
   --lyric-color: #ffffff;
   --section-color: #ffffff;

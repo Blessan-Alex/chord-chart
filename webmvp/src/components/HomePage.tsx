@@ -19,6 +19,7 @@ import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import {
   loadSongIndexCachedProgressive,
   peekSongIndexCache,
+  subscribeSongIndexUpdates,
 } from "@/lib/firestore/songIndexCache";
 import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessions";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -182,6 +183,14 @@ export function HomePage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    return subscribeSongIndexUpdates((entries) => {
+      setIndexEntries(entries);
+      setLoaded(true);
+      setIndexLoading(false);
+    });
   }, []);
 
   useEffect(() => {

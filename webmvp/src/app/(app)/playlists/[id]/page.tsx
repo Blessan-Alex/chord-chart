@@ -453,7 +453,7 @@ export default function PlaylistDetailPage() {
                   <p className="mt-2 text-sm text-lf-text-secondary">
                     {formatSessionDateLong(session.date)} · {songs.length}{" "}
                     {songs.length === 1 ? "song" : "songs"}
-                    {session.ownerUsername ? (
+                    {session.ownerUsername && !isOwner ? (
                       <span> · @{session.ownerUsername}</span>
                     ) : null}
                   </p>

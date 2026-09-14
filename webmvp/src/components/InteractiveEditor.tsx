@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ChordInputPopover } from "@/components/ChordInputPopover";
+import { InlineChordToolbar } from "@/components/InlineChordToolbar";
 import { LyricLineEditor } from "@/components/LyricLineEditor";
 import {
   createChordMark,
@@ -195,10 +196,8 @@ export function InteractiveEditor({
         <p className="text-sm text-lf-text-secondary">
           {isMobile ? (
             <>
-              <span className="font-medium text-lf-text-primary">
-                Select lyrics
-              </span>
-              , then pick a chord. Tap an existing chord to edit it.
+              Tap a word in the lyrics, then pick a chord below it. Tap an
+              existing chord to edit.
             </>
           ) : (
             <>
@@ -259,25 +258,48 @@ export function InteractiveEditor({
         ))}
       </div>
 
-      <ChordInputPopover
-        open={activeSelection !== null}
-        value={activeSelection?.currentVal ?? ""}
-        error={chordError}
-        palette={palette}
-        mobile={isMobile}
-        onChange={(value) => {
-          setChordError(null);
-          setActiveSelection((prev) =>
-            prev ? { ...prev, currentVal: value } : prev,
-          );
-        }}
-        onSubmit={(value) => commitChord(value)}
-        onRemove={removeChord}
-        onCancel={() => {
-          setChordError(null);
-          setActiveSelection(null);
-        }}
-      />
+      {isMobile && activeSelection ? (
+        <InlineChordToolbar
+          palette={palette}
+          value={activeSelection.currentVal}
+          error={chordError}
+          reserveSaveBarSpace={Boolean(onSave)}
+          onChange={(value) => {
+            setChordError(null);
+            setActiveSelection((prev) =>
+              prev ? { ...prev, currentVal: value } : prev,
+            );
+          }}
+          onPick={(chord) => commitChord(chord)}
+          onSubmit={() => commitChord()}
+          onRemove={removeChord}
+          onCancel={() => {
+            setChordError(null);
+            setActiveSelection(null);
+            window.getSelection()?.removeAllRanges();
+          }}
+        />
+      ) : (
+        <ChordInputPopover
+          open={activeSelection !== null}
+          value={activeSelection?.currentVal ?? ""}
+          error={chordError}
+          palette={palette}
+          mobile={false}
+          onChange={(value) => {
+            setChordError(null);
+            setActiveSelection((prev) =>
+              prev ? { ...prev, currentVal: value } : prev,
+            );
+          }}
+          onSubmit={(value) => commitChord(value)}
+          onRemove={removeChord}
+          onCancel={() => {
+            setChordError(null);
+            setActiveSelection(null);
+          }}
+        />
+      )}
 
       {onSave && isMobile && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-lf-border bg-lf-bg-sidebar/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md">

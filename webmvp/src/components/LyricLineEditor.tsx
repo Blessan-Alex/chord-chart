@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { normalizeChordMark } from "@/lib/chordMarks";
-import { getSelectionRangeInElement } from "@/lib/hooks/useTextSelection";
+import {
+  collapseSelectionToWord,
+  getFocusOffsetInElement,
+  getSelectionRangeInElement,
+} from "@/lib/hooks/useTextSelection";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import type { Key } from "@/lib/engine";
 import type { LyricLine } from "@/lib/types";
 
@@ -29,6 +34,7 @@ export function LyricLineEditor({
 }: LyricLineEditorProps) {
   const lyricRef = useRef<HTMLDivElement>(null);
   const onSelectionRef = useRef(onSelection);
+  const isMobile = useIsMobile();
   const normalizedLine = {
     lyrics: line.lyrics,
     chords: line.chords.map(normalizeChordMark),
@@ -44,29 +50,50 @@ export function LyricLineEditor({
       return;
     }
 
-    const notifySelection = () => {
+    const notifySelection = (collapseToWord: boolean) => {
       const range = getSelectionRangeInElement(element);
-      if (range) {
-        onSelectionRef.current({ start: range.start, end: range.end });
+      if (!range) {
+        return;
       }
+
+      let { start, end } = range;
+      if (collapseToWord) {
+        const focusOffset = getFocusOffsetInElement(element);
+        ({ start, end } = collapseSelectionToWord(
+          line.lyrics,
+          start,
+          end,
+          focusOffset ?? undefined,
+        ));
+      }
+
+      if (end <= start) {
+        return;
+      }
+
+      onSelectionRef.current({ start, end });
     };
+
+    if (isMobile) {
+      const handleTouchEnd = () => {
+        window.setTimeout(() => notifySelection(true), 80);
+      };
+
+      element.addEventListener("touchend", handleTouchEnd);
+      return () => {
+        element.removeEventListener("touchend", handleTouchEnd);
+      };
+    }
 
     const handleSelectionChange = () => {
-      notifySelection();
-    };
-
-    const handleTouchEnd = () => {
-      requestAnimationFrame(notifySelection);
+      notifySelection(false);
     };
 
     document.addEventListener("selectionchange", handleSelectionChange);
-    element.addEventListener("touchend", handleTouchEnd);
-
     return () => {
       document.removeEventListener("selectionchange", handleSelectionChange);
-      element.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [line.lyrics]);
+  }, [isMobile, line.lyrics]);
 
   return (
     <div className="chord-line relative mb-3">
