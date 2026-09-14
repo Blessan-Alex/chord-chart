@@ -31,7 +31,7 @@ export function InlineChordToolbar({
 
   return (
     <div
-      className="fixed inset-x-0 z-40 mx-auto max-w-2xl px-4"
+      className="fixed inset-x-0 z-50 mx-auto max-w-2xl px-4"
       style={{ bottom: bottomOffset }}
     >
       <div className="rounded-[var(--lf-radius-lg)] border border-lf-brand/30 bg-lf-bg-elevated p-3 shadow-lg">

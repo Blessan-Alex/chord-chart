@@ -242,6 +242,8 @@ body.song-performance-page {
   letter-spacing: 0;
   white-space: pre;
   overflow-x: auto;
+  touch-action: manipulation;
+  -webkit-touch-callout: default;
 }
 
 .lyric-editor-line {

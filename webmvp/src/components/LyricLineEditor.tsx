@@ -4,13 +4,13 @@ import { useEffect, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { normalizeChordMark } from "@/lib/chordMarks";
+import { useTouchEditor } from "@/lib/hooks/useTouchEditor";
 import {
   collapseSelectionToWord,
   getFocusOffsetInElement,
   getSelectionRangeInElement,
   setSelectionRangeInElement,
 } from "@/lib/hooks/useTextSelection";
-import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import type { Key } from "@/lib/engine";
 import type { LyricLine } from "@/lib/types";
 
@@ -24,6 +24,31 @@ type LyricLineEditorProps = {
   onChordClick: (mark: ReturnType<typeof normalizeChordMark>) => void;
 };
 
+function renderLyricsWithTarget(
+  lyrics: string,
+  range: { start: number; end: number } | null | undefined,
+) {
+  if (!range || range.end <= range.start) {
+    return lyrics;
+  }
+
+  const { start, end } = range;
+  const safeStart = Math.max(0, Math.min(start, lyrics.length));
+  const safeEnd = Math.max(safeStart, Math.min(end, lyrics.length));
+
+  if (safeEnd <= safeStart) {
+    return lyrics;
+  }
+
+  return (
+    <>
+      {lyrics.slice(0, safeStart)}
+      <mark className="lyric-chord-target">{lyrics.slice(safeStart, safeEnd)}</mark>
+      {lyrics.slice(safeEnd)}
+    </>
+  );
+}
+
 export function LyricLineEditor({
   line,
   originalKey,
@@ -35,7 +60,7 @@ export function LyricLineEditor({
 }: LyricLineEditorProps) {
   const lyricRef = useRef<HTMLDivElement>(null);
   const onSelectionRef = useRef(onSelection);
-  const isMobile = useIsMobile();
+  const touchEditor = useTouchEditor();
   const normalizedLine = {
     lyrics: line.lyrics,
     chords: line.chords.map(normalizeChordMark),
@@ -47,7 +72,7 @@ export function LyricLineEditor({
 
   useEffect(() => {
     const element = lyricRef.current;
-    if (!element || !selectionRange) {
+    if (!element || !selectionRange || touchEditor) {
       return;
     }
 
@@ -58,13 +83,15 @@ export function LyricLineEditor({
         selectionRange.end,
       );
     });
-  }, [selectionRange]);
+  }, [selectionRange, touchEditor]);
 
   useEffect(() => {
     const element = lyricRef.current;
     if (!element) {
       return;
     }
+
+    let debounce: ReturnType<typeof setTimeout> | null = null;
 
     const notifySelection = () => {
       const range = getSelectionRangeInElement(element);
@@ -74,7 +101,7 @@ export function LyricLineEditor({
 
       let { start, end } = range;
 
-      if (isMobile) {
+      if (touchEditor) {
         const selectedLength = end - start;
         const isWideSelection =
           selectedLength > 24 || selectedLength >= line.lyrics.length * 0.6;
@@ -86,7 +113,6 @@ export function LyricLineEditor({
             end,
             focusOffset ?? undefined,
           ));
-          setSelectionRangeInElement(element, start, end);
         }
       }
 
@@ -97,26 +123,39 @@ export function LyricLineEditor({
       onSelectionRef.current({ start, end });
     };
 
-    if (isMobile) {
-      const handleTouchEnd = () => {
-        window.setTimeout(notifySelection, 80);
+    const scheduleNotify = () => {
+      if (debounce) {
+        clearTimeout(debounce);
+      }
+      debounce = setTimeout(notifySelection, touchEditor ? 150 : 0);
+    };
+
+    if (touchEditor) {
+      const handleSelectionChange = () => {
+        scheduleNotify();
       };
 
-      element.addEventListener("touchend", handleTouchEnd);
+      document.addEventListener("selectionchange", handleSelectionChange);
       return () => {
-        element.removeEventListener("touchend", handleTouchEnd);
+        document.removeEventListener("selectionchange", handleSelectionChange);
+        if (debounce) {
+          clearTimeout(debounce);
+        }
       };
     }
 
     const handleMouseUp = () => {
-      window.setTimeout(notifySelection, 0);
+      scheduleNotify();
     };
 
     element.addEventListener("mouseup", handleMouseUp);
     return () => {
       element.removeEventListener("mouseup", handleMouseUp);
+      if (debounce) {
+        clearTimeout(debounce);
+      }
     };
-  }, [isMobile, line.lyrics]);
+  }, [touchEditor, line.lyrics]);
 
   return (
     <div className="chord-line relative mb-3">
@@ -134,7 +173,9 @@ export function LyricLineEditor({
         data-line-index={lineIndex}
         className="lyric-row lyric-editor-line cursor-text whitespace-pre px-1 py-0.5 hover:bg-lf-bg-muted/40"
       >
-        {normalizedLine.lyrics}
+        {touchEditor
+          ? renderLyricsWithTarget(normalizedLine.lyrics, selectionRange)
+          : normalizedLine.lyrics}
       </div>
     </div>
   );

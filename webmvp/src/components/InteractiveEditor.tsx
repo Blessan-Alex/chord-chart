@@ -14,6 +14,7 @@ import {
 import { countChordsInSections } from "@/lib/chordProParser";
 import { getDiatonicChords, isValidChord, type Key } from "@/lib/engine";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { useTouchEditor } from "@/lib/hooks/useTouchEditor";
 import { getSelectionRangeInElement } from "@/lib/hooks/useTextSelection";
 import type { ChordMark, Section } from "@/lib/types";
 
@@ -65,6 +66,7 @@ export function InteractiveEditor({
   );
   const [chordError, setChordError] = useState<string | null>(null);
   const isMobile = useIsMobile();
+  const touchEditor = useTouchEditor();
 
   const updateSections = (next: Section[] | ((prev: Section[]) => Section[])) => {
     setSections((prev) => {
@@ -277,10 +279,10 @@ export function InteractiveEditor({
 
         {editorMode === "visual" && (
           <p className="text-sm text-lf-text-secondary">
-            {isMobile ? (
+            {touchEditor ? (
               <>
-                Select the exact letters, then pick a chord. Wide selections snap
-                to one word on mobile.
+                Highlight lyrics — the chord picker opens at the bottom when you
+                finish selecting. Wide selections snap to one word.
               </>
             ) : (
               <>
@@ -358,7 +360,7 @@ export function InteractiveEditor({
         </div>
       )}
 
-      {editorMode === "visual" && isMobile && activeSelection ? (
+      {editorMode === "visual" && touchEditor && activeSelection ? (
         <InlineChordToolbar
           palette={palette}
           value={activeSelection.currentVal}
