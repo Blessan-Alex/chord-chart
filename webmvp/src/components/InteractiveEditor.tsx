@@ -196,8 +196,8 @@ export function InteractiveEditor({
         <p className="text-sm text-lf-text-secondary">
           {isMobile ? (
             <>
-              Tap a word in the lyrics, then pick a chord below it. Tap an
-              existing chord to edit.
+              Highlight the exact syllable or letters, then pick a chord below.
+              Tap an existing chord to edit.
             </>
           ) : (
             <>
@@ -232,10 +232,13 @@ export function InteractiveEditor({
                 originalKey={originalKey}
                 sectionIndex={sIndex}
                 lineIndex={lIndex}
-                activeStart={
+                selectionRange={
                   activeSelection?.sIndex === sIndex &&
                   activeSelection.lIndex === lIndex
-                    ? activeSelection.start
+                    ? {
+                        start: activeSelection.start,
+                        end: activeSelection.end,
+                      }
                     : null
                 }
                 onSelection={({ start, end }) => {

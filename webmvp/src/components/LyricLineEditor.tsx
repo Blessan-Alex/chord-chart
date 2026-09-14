@@ -4,11 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { normalizeChordMark } from "@/lib/chordMarks";
-import {
-  collapseSelectionToWord,
-  getFocusOffsetInElement,
-  getSelectionRangeInElement,
-} from "@/lib/hooks/useTextSelection";
+import { getSelectionRangeInElement } from "@/lib/hooks/useTextSelection";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import type { Key } from "@/lib/engine";
 import type { LyricLine } from "@/lib/types";
@@ -18,17 +14,42 @@ type LyricLineEditorProps = {
   originalKey: Key;
   sectionIndex: number;
   lineIndex: number;
-  activeStart?: number | null;
+  selectionRange?: { start: number; end: number } | null;
   onSelection: (range: { start: number; end: number }) => void;
   onChordClick: (mark: ReturnType<typeof normalizeChordMark>) => void;
 };
+
+function renderLyricsWithTarget(
+  lyrics: string,
+  range: { start: number; end: number } | null | undefined,
+) {
+  if (!range || range.end <= range.start) {
+    return lyrics;
+  }
+
+  const { start, end } = range;
+  const safeStart = Math.max(0, Math.min(start, lyrics.length));
+  const safeEnd = Math.max(safeStart, Math.min(end, lyrics.length));
+
+  if (safeEnd <= safeStart) {
+    return lyrics;
+  }
+
+  return (
+    <>
+      {lyrics.slice(0, safeStart)}
+      <mark className="lyric-chord-target">{lyrics.slice(safeStart, safeEnd)}</mark>
+      {lyrics.slice(safeEnd)}
+    </>
+  );
+}
 
 export function LyricLineEditor({
   line,
   originalKey,
   sectionIndex,
   lineIndex,
-  activeStart,
+  selectionRange,
   onSelection,
   onChordClick,
 }: LyricLineEditorProps) {
@@ -50,33 +71,19 @@ export function LyricLineEditor({
       return;
     }
 
-    const notifySelection = (collapseToWord: boolean) => {
+    const notifySelection = () => {
       const range = getSelectionRangeInElement(element);
-      if (!range) {
+      if (!range || range.end <= range.start) {
         return;
       }
 
-      let { start, end } = range;
-      if (collapseToWord) {
-        const focusOffset = getFocusOffsetInElement(element);
-        ({ start, end } = collapseSelectionToWord(
-          line.lyrics,
-          start,
-          end,
-          focusOffset ?? undefined,
-        ));
-      }
-
-      if (end <= start) {
-        return;
-      }
-
-      onSelectionRef.current({ start, end });
+      onSelectionRef.current({ start: range.start, end: range.end });
+      window.getSelection()?.removeAllRanges();
     };
 
     if (isMobile) {
       const handleTouchEnd = () => {
-        window.setTimeout(() => notifySelection(true), 80);
+        window.setTimeout(notifySelection, 80);
       };
 
       element.addEventListener("touchend", handleTouchEnd);
@@ -85,13 +92,13 @@ export function LyricLineEditor({
       };
     }
 
-    const handleSelectionChange = () => {
-      notifySelection(false);
+    const handleMouseUp = () => {
+      window.setTimeout(notifySelection, 0);
     };
 
-    document.addEventListener("selectionchange", handleSelectionChange);
+    element.addEventListener("mouseup", handleMouseUp);
     return () => {
-      document.removeEventListener("selectionchange", handleSelectionChange);
+      element.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isMobile, line.lyrics]);
 
@@ -109,13 +116,9 @@ export function LyricLineEditor({
         ref={lyricRef}
         data-section-index={sectionIndex}
         data-line-index={lineIndex}
-        className={`lyric-row lyric-editor-line cursor-text whitespace-pre-wrap break-words rounded-[var(--lf-radius-sm)] px-1 py-0.5 ${
-          activeStart !== null && activeStart !== undefined
-            ? "bg-lf-bg-active ring-1 ring-lf-brand/30"
-            : "hover:bg-lf-bg-muted/60"
-        }`}
+        className="lyric-row lyric-editor-line cursor-text whitespace-pre-wrap break-words rounded-[var(--lf-radius-sm)] px-1 py-0.5 hover:bg-lf-bg-muted/40"
       >
-        {normalizedLine.lyrics}
+        {renderLyricsWithTarget(normalizedLine.lyrics, selectionRange)}
       </div>
     </div>
   );

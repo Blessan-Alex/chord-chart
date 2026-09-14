@@ -69,13 +69,10 @@ export function readChartTheme(): ChartTheme {
   return "system";
 }
 
-/** Playlist performance context defaults to stage unless the user picked dark/stage. */
+/** Respects the user's saved chart theme in all contexts (including playlists). */
 export function resolveChartTheme(sessionId: string | null): ChartTheme {
-  const saved = readChartTheme();
-  if (sessionId && saved === "system") {
-    return "stage";
-  }
-  return saved;
+  void sessionId;
+  return readChartTheme();
 }
 
 export function writeChartTheme(theme: ChartTheme): void {

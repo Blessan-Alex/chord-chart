@@ -36,8 +36,8 @@ describe("performancePreferences", () => {
     expect(snapChartScale(1.13)).toBe(1.15);
   });
 
-  it("defaults chart theme to stage in playlist context", () => {
-    expect(resolveChartTheme("session-1")).toBe("stage");
+  it("uses saved system theme in playlist context", () => {
+    expect(resolveChartTheme("session-1")).toBe("system");
   });
 
   it("respects saved dark theme in playlist context", () => {

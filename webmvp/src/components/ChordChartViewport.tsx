@@ -16,6 +16,9 @@ type ChordChartViewportProps = {
   gesturesEnabled?: boolean;
 };
 
+const PINCH_ACTIVATION_PX = 14;
+const DOUBLE_TAP_MOVE_PX = 28;
+
 function touchDistance(touches: TouchList): number {
   if (touches.length < 2) {
     return 0;
@@ -38,7 +41,11 @@ export function ChordChartViewport({
   className = "",
   gesturesEnabled = true,
 }: ChordChartViewportProps) {
-  const pinchStartRef = useRef<{ distance: number; scale: number } | null>(null);
+  const pinchStartRef = useRef<{
+    distance: number;
+    scale: number;
+    armed: boolean;
+  } | null>(null);
   const scaleRef = useRef(scale);
   const lastTapRef = useRef(0);
   const pinchingRef = useRef(false);
@@ -68,6 +75,7 @@ export function ChordChartViewport({
         pinchStartRef.current = {
           distance: touchDistance(event.touches),
           scale: scaleRef.current,
+          armed: false,
         };
       }
     };
@@ -76,19 +84,32 @@ export function ChordChartViewport({
       if (event.touches.length !== 2 || !pinchStartRef.current) {
         return;
       }
-      event.preventDefault();
+
       const distance = touchDistance(event.touches);
       if (distance <= 0 || pinchStartRef.current.distance <= 0) {
         return;
       }
+
+      const delta = Math.abs(distance - pinchStartRef.current.distance);
+      if (!pinchStartRef.current.armed) {
+        if (delta < PINCH_ACTIVATION_PX) {
+          return;
+        }
+        pinchStartRef.current.armed = true;
+      }
+
+      event.preventDefault();
       const ratio = distance / pinchStartRef.current.distance;
       onPinchScale(pinchStartRef.current.scale * ratio);
     };
 
     const onTouchEnd = (event: TouchEvent) => {
       if (event.touches.length < 2 && pinchStartRef.current) {
+        const didPinch = pinchStartRef.current.armed;
         pinchStartRef.current = null;
-        onPinchEnd();
+        if (didPinch) {
+          onPinchEnd();
+        }
         window.setTimeout(() => {
           pinchingRef.current = false;
         }, 400);
@@ -105,7 +126,7 @@ export function ChordChartViewport({
 
         if (start) {
           const moved = Math.hypot(end.clientX - start.x, end.clientY - start.y);
-          if (moved > 12) {
+          if (moved > DOUBLE_TAP_MOVE_PX) {
             lastTapRef.current = 0;
             return;
           }
@@ -139,7 +160,7 @@ export function ChordChartViewport({
       ref={containerRef}
       className={`chord-chart-viewport relative w-full max-w-full ${className}`}
       style={{
-        touchAction: gesturesEnabled ? "pan-y pinch-zoom" : "pan-y",
+        touchAction: gesturesEnabled ? "pan-y" : "pan-y",
         ["--chart-scale" as string]: scale,
       }}
     >

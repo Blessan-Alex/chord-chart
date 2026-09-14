@@ -241,8 +241,22 @@ body.song-performance-page {
   -webkit-user-select: text;
 }
 
+.lyric-chord-target {
+  background: var(--lf-brand);
+  color: var(--lf-text-inverse);
+  border-radius: 2px;
+  padding: 0 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+mark.lyric-chord-target {
+  background: var(--lf-brand);
+  color: var(--lf-text-inverse);
+}
+
 .lyric-editor-line::selection {
-  background: var(--lf-brand-soft);
+  background: color-mix(in srgb, var(--lf-brand) 35%, transparent);
   color: var(--lf-text-primary);
 }
 
@@ -259,7 +273,7 @@ body.song-performance-page {
 }
 
 [data-theme="dark"] .lyric-editor-line::selection {
-  background: var(--lf-brand-soft);
+  background: color-mix(in srgb, var(--lf-brand) 45%, transparent);
   color: var(--lf-text-primary);
 }
 
