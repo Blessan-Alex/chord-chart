@@ -8,11 +8,11 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc,
   Timestamp,
   updateDoc,
   where,
   arrayUnion,
+  writeBatch,
   type Firestore,
   type Query,
   type QueryDocumentSnapshot,
@@ -20,6 +20,7 @@ import {
 
 import { PUBLISHED_PLAYLIST_CAP } from "@/lib/constants";
 import { getDb } from "@/lib/firebase";
+import { generatePlaylistInviteToken } from "@/lib/playlistInviteToken";
 import { resolveUsernameToUid } from "@/lib/firestore/users";
 import { validateUsername } from "@/lib/validation";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
@@ -31,6 +32,7 @@ import type {
 } from "@/lib/types";
 
 const SESSIONS_COLLECTION = "sessions";
+const PLAYLIST_INVITE_TOKENS = "playlistInviteTokens";
 
 function resolveDb(db?: Firestore): Firestore {
   return db ?? getDb();
@@ -118,6 +120,7 @@ export async function createSession(
 ): Promise<Session> {
   const firestore = resolveDb(db);
   const ref = doc(collection(firestore, SESSIONS_COLLECTION));
+  const shareToken = generatePlaylistInviteToken();
 
   const data = {
     title: input.title.trim(),
@@ -129,12 +132,21 @@ export async function createSession(
     ownerId: createdBy,
     ownerUsername: ownerUsername?.trim() ?? "",
     sharedWith: [] as string[],
+    shareToken,
     ...(input.groupId ? { groupId: input.groupId } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(ref, data);
+  const batch = writeBatch(firestore);
+  batch.set(ref, data);
+  batch.set(doc(firestore, PLAYLIST_INVITE_TOKENS, shareToken), {
+    sessionId: ref.id,
+    ownerId: createdBy,
+    title: input.title.trim(),
+    createdAt: serverTimestamp(),
+  });
+  await batch.commit();
 
   const created = await getSession(ref.id, firestore);
   if (!created) {

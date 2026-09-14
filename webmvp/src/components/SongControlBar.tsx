@@ -150,20 +150,22 @@ export function SongControlBar({
             autoscrollActive
               ? "bg-lf-brand text-lf-text-inverse"
               : "border border-lf-border bg-lf-bg-elevated text-lf-text-primary hover:bg-lf-bg-muted"
-          }`}
+          } ${showMobileControls ? "hidden sm:inline-flex" : "inline-flex"}`}
         >
           Auto
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-lf-text-tertiary">
-          Original key
-        </span>
-        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-lf-bg-active px-2 text-sm font-semibold text-lf-brand">
-          {originalKey}
-        </span>
-      </div>
+      {!showMobileControls && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wider text-lf-text-tertiary">
+            Original key
+          </span>
+          <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-lf-bg-active px-2 text-sm font-semibold text-lf-brand">
+            {originalKey}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

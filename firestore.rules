@@ -97,6 +97,19 @@ service cloud.firestore {
         && request.resource.data.status in ['draft', 'published'];
     }
 
+    match /playlistInviteTokens/{token} {
+      allow get: if isAuth();
+      allow list: if false;
+      allow create: if isAuth()
+        && request.resource.data.sessionId is string
+        && request.resource.data.ownerId == request.auth.uid
+        && isPlaylistOwner(request.resource.data.sessionId)
+        && request.resource.data.title is string
+        && request.resource.data.createdAt is timestamp;
+      allow delete: if isAuth() && resource.data.ownerId == request.auth.uid;
+      allow update: if false;
+    }
+
     match /sessions/{sessionId} {
       allow read: if isAuth() && (
         resource.data.status == 'published'

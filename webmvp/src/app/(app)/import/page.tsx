@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -14,6 +13,34 @@ import type { Section, Song } from "@/lib/types";
 
 function isKey(value: string): value is Key {
   return (ALL_KEYS as readonly string[]).includes(value);
+}
+
+function StepIndicator({ step }: { step: 1 | 2 }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span
+        className={`rounded-full px-2.5 py-0.5 font-medium ${
+          step === 1
+            ? "bg-lf-bg-active text-lf-brand"
+            : "text-lf-text-tertiary"
+        }`}
+      >
+        1 · Paste
+      </span>
+      <span className="text-lf-text-tertiary" aria-hidden>
+        →
+      </span>
+      <span
+        className={`rounded-full px-2.5 py-0.5 font-medium ${
+          step === 2
+            ? "bg-lf-bg-active text-lf-brand"
+            : "text-lf-text-tertiary"
+        }`}
+      >
+        2 · Chords
+      </span>
+    </div>
+  );
 }
 
 export default function ImportPage() {
@@ -30,7 +57,7 @@ export default function ImportPage() {
   if (loading) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center p-4">
-        <p className="text-neutral-400">Loading…</p>
+        <p className="text-lf-text-secondary">Loading…</p>
       </main>
     );
   }
@@ -38,16 +65,12 @@ export default function ImportPage() {
   if (user && !isAdmin) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 p-4 sm:p-8">
-        <Link
-          href="/"
-          className="text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-        >
-          ← Home
-        </Link>
-        <h1 className="text-2xl font-semibold">Import restricted</h1>
-        <p className="text-neutral-600 dark:text-neutral-400">
+        <h1 className="text-xl font-semibold text-lf-text-primary">
+          Admin only
+        </h1>
+        <p className="text-sm text-lf-text-secondary">
           Only admins can add songs to the shared library. Sign out to save
-          songs locally on this device instead.
+          songs on this device instead.
         </p>
       </main>
     );
@@ -55,10 +78,11 @@ export default function ImportPage() {
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !rawText.trim()) return;
+    if (!title.trim() || !rawText.trim()) {
+      return;
+    }
 
-    const parsed = parseRawLyrics(rawText);
-    setSections(parsed);
+    setSections(parseRawLyrics(rawText));
     setStep(2);
   };
 
@@ -96,41 +120,42 @@ export default function ImportPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8">
-      <Link
-        href="/"
-        className="mb-6 inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-      >
-        ← Home
-      </Link>
+    <main className="mx-auto flex w-full max-w-2xl flex-col p-4 pb-8 sm:p-8">
+      <StepIndicator step={step} />
 
       {step === 1 && (
-        <form onSubmit={handleNext} className="flex flex-col gap-6">
-          <div className="border-b border-neutral-200 pb-4 dark:border-neutral-800">
-            <h1 className="text-2xl font-semibold">Step 1: Paste Lyrics</h1>
-            <p className="mt-1 text-sm text-neutral-500">
-              Paste your raw lyrics here. Type <strong>[Verse 1]</strong> on an
-              empty line to separate sections.
+        <form onSubmit={handleNext} className="mt-6 flex flex-col gap-5">
+          <div>
+            <h1 className="text-xl font-semibold text-lf-text-primary sm:text-2xl">
+              Paste lyrics
+            </h1>
+            <p className="mt-1 text-sm text-lf-text-secondary">
+              Put each section name on its own line, e.g.{" "}
+              <span className="font-mono text-lf-text-primary">[Verse 1]</span>
             </p>
           </div>
 
-          <div className="flex gap-4">
-            <label className="flex-1">
-              <span className="mb-1 block text-sm font-medium">Song Title</span>
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <label className="min-w-0 flex-1">
+              <span className="mb-1.5 block text-sm font-medium text-lf-text-primary">
+                Title
+              </span>
               <input
                 type="text"
                 required
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-950"
+                className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-4 text-base text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Good Good Father"
+                placeholder="Good Good Father"
               />
             </label>
 
-            <label className="w-24 shrink-0">
-              <span className="mb-1 block text-sm font-medium">Key</span>
+            <label className="w-28 shrink-0 sm:w-24">
+              <span className="mb-1.5 block text-sm font-medium text-lf-text-primary">
+                Key
+              </span>
               <select
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-950"
+                className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
                 value={originalKey}
                 onChange={(e) =>
                   isKey(e.target.value) && setOriginalKey(e.target.value)
@@ -145,12 +170,14 @@ export default function ImportPage() {
             </label>
           </div>
 
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Lyrics</span>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-lf-text-primary">
+              Lyrics
+            </span>
             <textarea
               required
-              rows={12}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-950"
+              rows={14}
+              className="w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               placeholder={
@@ -162,20 +189,30 @@ export default function ImportPage() {
           <button
             type="submit"
             disabled={!title.trim() || !rawText.trim()}
-            className="rounded bg-black px-4 py-3 font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
+            className="min-h-12 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-5 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-40"
           >
-            Next: Place Chords →
+            Next: place chords →
           </button>
         </form>
       )}
 
       {step === 2 && (
-        <>
+        <div className="mt-6 flex flex-col gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-lf-text-primary sm:text-2xl">
+              Place chords
+            </h1>
+            <p className="mt-1 truncate text-sm text-lf-text-secondary">
+              {title} · {originalKey}
+            </p>
+          </div>
+
           {saveError && (
-            <p className="mb-4 text-sm text-red-600 dark:text-red-400">
+            <p className="text-sm text-lf-danger" role="alert">
               {saveError}
             </p>
           )}
+
           <InteractiveEditor
             sections={sections}
             originalKey={originalKey}
@@ -183,7 +220,7 @@ export default function ImportPage() {
               void handleSave(finalSections);
             }}
           />
-        </>
+        </div>
       )}
     </main>
   );

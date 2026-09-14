@@ -19,6 +19,10 @@ import {
   updateSessionSongKeyOverride,
 } from "@/lib/firestore/sessionSongs";
 import {
+  ensurePlaylistInviteToken,
+  regeneratePlaylistInviteToken,
+} from "@/lib/firestore/playlistInvites";
+import {
   cacheSessionOffline,
   canViewPlaylist,
   getSession,
@@ -35,6 +39,11 @@ import {
   songInitials,
 } from "@/lib/sessionDisplay";
 import { sessionSongHref, startSetHref } from "@/lib/sessionNavigation";
+import {
+  copyPlaylistInviteLink,
+  playlistShareResultMessage,
+  sharePlaylistNative,
+} from "@/lib/sharePlaylist";
 import type { Session, SessionSong, SongIndexEntry } from "@/lib/types";
 
 export default function PlaylistDetailPage() {
@@ -55,6 +64,7 @@ export default function PlaylistDetailPage() {
   const [keyModalEntry, setKeyModalEntry] = useState<SessionSong | null>(null);
   const [pendingRemove, setPendingRemove] = useState<SessionSong | null>(null);
   const [busy, setBusy] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
 
   const addResults = useSongSearch(indexEntries, addSearch);
   const isOwner = Boolean(user && session && isPlaylistOwner(session, user.uid));
@@ -131,6 +141,35 @@ export default function PlaylistDetailPage() {
     };
   }, [sessionId, user, isAdmin]);
 
+  useEffect(() => {
+    if (!session || !user || !isOwner) {
+      setInviteToken(null);
+      return;
+    }
+
+    let cancelled = false;
+    void ensurePlaylistInviteToken(session, user.uid)
+      .then((token) => {
+        if (!cancelled) {
+          setInviteToken(token);
+          setSession((current) =>
+            current && current.shareToken !== token
+              ? { ...current, shareToken: token }
+              : current,
+          );
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not create invite link.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, user, isOwner]);
+
   const resolveOriginalKey = (entry: SessionSong): Key => {
     return keyBySongId.get(entry.songId) ?? "C";
   };
@@ -148,13 +187,61 @@ export default function PlaylistDetailPage() {
     try {
       const updated = await sharePlaylistByUsername(session, username, user.uid);
       setSession(updated);
-      setActionMessage(`Shared with @${username.trim().toLowerCase()}`);
+      setActionMessage(`Added @${username.trim().toLowerCase()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not share playlist.");
       throw err;
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleQuickShare = async () => {
+    if (!session || !inviteToken) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await sharePlaylistNative({
+        id: session.id,
+        title: session.title,
+        inviteToken,
+      });
+      const message = playlistShareResultMessage(result);
+      if (message) {
+        setActionMessage(message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!inviteToken) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const copied = await copyPlaylistInviteLink(inviteToken);
+      if (copied) {
+        setActionMessage("Invite link copied.");
+      } else {
+        setError("Could not copy link.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegenerateInviteLink = async () => {
+    if (!session || !user) {
+      return;
+    }
+    const token = await regeneratePlaylistInviteToken(session, user.uid);
+    setInviteToken(token);
+    setSession((current) => (current ? { ...current, shareToken: token } : current));
   };
 
   const handleKeySelect = (entry: SessionSong, key: Key) => {
@@ -242,8 +329,15 @@ export default function PlaylistDetailPage() {
       <SharePlaylistModal
         open={showShareModal}
         busy={busy}
+        session={
+          session && inviteToken
+            ? { id: session.id, title: session.title, inviteToken }
+            : null
+        }
         onClose={() => setShowShareModal(false)}
         onShare={handleShare}
+        onLinkAction={(message) => setActionMessage(message)}
+        onRegenerateLink={handleRegenerateInviteLink}
       />
 
       {keyModalEntry && (
@@ -342,13 +436,47 @@ export default function PlaylistDetailPage() {
                 </button>
 
                 {isOwner && (
-                  <button
-                    type="button"
-                    onClick={() => setShowShareModal(true)}
-                    className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
-                  >
-                    Share
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy || !inviteToken}
+                      onClick={() => {
+                        void handleQuickShare();
+                      }}
+                      className="min-h-11 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
+                    >
+                      Share
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !inviteToken}
+                      onClick={() => {
+                        void handleCopyLink();
+                      }}
+                      className="inline-flex h-11 min-w-11 items-center justify-center rounded-[var(--lf-radius-md)] border border-lf-border text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
+                      aria-label="Copy playlist link"
+                      title="Copy link"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        aria-hidden
+                      >
+                        <path d="M10 13a5 5 0 0 1 0-7l1-1a5 5 0 0 1 7 7l-1 1" />
+                        <path d="M14 11a5 5 0 0 1 0 7l-1 1a5 5 0 0 1-7-7l1-1" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowShareModal(true)}
+                      className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
+                    >
+                      Invite
+                    </button>
+                  </>
                 )}
 
                 {isOwner && (

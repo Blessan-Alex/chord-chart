@@ -579,27 +579,27 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
     );
   });
 
-  it("allows admin to read any group", async () => {
+  it("allows get of playlist invite token but denies listing", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), "groups", "admin-read-group"), {
-        name: "Private",
-        ownerId: "owner-uid",
-        memberIds: ["owner-uid"],
-        members: [{ uid: "owner-uid", displayName: "Owner" }],
-        inviteCode: "ADMIN001",
-        playlistCount: 0,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
+      await setDoc(
+        doc(context.firestore(), "playlistInviteTokens", "PLINVITE1234567"),
+        {
+          sessionId: "some-playlist",
+          ownerId: "owner-uid",
+          title: "Rehearsal",
+          createdAt: Timestamp.now(),
+        },
+      );
     });
 
-    const adminDb = testEnv
-      .authenticatedContext("admin-uid", { admin: true })
-      .firestore();
-    await assertSucceeds(getDoc(doc(adminDb, "groups", "admin-read-group")));
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+    await assertSucceeds(
+      getDoc(doc(musicianDb, "playlistInviteTokens", "PLINVITE1234567")),
+    );
+    await assertFails(getDocs(collection(musicianDb, "playlistInviteTokens")));
   });
 
-  it("allows get of a known invite code but denies listing all codes", async () => {
+  it("allows admin to read any group", async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(
         doc(context.firestore(), "groupInviteCodes", "KNOWN001"),

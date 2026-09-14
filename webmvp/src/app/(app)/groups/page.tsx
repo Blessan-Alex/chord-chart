@@ -129,16 +129,7 @@ export default function GroupsPage() {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <Link
-              href="/"
-              className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
-            >
-              ← Home
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold text-lf-text-primary sm:text-3xl">
-              Groups
-            </h1>
-            <p className="mt-1 text-sm text-lf-text-secondary">
+            <p className="text-sm text-lf-text-secondary">
               Band teams and shared playlists
             </p>
           </div>

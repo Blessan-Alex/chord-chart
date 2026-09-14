@@ -6,9 +6,14 @@ import { useState } from "react";
 type LoginFormProps = {
   onSubmit: (email: string, password: string) => Promise<void>;
   loading?: boolean;
+  signupHref?: string;
 };
 
-export function LoginForm({ onSubmit, loading = false }: LoginFormProps) {
+export function LoginForm({
+  onSubmit,
+  loading = false,
+  signupHref = "/signup",
+}: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +81,7 @@ export function LoginForm({ onSubmit, loading = false }: LoginFormProps) {
 
       <p className="text-center text-sm text-lf-text-secondary">
         New here?{" "}
-        <Link href="/signup" className="font-medium text-lf-brand hover:underline">
+        <Link href={signupHref} className="font-medium text-lf-brand hover:underline">
           Create account
         </Link>
       </p>

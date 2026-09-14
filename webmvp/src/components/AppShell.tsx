@@ -102,7 +102,7 @@ function SidebarNav({
               <Link
                 href={item.href}
                 onClick={onNavigate}
-                className={`flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-sm font-medium transition-colors ${
+                className={`flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-sm font-medium transition-colors md:max-lg:justify-center md:max-lg:px-2 ${
                   active
                     ? "bg-lf-bg-active text-lf-brand"
                     : "text-lf-text-secondary hover:bg-lf-bg-muted hover:text-lf-text-primary"
@@ -110,7 +110,7 @@ function SidebarNav({
                 title={item.label}
               >
                 {item.icon}
-                <span className="hidden lg:inline">{item.label}</span>
+                <span className="md:max-lg:hidden">{item.label}</span>
               </Link>
             </li>
           );
@@ -138,7 +138,7 @@ function SidebarNav({
                 <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
               </svg>
             </NavIcon>
-            <span className="hidden lg:inline">Admin</span>
+            <span className="md:max-lg:hidden">Admin</span>
           </Link>
         </div>
       )}
@@ -234,7 +234,7 @@ export function AppShellSidebar({
         role={mobileOpen ? "dialog" : undefined}
         aria-modal={mobileOpen ? true : undefined}
         aria-label="Navigation menu"
-        className={`fixed inset-y-0 left-0 z-50 flex w-[var(--lf-sidebar-width)] flex-col border-r border-lf-border bg-lf-bg-sidebar pt-[env(safe-area-inset-top)] transition-transform md:static md:w-[var(--lf-sidebar-width-compact)] md:translate-x-0 lg:w-[var(--lf-sidebar-width)] ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[var(--lf-sidebar-drawer-width)] flex-col border-r border-lf-border bg-lf-bg-sidebar pt-[env(safe-area-inset-top)] transition-transform md:static md:w-[var(--lf-sidebar-width-compact)] md:translate-x-0 lg:w-[var(--lf-sidebar-width)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -244,7 +244,7 @@ export function AppShellSidebar({
           </Link>
         </div>
 
-        <div className="flex flex-1 flex-col px-3">
+        <div className="flex flex-1 flex-col overflow-y-auto px-3 min-h-0">
           <SidebarNav pathname={pathname} onNavigate={onMobileClose} />
           <UserFooter />
         </div>
@@ -260,7 +260,10 @@ function MobileTopBar({
   onOpenMenu: () => void;
   pathname: string;
 }) {
-  const pageTitle = MAIN_NAV.find((item) => isActive(pathname, item))?.label;
+  const pageTitle =
+    pathname === "/"
+      ? undefined
+      : MAIN_NAV.find((item) => isActive(pathname, item))?.label;
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-lf-border bg-lf-bg-sidebar/95 px-4 py-3 backdrop-blur-sm lg:hidden">

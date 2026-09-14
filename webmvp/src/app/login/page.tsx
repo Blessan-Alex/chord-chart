@@ -1,26 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 
 import { AppLogo } from "@/components/AppLogo";
 import { DemoAccounts } from "@/components/DemoAccounts";
 import { LoginForm } from "@/components/LoginForm";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { isFirebaseEnabled } from "@/lib/firebase";
+import { getSafeRedirectPath } from "@/lib/safeRedirect";
 
 const showDemoAccounts = process.env.NEXT_PUBLIC_DEMO_LOGIN === "true";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = getSafeRedirectPath(searchParams.get("next"));
   const { user, loading, signIn } = useAuth();
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace(nextPath ?? "/");
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, nextPath]);
 
   if (!isFirebaseEnabled()) {
     return (
@@ -40,8 +43,12 @@ export default function LoginPage() {
 
   const handleSignIn = async (email: string, password: string) => {
     await signIn(email, password);
-    router.replace("/");
+    router.replace(nextPath ?? "/");
   };
+
+  const signupHref = nextPath
+    ? `/signup?next=${encodeURIComponent(nextPath)}`
+    : "/signup";
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-lf-bg-page px-4 py-8">
@@ -51,7 +58,13 @@ export default function LoginPage() {
             <AppLogo size="lg" />
           </div>
 
-          <LoginForm onSubmit={handleSignIn} loading={loading} />
+          {nextPath && (
+            <p className="mb-4 text-center text-sm text-lf-text-secondary">
+              Sign in to continue.
+            </p>
+          )}
+
+          <LoginForm onSubmit={handleSignIn} loading={loading} signupHref={signupHref} />
 
           {showDemoAccounts && (
             <div className="mt-5 border-t border-lf-border pt-5">
@@ -71,5 +84,19 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-lf-bg-page p-4">
+          <p className="text-sm text-lf-text-secondary">Loading…</p>
+        </main>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }

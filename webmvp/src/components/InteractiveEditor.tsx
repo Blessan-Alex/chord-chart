@@ -80,7 +80,7 @@ export function InteractiveEditor({
 
     const chord = (rawValue ?? activeSelection.currentVal).trim();
     if (chord && !isValidChord(chord)) {
-      setChordError("Invalid chord. Use formats like Am7, G/B, or Dsus4.");
+      setChordError("Invalid chord. Try Am7, G/B, or Dsus4.");
       return;
     }
     setChordError(null);
@@ -190,22 +190,33 @@ export function InteractiveEditor({
   const palette = getDiatonicChords(originalKey);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-4 pb-24 sm:pb-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p className="text-sm text-lf-text-secondary">
-          Highlight lyrics to place a chord above the selection start. Press{" "}
-          <kbd className="rounded bg-lf-bg-muted px-1.5 py-0.5 font-mono text-xs">
-            /
-          </kbd>{" "}
-          to open chord input.
+          {isMobile ? (
+            <>
+              <span className="font-medium text-lf-text-primary">
+                Select lyrics
+              </span>
+              , then pick a chord. Tap an existing chord to edit it.
+            </>
+          ) : (
+            <>
+              Select lyrics, then pick a chord. Press{" "}
+              <kbd className="rounded bg-lf-bg-muted px-1.5 py-0.5 font-mono text-xs text-lf-text-primary">
+                /
+              </kbd>{" "}
+              with text selected.
+            </>
+          )}
         </p>
-        {onSave && (
+        {onSave && !isMobile && (
           <button
             type="button"
             onClick={() => onSave(sections)}
-            className="shrink-0 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
+            className="shrink-0 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2.5 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
           >
-            Finish &amp; Save
+            Finish &amp; save
           </button>
         )}
       </div>
@@ -267,6 +278,18 @@ export function InteractiveEditor({
           setActiveSelection(null);
         }}
       />
+
+      {onSave && isMobile && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-lf-border bg-lf-bg-sidebar/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => onSave(sections)}
+            className="min-h-12 w-full rounded-[var(--lf-radius-md)] bg-lf-action-primary text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
+          >
+            Finish &amp; save
+          </button>
+        </div>
+      )}
     </div>
   );
 }

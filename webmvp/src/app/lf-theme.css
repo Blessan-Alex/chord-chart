@@ -26,7 +26,8 @@
   --lf-radius-md: 12px;
   --lf-radius-lg: 16px;
   --lf-sidebar-width: 240px;
-  --lf-sidebar-width-compact: 72px;
+  --lf-sidebar-width-compact: 64px;
+  --lf-sidebar-drawer-width: min(280px, 84vw);
 }
 
 :root[data-theme="dark"] {

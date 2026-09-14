@@ -82,10 +82,10 @@ export function LyricLineEditor({
         ref={lyricRef}
         data-section-index={sectionIndex}
         data-line-index={lineIndex}
-        className={`lyric-row lyric-editor-line whitespace-pre-wrap break-words ${
+        className={`lyric-row lyric-editor-line cursor-text whitespace-pre-wrap break-words rounded-[var(--lf-radius-sm)] px-1 py-0.5 ${
           activeStart !== null && activeStart !== undefined
-            ? "ring-1 ring-lf-brand/20"
-            : ""
+            ? "bg-lf-bg-active ring-1 ring-lf-brand/30"
+            : "hover:bg-lf-bg-muted/60"
         }`}
       >
         {normalizedLine.lyrics}

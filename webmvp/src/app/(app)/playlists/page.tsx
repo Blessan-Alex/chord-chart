@@ -81,16 +81,7 @@ export default function PlaylistsPage() {
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <Link
-              href="/"
-              className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
-            >
-              ← Home
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold text-lf-text-primary sm:text-3xl">
-              Playlists
-            </h1>
-            <p className="mt-1 text-sm text-lf-text-secondary">
+            <p className="text-sm text-lf-text-secondary">
               Set lists for rehearsals and services
             </p>
           </div>

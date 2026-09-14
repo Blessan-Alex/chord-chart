@@ -162,6 +162,7 @@ export type SessionData = {
   ownerId: string;
   ownerUsername?: string;
   sharedWith: string[];
+  shareToken?: string;
   groupId?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

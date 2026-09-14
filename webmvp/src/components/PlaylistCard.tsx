@@ -1,10 +1,6 @@
 import Link from "next/link";
 
-import {
-  formatSessionDateShort,
-  sessionInitials,
-  sessionTileGradient,
-} from "@/lib/sessionDisplay";
+import { sessionInitials, sessionTileGradient } from "@/lib/sessionDisplay";
 import type { Session } from "@/lib/types";
 
 type PlaylistCardProps = {
@@ -14,15 +10,16 @@ type PlaylistCardProps = {
 
 export function PlaylistCard({ session, showStatus }: PlaylistCardProps) {
   const gradient = sessionTileGradient(session.id);
+  const songLabel = session.songCount === 1 ? "1 song" : `${session.songCount} songs`;
 
   return (
     <li>
       <Link
         href={`/playlists/${session.id}`}
-        className="flex min-h-16 items-center gap-3 rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated px-4 py-3 transition-colors hover:bg-lf-bg-muted"
+        className="flex min-h-[4.75rem] items-center gap-4 rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated px-4 py-4 transition-colors hover:bg-lf-bg-muted active:bg-lf-bg-muted"
       >
         <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--lf-radius-sm)] bg-gradient-to-br ${gradient} text-sm font-bold text-white`}
+          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--lf-radius-md)] bg-gradient-to-br ${gradient} text-base font-bold text-white`}
           aria-hidden
         >
           {sessionInitials(session.title)}
@@ -31,18 +28,14 @@ export function PlaylistCard({ session, showStatus }: PlaylistCardProps) {
           <p className="truncate text-base font-semibold text-lf-text-primary">
             {session.title}
           </p>
-          <p className="truncate text-sm text-lf-text-secondary">
-            {formatSessionDateShort(session.date)} · {session.songCount}{" "}
-            {session.songCount === 1 ? "song" : "songs"}
-            {session.ownerUsername ? (
-              <span> · @{session.ownerUsername}</span>
-            ) : null}
+          <p className="mt-0.5 truncate text-sm text-lf-text-secondary">
+            {songLabel}
             {showStatus && session.status === "draft" ? (
-              <span> · Draft</span>
+              <span className="text-lf-text-tertiary"> · Draft</span>
             ) : null}
           </p>
         </div>
-        <span className="shrink-0 text-lf-text-tertiary" aria-hidden>
+        <span className="shrink-0 text-lg text-lf-text-tertiary" aria-hidden>
           →
         </span>
       </Link>

@@ -12,6 +12,8 @@ type ChordChartViewportProps = {
   onPinchEnd: () => void;
   onDoubleTap: () => void;
   className?: string;
+  /** When false, pinch and double-tap zoom are disabled (e.g. during autoscroll). */
+  gesturesEnabled?: boolean;
 };
 
 function touchDistance(touches: TouchList): number {
@@ -34,10 +36,13 @@ export function ChordChartViewport({
   onPinchEnd,
   onDoubleTap,
   className = "",
+  gesturesEnabled = true,
 }: ChordChartViewportProps) {
   const pinchStartRef = useRef<{ distance: number; scale: number } | null>(null);
   const scaleRef = useRef(scale);
   const lastTapRef = useRef(0);
+  const pinchingRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     scaleRef.current = scale;
@@ -45,12 +50,21 @@ export function ChordChartViewport({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) {
+    if (!el || !gesturesEnabled) {
       return;
     }
 
     const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length === 1) {
+        touchStartRef.current = {
+          x: event.touches[0].clientX,
+          y: event.touches[0].clientY,
+        };
+      }
+
       if (event.touches.length === 2) {
+        pinchingRef.current = true;
+        touchStartRef.current = null;
         pinchStartRef.current = {
           distance: touchDistance(event.touches),
           scale: scaleRef.current,
@@ -75,11 +89,30 @@ export function ChordChartViewport({
       if (event.touches.length < 2 && pinchStartRef.current) {
         pinchStartRef.current = null;
         onPinchEnd();
+        window.setTimeout(() => {
+          pinchingRef.current = false;
+        }, 400);
       }
 
-      if (event.touches.length === 0 && event.changedTouches.length === 1) {
+      if (
+        event.touches.length === 0 &&
+        event.changedTouches.length === 1 &&
+        !pinchingRef.current
+      ) {
+        const start = touchStartRef.current;
+        const end = event.changedTouches[0];
+        touchStartRef.current = null;
+
+        if (start) {
+          const moved = Math.hypot(end.clientX - start.x, end.clientY - start.y);
+          if (moved > 12) {
+            lastTapRef.current = 0;
+            return;
+          }
+        }
+
         const now = Date.now();
-        if (now - lastTapRef.current < 280) {
+        if (now - lastTapRef.current < 320) {
           onDoubleTap();
           lastTapRef.current = 0;
         } else {
@@ -99,14 +132,14 @@ export function ChordChartViewport({
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [containerRef, onDoubleTap, onPinchEnd, onPinchScale]);
+  }, [containerRef, gesturesEnabled, onDoubleTap, onPinchEnd, onPinchScale]);
 
   return (
     <div
       ref={containerRef}
       className={`chord-chart-viewport relative w-full max-w-full ${className}`}
       style={{
-        touchAction: "pan-y",
+        touchAction: gesturesEnabled ? "pan-y pinch-zoom" : "pan-y",
         ["--chart-scale" as string]: scale,
       }}
     >

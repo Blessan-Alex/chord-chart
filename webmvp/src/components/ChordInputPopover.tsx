@@ -58,24 +58,22 @@ export function ChordInputPopover({
 
   return (
     <>
-      {!mobile && (
-        <button
-          type="button"
-          aria-label="Close chord input"
-          className="fixed inset-0 z-40 bg-black/20"
-          onClick={onCancel}
-        />
-      )}
+      <button
+        type="button"
+        aria-label="Close chord input"
+        className="fixed inset-0 z-40 bg-black/25"
+        onClick={onCancel}
+      />
       <div className={panelClass}>
         <h3 className="text-base font-semibold text-lf-text-primary">
-          Place chord
+          Chord
         </h3>
-        <p className="mt-1 text-sm text-lf-text-secondary">
-          Press Enter to place above the start of your selection.
+        <p className="mt-0.5 text-sm text-lf-text-secondary">
+          Tap a quick pick or type a chord name.
         </p>
 
         <form
-          className="mt-4"
+          className="mt-3"
           onSubmit={(event) => {
             event.preventDefault();
             onSubmit();
@@ -84,10 +82,12 @@ export function ChordInputPopover({
           <input
             ref={inputRef}
             type="text"
+            inputMode="text"
+            autoComplete="off"
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            placeholder="e.g. Am7"
-            className="w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-lg font-semibold text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+            placeholder="Am7"
+            className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-4 text-lg font-semibold text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
           />
           {error && (
             <p className="mt-2 text-sm text-lf-danger" role="alert">
@@ -101,18 +101,18 @@ export function ChordInputPopover({
                 key={chord}
                 type="button"
                 onClick={() => onSubmit(chord)}
-                className="rounded-[var(--lf-radius-md)] bg-lf-bg-muted py-2 font-semibold text-lf-text-primary hover:bg-lf-bg-active"
+                className="min-h-12 rounded-[var(--lf-radius-md)] bg-lf-bg-muted text-base font-semibold text-lf-text-primary hover:bg-lf-bg-active active:bg-lf-bg-active"
               >
                 {chord}
               </button>
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-4 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={onRemove}
-              className="text-sm font-medium text-lf-danger hover:underline"
+              className="min-h-11 px-2 text-sm font-medium text-lf-danger hover:underline"
             >
               Remove
             </button>
@@ -120,15 +120,15 @@ export function ChordInputPopover({
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded-[var(--lf-radius-md)] px-4 py-2 text-sm font-medium text-lf-text-secondary hover:bg-lf-bg-muted"
+                className="min-h-11 rounded-[var(--lf-radius-md)] px-4 text-sm font-medium text-lf-text-secondary hover:bg-lf-bg-muted"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
+                className="min-h-11 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-5 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
               >
-                Place chord
+                Place
               </button>
             </div>
           </div>

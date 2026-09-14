@@ -14,12 +14,14 @@ type SignupFormProps = {
   ) => Promise<void>;
   onCheckUsername: (username: string) => Promise<boolean>;
   loading?: boolean;
+  loginHref?: string;
 };
 
 export function SignupForm({
   onSubmit,
   onCheckUsername,
   loading = false,
+  loginHref = "/login",
 }: SignupFormProps) {
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
@@ -167,7 +169,7 @@ export function SignupForm({
 
       <p className="text-center text-sm text-lf-text-secondary">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-lf-brand hover:underline">
+        <Link href={loginHref} className="font-medium text-lf-brand hover:underline">
           Sign in
         </Link>
       </p>

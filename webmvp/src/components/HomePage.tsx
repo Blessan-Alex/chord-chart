@@ -297,17 +297,12 @@ export function HomePage() {
         onCancel={() => setPendingDelete(null)}
       />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-lf-text-primary sm:text-3xl">
-            Home
-          </h1>
-          <p className="mt-1 text-sm text-lf-text-secondary">
-            {authLoading || indexLoading
-              ? "Loading library…"
-              : `${indexEntries.length} songs in the library`}
-          </p>
-        </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-lf-text-secondary">
+          {authLoading || indexLoading
+            ? "Loading…"
+            : `${indexEntries.length} songs`}
+        </p>
 
         {!user && (
           <Link
@@ -319,18 +314,14 @@ export function HomePage() {
         )}
       </div>
 
-      <div className="mt-8 flex flex-col gap-8">
+      <div className="mt-6 flex flex-col gap-8">
         {!user && (
-          <p className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted px-4 py-3 text-sm text-lf-text-secondary">
-            Browsing as a guest.{" "}
+          <p className="text-sm text-lf-text-secondary">
+            Guest ·{" "}
             <Link href="/login" className="font-medium text-lf-brand hover:underline">
               Sign in
             </Link>{" "}
-            or{" "}
-            <Link href="/signup" className="font-medium text-lf-brand hover:underline">
-              sign up
-            </Link>{" "}
-            for playlists, groups, and @usernames.
+            for playlists &amp; groups
           </p>
         )}
 

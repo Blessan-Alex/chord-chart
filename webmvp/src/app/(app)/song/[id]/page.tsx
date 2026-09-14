@@ -12,6 +12,7 @@ import { KeySelectModal } from "@/components/KeySelectModal";
 import { PageLoading } from "@/components/PageLoading";
 import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
 import { SongControlBar } from "@/components/SongControlBar";
+import { SongShareButton } from "@/components/SongShareButton";
 import { SongHeader } from "@/components/SongHeader";
 import { type Key } from "@/lib/engine";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
@@ -31,7 +32,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { isKey, transposeKeyBy } from "@/lib/keyUtils";
 import {
   type ChartTheme,
-  readChartTheme,
+  resolveChartTheme,
   writeChartTheme,
   writeLastSessionIndex,
 } from "@/lib/performancePreferences";
@@ -71,12 +72,21 @@ export default function SongPage() {
   const [transposeFlash, setTransposeFlash] = useState<Key | null>(null);
 
   const swipeStartX = useRef<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const recordedRecentRef = useRef<string | null>(null);
   const isMobile = useIsMobile();
   const performanceMode = usePerformanceMode(sessionId);
   const zoom = useChartZoom({ sessionId });
   const { containerRef, maxChars } = useChartLayout(zoom.scale, performanceMode);
-  const autoscroll = useAutoscroll(containerRef);
+  const autoscroll = useAutoscroll(scrollContainerRef);
+
+  const toggleAutoscroll = useCallback(() => {
+    if (autoscroll.active) {
+      autoscroll.stop();
+    } else {
+      autoscroll.start();
+    }
+  }, [autoscroll]);
 
   useEffect(() => {
     const canonical = canonicalPlaylistSearchParams(searchParams);
@@ -86,8 +96,8 @@ export default function SongPage() {
   }, [id, router, searchParams]);
 
   useEffect(() => {
-    setChartTheme(readChartTheme());
-  }, []);
+    setChartTheme(resolveChartTheme(sessionId));
+  }, [sessionId]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -354,18 +364,19 @@ export default function SongPage() {
       ? `${sessionIndex + 1}/${sessionSongs.length}`
       : null;
 
-  const bottomPadding =
-    (isMobile && !autoscroll.active) || autoscroll.active
-      ? "pb-28 sm:pb-32"
-      : "pb-8";
+  const bottomPadding = isMobile ? "pb-28 sm:pb-32" : "pb-8";
   const backHref = sessionId ? `/playlists/${sessionId}` : "/";
   const backLabel = sessionId ? "Back to playlist" : "Back to home";
 
   return (
     <main
-      className={`song-page--landscape mx-auto flex min-h-screen w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
+      className={`song-page--landscape mx-auto flex w-full max-w-2xl flex-col p-4 sm:p-8 ${bottomPadding} ${
         performanceMode ? "song-page--performance" : ""
-      } ${autoscroll.active ? "min-h-0 overflow-hidden" : ""}`}
+      } ${
+        autoscroll.active
+          ? "fixed inset-0 z-20 h-[100dvh] max-w-none overflow-hidden bg-lf-bg-page"
+          : "min-h-screen"
+      }`}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -386,6 +397,11 @@ export default function SongPage() {
         compact={isMobile || performanceMode}
         showAddToPlaylist={Boolean(user)}
         onAddToPlaylist={() => setShowAddToSession(true)}
+        trailing={
+          <SongShareButton
+            song={{ id: song.id, title: song.title }}
+          />
+        }
       />
 
       {version !== null && isAdmin && (
@@ -406,13 +422,7 @@ export default function SongPage() {
         onZoomOut={zoom.zoomOut}
         onZoomIn={zoom.zoomIn}
         autoscrollActive={autoscroll.active}
-        onToggleAutoscroll={() => {
-          if (autoscroll.active) {
-            autoscroll.stop();
-          } else {
-            autoscroll.start();
-          }
-        }}
+        onToggleAutoscroll={toggleAutoscroll}
       />
 
       <KeySelectModal
@@ -449,41 +459,47 @@ export default function SongPage() {
         </p>
       )}
 
-      <ChordChartViewport
-        scale={zoom.scale}
-        scalePercent={zoom.scalePercent}
-        showIndicator={zoom.showIndicator}
-        containerRef={containerRef}
-        onPinchScale={handlePinchScale}
-        onPinchEnd={handlePinchEnd}
-        onDoubleTap={zoom.toggleZoomPreset}
-        className={`mt-2 min-w-0 sm:mt-4 ${
+      <div
+        ref={scrollContainerRef}
+        className={`min-w-0 ${
           autoscroll.active
-            ? "min-h-0 max-h-[calc(100dvh-15rem)] flex-1 overflow-y-auto overscroll-y-contain"
+            ? "min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]"
             : ""
         }`}
       >
-        <div className="chord-chart">
-          {song.sections.map((section, si) => (
-            <div key={`${section.label}-${si}`}>
-              <div className="section-label">{section.label}</div>
-              {section.lines.map((line, li) => (
-                <ChordLine
-                  key={`${si}-${li}`}
-                  line={line}
-                  originalKey={originalKey}
-                  targetKey={targetKey}
-                  viewMode={viewMode}
-                  wrapEnabled={performanceMode}
-                  maxChars={maxChars}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </ChordChartViewport>
+        <ChordChartViewport
+          scale={zoom.scale}
+          scalePercent={zoom.scalePercent}
+          showIndicator={zoom.showIndicator}
+          containerRef={containerRef}
+          onPinchScale={handlePinchScale}
+          onPinchEnd={handlePinchEnd}
+          onDoubleTap={zoom.toggleZoomPreset}
+          gesturesEnabled={!autoscroll.active}
+          className="mt-2 min-w-0 sm:mt-4"
+        >
+          <div className="chord-chart">
+            {song.sections.map((section, si) => (
+              <div key={`${section.label}-${si}`}>
+                <div className="section-label">{section.label}</div>
+                {section.lines.map((line, li) => (
+                  <ChordLine
+                    key={`${si}-${li}`}
+                    line={line}
+                    originalKey={originalKey}
+                    targetKey={targetKey}
+                    viewMode={viewMode}
+                    wrapEnabled={performanceMode}
+                    maxChars={maxChars}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </ChordChartViewport>
+      </div>
 
-      {isMobile && !autoscroll.active && (
+      {isMobile && (
         <PerformanceBottomBar
           targetKey={currentKey}
           originalKey={originalKey}
@@ -501,6 +517,8 @@ export default function SongPage() {
           prevHref={prevHref}
           nextHref={nextHref}
           sessionBackHref={sessionId ? `/playlists/${sessionId}` : null}
+          autoscrollActive={autoscroll.active}
+          onToggleAutoscroll={toggleAutoscroll}
         />
       )}
 

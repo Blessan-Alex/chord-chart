@@ -22,6 +22,8 @@ type PerformanceBottomBarProps = {
   prevHref?: string | null;
   nextHref?: string | null;
   sessionBackHref?: string | null;
+  autoscrollActive?: boolean;
+  onToggleAutoscroll?: () => void;
 };
 
 function IconButton({
@@ -104,6 +106,8 @@ export function PerformanceBottomBar({
   prevHref,
   nextHref,
   sessionBackHref,
+  autoscrollActive = false,
+  onToggleAutoscroll,
 }: PerformanceBottomBarProps) {
   const displayKey = transposeFlash ?? targetKey;
   const transposed = displayKey !== originalKey;
@@ -177,6 +181,21 @@ export function PerformanceBottomBar({
             >
               ◐
             </IconButton>
+            {onToggleAutoscroll && (
+              <button
+                type="button"
+                aria-label={autoscrollActive ? "Stop autoscroll" : "Start autoscroll"}
+                aria-pressed={autoscrollActive}
+                onClick={onToggleAutoscroll}
+                className={`inline-flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-xs font-bold ${
+                  autoscrollActive
+                    ? "bg-lf-brand text-lf-text-inverse"
+                    : "text-lf-text-primary hover:bg-lf-bg-muted"
+                }`}
+              >
+                Auto
+              </button>
+            )}
           </div>
         </div>
       </div>
