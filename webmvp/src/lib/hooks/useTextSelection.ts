@@ -35,6 +35,30 @@ export function getSelectionRangeInElement(
   return { start, end, text };
 }
 
+/** Restore a character range selection inside a plain-text lyric element. */
+export function setSelectionRangeInElement(
+  element: HTMLElement,
+  start: number,
+  end: number,
+): void {
+  const textNode = element.firstChild;
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+    return;
+  }
+
+  const length = textNode.textContent?.length ?? 0;
+  const safeStart = Math.max(0, Math.min(start, length));
+  const safeEnd = Math.max(safeStart, Math.min(end, length));
+
+  const range = document.createRange();
+  range.setStart(textNode, safeStart);
+  range.setEnd(textNode, safeEnd);
+
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 /** Character offset of the selection focus (where the user lifted / ended). */
 export function getFocusOffsetInElement(element: HTMLElement): number | null {
   const selection = window.getSelection();

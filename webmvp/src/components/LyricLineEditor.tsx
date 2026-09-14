@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { normalizeChordMark } from "@/lib/chordMarks";
-import { getSelectionRangeInElement } from "@/lib/hooks/useTextSelection";
+import {
+  collapseSelectionToWord,
+  getFocusOffsetInElement,
+  getSelectionRangeInElement,
+  setSelectionRangeInElement,
+} from "@/lib/hooks/useTextSelection";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import type { Key } from "@/lib/engine";
 import type { LyricLine } from "@/lib/types";
@@ -18,31 +23,6 @@ type LyricLineEditorProps = {
   onSelection: (range: { start: number; end: number }) => void;
   onChordClick: (mark: ReturnType<typeof normalizeChordMark>) => void;
 };
-
-function renderLyricsWithTarget(
-  lyrics: string,
-  range: { start: number; end: number } | null | undefined,
-) {
-  if (!range || range.end <= range.start) {
-    return lyrics;
-  }
-
-  const { start, end } = range;
-  const safeStart = Math.max(0, Math.min(start, lyrics.length));
-  const safeEnd = Math.max(safeStart, Math.min(end, lyrics.length));
-
-  if (safeEnd <= safeStart) {
-    return lyrics;
-  }
-
-  return (
-    <>
-      {lyrics.slice(0, safeStart)}
-      <mark className="lyric-chord-target">{lyrics.slice(safeStart, safeEnd)}</mark>
-      {lyrics.slice(safeEnd)}
-    </>
-  );
-}
 
 export function LyricLineEditor({
   line,
@@ -67,6 +47,21 @@ export function LyricLineEditor({
 
   useEffect(() => {
     const element = lyricRef.current;
+    if (!element || !selectionRange) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      setSelectionRangeInElement(
+        element,
+        selectionRange.start,
+        selectionRange.end,
+      );
+    });
+  }, [selectionRange]);
+
+  useEffect(() => {
+    const element = lyricRef.current;
     if (!element) {
       return;
     }
@@ -77,8 +72,29 @@ export function LyricLineEditor({
         return;
       }
 
-      onSelectionRef.current({ start: range.start, end: range.end });
-      window.getSelection()?.removeAllRanges();
+      let { start, end } = range;
+
+      if (isMobile) {
+        const selectedLength = end - start;
+        const isWideSelection =
+          selectedLength > 24 || selectedLength >= line.lyrics.length * 0.6;
+        if (isWideSelection) {
+          const focusOffset = getFocusOffsetInElement(element);
+          ({ start, end } = collapseSelectionToWord(
+            line.lyrics,
+            start,
+            end,
+            focusOffset ?? undefined,
+          ));
+          setSelectionRangeInElement(element, start, end);
+        }
+      }
+
+      if (end <= start) {
+        return;
+      }
+
+      onSelectionRef.current({ start, end });
     };
 
     if (isMobile) {
@@ -116,9 +132,9 @@ export function LyricLineEditor({
         ref={lyricRef}
         data-section-index={sectionIndex}
         data-line-index={lineIndex}
-        className="lyric-row lyric-editor-line cursor-text whitespace-pre-wrap break-words rounded-[var(--lf-radius-sm)] px-1 py-0.5 hover:bg-lf-bg-muted/40"
+        className="lyric-row lyric-editor-line cursor-text whitespace-pre px-1 py-0.5 hover:bg-lf-bg-muted/40"
       >
-        {renderLyricsWithTarget(normalizedLine.lyrics, selectionRange)}
+        {normalizedLine.lyrics}
       </div>
     </div>
   );

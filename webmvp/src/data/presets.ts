@@ -1,31 +1,6 @@
 import type { Key } from "@/lib/engine";
-import type { ChordMark, LyricLine, Section } from "@/lib/types";
-
-// Parses "[C]Twinkle, [Am]twinkle" → { lyrics: "Twinkle, twinkle", chords: [{chord:"C",position:0},{chord:"Am",position:9}] }
-function L(input: string): LyricLine {
-  const chords: ChordMark[] = [];
-  let lyrics = "";
-  let i = 0;
-
-  while (i < input.length) {
-    if (input[i] === "[") {
-      const end = input.indexOf("]", i);
-      if (end !== -1) {
-        chords.push({
-          chord: input.slice(i + 1, end),
-          start: lyrics.length,
-          end: lyrics.length + 1,
-        });
-        i = end + 1;
-        continue;
-      }
-    }
-    lyrics += input[i];
-    i++;
-  }
-
-  return { lyrics, chords };
-}
+import { parseChordProLine as L } from "@/lib/chordProParser";
+import type { LyricLine, Section } from "@/lib/types";
 
 function S(label: string, lines: LyricLine[]): Section {
   return { label, lines };

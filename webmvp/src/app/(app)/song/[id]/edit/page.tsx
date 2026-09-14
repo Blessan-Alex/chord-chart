@@ -207,7 +207,7 @@ export default function SongEditPage() {
         <div>
           <h1 className="text-2xl font-semibold text-lf-text-primary">Edit song</h1>
           <p className="mt-1 text-sm text-lf-text-secondary">
-            Highlight lyrics to place chords. Draft changes are saved before publishing.
+            Use ChordPro source for bulk entry, then fine-tune in the visual chart.
           </p>
         </div>
 

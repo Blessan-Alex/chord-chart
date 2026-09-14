@@ -235,6 +235,15 @@ body.song-performance-page {
   white-space: normal;
 }
 
+.chord-chart-editor .lyric-row,
+.chord-chart-editor .lyric-editor-line {
+  font-family: var(--font-geist-mono), "Courier New", Courier, monospace;
+  font-size: 1em;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow-x: auto;
+}
+
 .lyric-editor-line {
   cursor: text;
   user-select: text;
@@ -256,7 +265,7 @@ mark.lyric-chord-target {
 }
 
 .lyric-editor-line::selection {
-  background: color-mix(in srgb, var(--lf-brand) 35%, transparent);
+  background: color-mix(in srgb, var(--lf-brand) 55%, transparent);
   color: var(--lf-text-primary);
 }
 

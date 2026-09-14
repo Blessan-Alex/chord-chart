@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 type ChordInputPopoverProps = {
   open: boolean;
   value: string;
+  targetText?: string | null;
   error: string | null;
   palette: string[];
   mobile?: boolean;
@@ -17,6 +18,7 @@ type ChordInputPopoverProps = {
 export function ChordInputPopover({
   open,
   value,
+  targetText,
   error,
   palette,
   mobile = false,
@@ -69,7 +71,11 @@ export function ChordInputPopover({
           Chord
         </h3>
         <p className="mt-0.5 text-sm text-lf-text-secondary">
-          Tap a quick pick or type a chord name.
+          {targetText ? (
+            <>Placing on {targetText}. Tap a quick pick or type a chord name.</>
+          ) : (
+            <>Tap a quick pick or type a chord name.</>
+          )}
         </p>
 
         <form

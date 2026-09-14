@@ -3,6 +3,7 @@
 type InlineChordToolbarProps = {
   palette: string[];
   value: string;
+  targetText?: string | null;
   error: string | null;
   reserveSaveBarSpace?: boolean;
   onChange: (value: string) => void;
@@ -15,6 +16,7 @@ type InlineChordToolbarProps = {
 export function InlineChordToolbar({
   palette,
   value,
+  targetText,
   error,
   reserveSaveBarSpace = false,
   onChange,
@@ -34,9 +36,16 @@ export function InlineChordToolbar({
     >
       <div className="rounded-[var(--lf-radius-lg)] border border-lf-brand/30 bg-lf-bg-elevated p-3 shadow-lg">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-lf-text-primary">
-            Place chord{value ? `: ${value}` : ""}
-          </p>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-lf-text-primary">
+              Place chord{value ? `: ${value}` : ""}
+            </p>
+            {targetText ? (
+              <p className="truncate text-xs text-lf-text-secondary">
+                Placing on {targetText}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onCancel}
