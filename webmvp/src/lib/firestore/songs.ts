@@ -37,13 +37,7 @@ import { validateSong } from "@/lib/validation";
 const SONGS_COLLECTION = "songs";
 const PAGE_SIZE = 20;
 
-function slugifyTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+import { resolveSongId } from "@/lib/songId";
 
 function toFirestoreSong(
   id: string,
@@ -110,10 +104,7 @@ export async function createSong(
 ): Promise<FirestoreSong> {
   assertValidSongInput(input);
 
-  const id = input.id ?? slugifyTitle(input.title);
-  if (!id) {
-    throw new Error("Song id could not be derived from title");
-  }
+  const id = resolveSongId(input.title, input.id);
 
   const data = {
     title: input.title.trim(),

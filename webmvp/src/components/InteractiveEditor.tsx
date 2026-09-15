@@ -281,8 +281,8 @@ export function InteractiveEditor({
           <p className="text-sm text-lf-text-secondary">
             {touchEditor ? (
               <>
-                Highlight lyrics — the chord picker opens at the bottom when you
-                finish selecting. Wide selections snap to one word.
+                Tap a syllable or highlight lyrics — the chord picker opens at
+                the bottom. Wide selections snap to one word.
               </>
             ) : (
               <>
@@ -336,6 +336,16 @@ export function InteractiveEditor({
                       ? {
                           start: activeSelection.start,
                           end: activeSelection.end,
+                        }
+                      : null
+                  }
+                  pendingPlacement={
+                    activeSelection?.sIndex === sIndex &&
+                    activeSelection.lIndex === lIndex
+                      ? {
+                          start: activeSelection.start,
+                          end: activeSelection.end,
+                          chord: activeSelection.currentVal,
                         }
                       : null
                   }

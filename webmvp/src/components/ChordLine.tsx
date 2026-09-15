@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
+import {
+  EMPTY_CHORD_INDICES,
+  useLyricChordOffsets,
+} from "@/lib/hooks/useLyricChordOffsets";
+import { lyricChordStarts, lyricChordsSignature } from "@/lib/lyricChords";
 import { wrapLyricLine } from "@/lib/wrapLyricLine";
 import type { LyricLine } from "@/lib/types";
 
@@ -14,6 +19,53 @@ type ChordLineProps = {
   wrapEnabled?: boolean;
   maxChars?: number;
 };
+
+function MeasuredSegment({
+  segment,
+  originalKey,
+  targetKey,
+  viewMode,
+}: {
+  segment: { lyrics: string; chords: LyricLine["chords"] };
+  originalKey: string;
+  targetKey: string;
+  viewMode: "chords" | "numbers";
+}) {
+  const lyricRef = useRef<HTMLDivElement>(null);
+  const chordsSignature = lyricChordsSignature(segment.chords);
+  const chordStarts = useMemo(
+    () => lyricChordStarts(segment.chords),
+    [chordsSignature],
+  );
+  const chordOffsets = useLyricChordOffsets(
+    lyricRef,
+    segment.lyrics,
+    chordStarts,
+    EMPTY_CHORD_INDICES,
+  );
+
+  const hasChords = segment.chords.length > 0;
+  const hasLyrics = segment.lyrics.trim().length > 0;
+
+  return (
+    <>
+      {hasChords && (
+        <ChordRow
+          chords={segment.chords}
+          originalKey={originalKey}
+          targetKey={targetKey}
+          viewMode={viewMode}
+          chordOffsets={chordOffsets}
+        />
+      )}
+      {hasLyrics && (
+        <div ref={lyricRef} className="lyric-row lyric-line-measured">
+          {segment.lyrics}
+        </div>
+      )}
+    </>
+  );
+}
 
 export function ChordLine({
   line,
@@ -37,32 +89,24 @@ export function ChordLine({
 
   return (
     <>
-      {segments.map((segment, index) => {
-        const hasChords = segment.chords.length > 0;
-        const hasLyrics = segment.lyrics.trim().length > 0;
-
-        return (
+      {segments.map((segment, index) => (
           <div
             className="chord-line"
             key={`${index}-${segment.lyrics.slice(0, 12)}`}
             aria-label={
-              hasLyrics
+              segment.lyrics.trim()
                 ? `${segment.chords.map((c) => c.chord).join(", ")} — ${segment.lyrics}`
                 : undefined
             }
           >
-            {hasChords && (
-              <ChordRow
-                chords={segment.chords}
-                originalKey={originalKey}
-                targetKey={targetKey}
-                viewMode={viewMode}
-              />
-            )}
-            {hasLyrics && <div className="lyric-row">{segment.lyrics}</div>}
+            <MeasuredSegment
+              segment={segment}
+              originalKey={originalKey}
+              targetKey={targetKey}
+              viewMode={viewMode}
+            />
           </div>
-        );
-      })}
+        ))}
     </>
   );
 }

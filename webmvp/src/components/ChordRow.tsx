@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { getMarkStart, markKey, normalizeChordMark } from "@/lib/chordMarks";
 import { chordToDegree, transposeChord } from "@/lib/engine";
 import type { ChordMark } from "@/lib/types";
@@ -7,6 +9,8 @@ type ChordRowProps = {
   originalKey: string;
   targetKey: string;
   viewMode: "chords" | "numbers";
+  chordOffsets?: Record<number, number>;
+  previewMark?: ChordMark | null;
   onChordClick?: (mark: ChordMark) => void;
 };
 
@@ -37,37 +41,71 @@ function displayChord(
     : safeDegree(mark.chord, originalKey);
 }
 
+function chordPositionStyle(
+  start: number,
+  chordOffsets?: Record<number, number>,
+): CSSProperties {
+  const measured = chordOffsets?.[start];
+  if (measured !== undefined) {
+    return { left: `${measured}px` };
+  }
+
+  return { left: `${start}ch` };
+}
+
 export function ChordRow({
   chords,
   originalKey,
   targetKey,
   viewMode,
+  chordOffsets,
+  previewMark,
   onChordClick,
 }: ChordRowProps) {
-  if (chords.length === 0) {
+  const normalized = chords.map(normalizeChordMark);
+  const preview =
+    previewMark?.chord.trim() ?
+      normalizeChordMark(previewMark)
+    : null;
+
+  const merged = preview
+    ? [
+        ...normalized.filter(
+          (mark) => getMarkStart(mark) !== getMarkStart(preview),
+        ),
+        preview,
+      ]
+    : normalized;
+
+  if (merged.length === 0) {
     return null;
   }
 
-  const sorted = [...chords]
-    .map(normalizeChordMark)
-    .sort((a, b) => getMarkStart(a) - getMarkStart(b));
+  const sorted = [...merged].sort((a, b) => getMarkStart(a) - getMarkStart(b));
 
   return (
     <div className="chord-row relative min-h-[1.3em]">
-      {sorted.map((mark) => (
-        <span
-          key={markKey(mark)}
-          className={
-            onChordClick
-              ? "absolute bottom-0 cursor-pointer text-lf-brand hover:opacity-80"
-              : "absolute bottom-0 text-lf-brand"
-          }
-          style={{ left: `${getMarkStart(mark)}ch` }}
-          onClick={onChordClick ? () => onChordClick(mark) : undefined}
-        >
-          {displayChord(mark, originalKey, targetKey, viewMode)}
-        </span>
-      ))}
+      {sorted.map((mark) => {
+        const start = getMarkStart(mark);
+        const isPreview = preview !== null && start === getMarkStart(preview);
+
+        return (
+          <span
+            key={isPreview ? `preview-${markKey(mark)}` : markKey(mark)}
+            className={
+              onChordClick
+                ? `absolute bottom-0 cursor-pointer hover:opacity-80 ${
+                    isPreview ? "text-lf-brand/70" : "text-lf-brand"
+                  }`
+                : `absolute bottom-0 ${isPreview ? "text-lf-brand/70" : "text-lf-brand"}`
+            }
+            style={chordPositionStyle(start, chordOffsets)}
+            onClick={onChordClick ? () => onChordClick(mark) : undefined}
+          >
+            {displayChord(mark, originalKey, targetKey, viewMode)}
+          </span>
+        );
+      })}
     </div>
   );
 }

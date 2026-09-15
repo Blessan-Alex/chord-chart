@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Lora } from "next/font/google";
+import { Geist, Geist_Mono, Lora, Noto_Sans_Devanagari, Noto_Sans_Malayalam } from "next/font/google";
 
 import { ClientProviders } from "@/components/ClientProviders";
 import { themeInitScript } from "@/lib/theme";
@@ -20,6 +20,18 @@ const geistMono = Geist_Mono({
 const lora = Lora({
   variable: "--font-lora",
   subsets: ["latin"],
+});
+
+const notoMalayalam = Noto_Sans_Malayalam({
+  variable: "--font-noto-malayalam",
+  subsets: ["malayalam"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const notoDevanagari = Noto_Sans_Devanagari({
+  variable: "--font-noto-devanagari",
+  subsets: ["devanagari"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -49,7 +61,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} min-h-screen overflow-x-hidden antialiased pt-[env(safe-area-inset-top)] pr-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] pl-[max(0px,env(safe-area-inset-left))]`}
+        className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} ${notoMalayalam.variable} ${notoDevanagari.variable} min-h-screen overflow-x-hidden antialiased pt-[env(safe-area-inset-top)] pr-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] pl-[max(0px,env(safe-area-inset-left))]`}
       >
         <ClientProviders>{children}</ClientProviders>
       </body>

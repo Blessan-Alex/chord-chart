@@ -2,14 +2,29 @@
 
 import { useCallback } from "react";
 
+import { graphemeRangeAt, snapRangeToGraphemes } from "@/lib/graphemeUtils";
+import { createLyricRange } from "@/lib/lyricMeasurement";
+
 export type TextSelectionRange = {
   start: number;
   end: number;
   text: string;
 };
 
+function measureRangeOffset(element: HTMLElement, container: Node, offset: number): number {
+  const preRange = document.createRange();
+  preRange.selectNodeContents(element);
+  try {
+    preRange.setEnd(container, offset);
+  } catch {
+    return 0;
+  }
+  return preRange.toString().length;
+}
+
 export function getSelectionRangeInElement(
   element: HTMLElement,
+  lyricsText?: string,
 ): TextSelectionRange | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -21,38 +36,66 @@ export function getSelectionRangeInElement(
     return null;
   }
 
-  const preRange = range.cloneRange();
-  preRange.selectNodeContents(element);
-  preRange.setEnd(range.startContainer, range.startOffset);
-  const start = preRange.toString().length;
-  const text = range.toString();
-  const end = start + text.length;
+  const start = measureRangeOffset(element, range.startContainer, range.startOffset);
+  const end = measureRangeOffset(element, range.endContainer, range.endOffset);
 
   if (end <= start) {
     return null;
   }
 
-  return { start, end, text };
+  const referenceText = lyricsText ?? element.textContent ?? "";
+  const snapped = snapRangeToGraphemes(referenceText, start, end);
+
+  return {
+    start: snapped.start,
+    end: snapped.end,
+    text: referenceText.slice(snapped.start, snapped.end),
+  };
 }
 
-/** Restore a character range selection inside a plain-text lyric element. */
+/** Collapsed caret / tap position as a single grapheme range. */
+export function getCaretGraphemeRangeInElement(
+  element: HTMLElement,
+  lyricsText: string,
+): TextSelectionRange | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  if (!selection.isCollapsed) {
+    return null;
+  }
+
+  const focusNode = selection.focusNode;
+  if (!focusNode || !element.contains(focusNode)) {
+    return null;
+  }
+
+  const index = measureRangeOffset(element, focusNode, selection.focusOffset);
+  const { start, end } = graphemeRangeAt(lyricsText, index);
+
+  if (end <= start) {
+    return null;
+  }
+
+  return {
+    start,
+    end,
+    text: lyricsText.slice(start, end),
+  };
+}
+
+/** Restore a character range inside a lyric element (supports `<mark>` overlays). */
 export function setSelectionRangeInElement(
   element: HTMLElement,
   start: number,
   end: number,
 ): void {
-  const textNode = element.firstChild;
-  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+  const range = createLyricRange(element, start, end);
+  if (!range) {
     return;
   }
-
-  const length = textNode.textContent?.length ?? 0;
-  const safeStart = Math.max(0, Math.min(start, length));
-  const safeEnd = Math.max(safeStart, Math.min(end, length));
-
-  const range = document.createRange();
-  range.setStart(textNode, safeStart);
-  range.setEnd(textNode, safeEnd);
 
   const selection = window.getSelection();
   selection?.removeAllRanges();
@@ -71,18 +114,10 @@ export function getFocusOffsetInElement(element: HTMLElement): number | null {
     return null;
   }
 
-  const preRange = document.createRange();
-  preRange.selectNodeContents(element);
-  try {
-    preRange.setEnd(focusNode, selection.focusOffset);
-  } catch {
-    return null;
-  }
-
-  return preRange.toString().length;
+  return measureRangeOffset(element, focusNode, selection.focusOffset);
 }
 
-/** Collapse an over-wide mobile selection down to a single word. */
+/** Collapse an over-wide mobile selection down to a single word (grapheme-safe). */
 export function collapseSelectionToWord(
   text: string,
   start: number,
@@ -94,12 +129,8 @@ export function collapseSelectionToWord(
   }
 
   const selectedLength = end - start;
-  if (
-    selectedLength > 0 &&
-    selectedLength <= 24 &&
-    selectedLength < text.length * 0.6
-  ) {
-    return { start, end };
+  if (selectedLength < text.length * 0.6) {
+    return snapRangeToGraphemes(text, start, end);
   }
 
   const anchor =
@@ -117,18 +148,18 @@ export function collapseSelectionToWord(
   }
 
   if (wordEnd <= wordStart) {
-    return { start, end };
+    return snapRangeToGraphemes(text, start, end);
   }
 
-  return { start: wordStart, end: wordEnd };
+  return snapRangeToGraphemes(text, wordStart, wordEnd);
 }
 
 export function useTextSelection() {
-  const readSelection = useCallback((element: HTMLElement | null) => {
+  const readSelection = useCallback((element: HTMLElement | null, lyricsText?: string) => {
     if (!element) {
       return null;
     }
-    return getSelectionRangeInElement(element);
+    return getSelectionRangeInElement(element, lyricsText);
   }, []);
 
   const clearSelection = useCallback(() => {

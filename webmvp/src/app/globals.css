@@ -120,7 +120,8 @@ body.song-performance-page {
 /* ── Chord chart ── */
 
 .chord-chart {
-  font-family: var(--font-geist-mono), "Courier New", Courier, monospace;
+  font-family: var(--font-geist-mono), var(--font-noto-malayalam),
+    var(--font-noto-devanagari), "Courier New", Courier, monospace;
   font-size: calc(var(--chart-base-size, 16px) * var(--chart-scale, 1));
   line-height: 1.55;
   overflow-x: auto;
@@ -203,14 +204,39 @@ body.song-performance-page {
   letter-spacing: 0;
 }
 
-/* Index-based chord placement requires fixed-width lyrics (ch units). */
+/* Legacy fallback when pixel measurement is unavailable. */
 .chord-chart .chord-row,
 .chord-chart-editor .chord-row {
   font-family: inherit;
   letter-spacing: 0;
 }
 
-.chord-chart .lyric-row,
+/* Measured chord placement uses the same font stack as lyrics below each row. */
+.chord-chart-editor .lyric-line-measured,
+.chord-chart-editor .lyric-editor-line {
+  font-family: var(--font-geist-mono), var(--font-noto-malayalam),
+    var(--font-noto-devanagari), "Noto Sans Malayalam", "Noto Sans Devanagari",
+    "Courier New", Courier, monospace;
+  font-size: 1em;
+  letter-spacing: 0;
+  white-space: pre;
+}
+
+.chord-chart .lyric-line-measured {
+  font-family: var(--font-geist-mono), var(--font-noto-malayalam),
+    var(--font-noto-devanagari), "Noto Sans Malayalam", "Noto Sans Devanagari",
+    "Courier New", Courier, monospace;
+  font-size: 1em;
+  letter-spacing: 0;
+}
+
+.song-page--performance .chord-chart .lyric-line-measured {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.chord-chart-editor .lyric-row,
 .chord-chart-editor .lyric-editor-line {
   color: var(--lyric-color, var(--lf-text-primary));
   font-family: inherit;
@@ -237,10 +263,6 @@ body.song-performance-page {
 
 .chord-chart-editor .lyric-row,
 .chord-chart-editor .lyric-editor-line {
-  font-family: var(--font-geist-mono), "Courier New", Courier, monospace;
-  font-size: 1em;
-  letter-spacing: 0;
-  white-space: pre;
   overflow-x: auto;
   touch-action: manipulation;
   -webkit-touch-callout: default;
