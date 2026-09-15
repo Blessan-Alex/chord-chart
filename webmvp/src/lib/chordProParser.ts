@@ -1,4 +1,4 @@
-import { getMarkStart, normalizeChordMark } from "./chordMarks";
+import { getMarkEnd, getMarkStart, normalizeChordMark } from "./chordMarks";
 import type { ChordMark, LyricLine, Section } from "./types";
 
 const SECTION_LABEL_RE =
@@ -28,10 +28,18 @@ export function parseChordProLine(input: string): LyricLine {
     if (input[i] === "[") {
       const end = input.indexOf("]", i);
       if (end !== -1) {
+        const atEndOfInput = end + 1 >= input.length;
+        let start = lyrics.length;
+        let markEnd = lyrics.length + 1;
+        // Trailing `[A]` with no following lyric — anchor to last character.
+        if (atEndOfInput && start > 0) {
+          start = lyrics.length - 1;
+          markEnd = lyrics.length;
+        }
         chords.push({
           chord: input.slice(i + 1, end),
-          start: lyrics.length,
-          end: lyrics.length + 1,
+          start,
+          end: markEnd,
         });
         i = end + 1;
         continue;
@@ -81,6 +89,17 @@ export function parseChordProSections(rawText: string): Section[] {
   return sections;
 }
 
+/** ChordPro trailing syntax (`are[A]`) maps to the last lyric character. */
+function isTrailingChordMark(mark: ChordMark, lyricLength: number): boolean {
+  if (lyricLength <= 0) {
+    return false;
+  }
+
+  const start = getMarkStart(mark);
+  const end = getMarkEnd(mark);
+  return start === lyricLength - 1 && end === lyricLength;
+}
+
 export function serializeChordProLine(line: LyricLine): string {
   const chords = [...line.chords]
     .map(normalizeChordMark)
@@ -90,17 +109,25 @@ export function serializeChordProLine(line: LyricLine): string {
     return line.lyrics;
   }
 
+  const { lyrics } = line;
   let result = "";
   let cursor = 0;
 
   for (const mark of chords) {
+    if (isTrailingChordMark(mark, lyrics.length)) {
+      result += lyrics.slice(cursor);
+      result += `[${mark.chord}]`;
+      cursor = lyrics.length;
+      continue;
+    }
+
     const start = getMarkStart(mark);
-    result += line.lyrics.slice(cursor, start);
+    result += lyrics.slice(cursor, start);
     result += `[${mark.chord}]`;
     cursor = start;
   }
 
-  result += line.lyrics.slice(cursor);
+  result += lyrics.slice(cursor);
   return result;
 }
 

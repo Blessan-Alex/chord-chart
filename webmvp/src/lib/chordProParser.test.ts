@@ -23,6 +23,26 @@ describe("parseChordProLine", () => {
     expect(line.lyrics).toBe("Amazing");
     expect(line.chords[0]).toEqual({ chord: "G", start: 3, end: 4 });
   });
+
+  it("anchors trailing chords to the last lyric character", () => {
+    const line = parseChordProLine("[C#m]are[A]");
+    expect(line.lyrics).toBe("are");
+    expect(line.chords).toEqual([
+      { chord: "C#m", start: 0, end: 1 },
+      { chord: "A", start: 2, end: 3 },
+    ]);
+  });
+
+  it("parses Way Maker chorus line without out-of-range marks", () => {
+    const line = parseChordProLine("[E]My God, [B]that is who You [C#m]are[A]");
+    expect(line.lyrics).toBe("My God, that is who You are");
+    expect(line.lyrics.length).toBe(27);
+    for (const mark of line.chords) {
+      expect(mark.end).toBeLessThanOrEqual(line.lyrics.length);
+      expect(mark.start).toBeLessThan(line.lyrics.length);
+    }
+    expect(line.chords.at(-1)).toEqual({ chord: "A", start: 26, end: 27 });
+  });
 });
 
 describe("parseChordProSections", () => {
@@ -40,6 +60,18 @@ describe("parseChordProSections", () => {
 describe("serializeChordProLine", () => {
   it("round-trips a line", () => {
     const input = "[C]Twinkle, [Am]twinkle";
+    const line = parseChordProLine(input);
+    expect(serializeChordProLine(line)).toBe(input);
+  });
+
+  it("round-trips trailing end-of-line chords", () => {
+    const input = "[C#m]are[A]";
+    const line = parseChordProLine(input);
+    expect(serializeChordProLine(line)).toBe(input);
+  });
+
+  it("round-trips Way Maker chorus line", () => {
+    const input = "[E]My God, [B]that is who You [C#m]are[A]";
     const line = parseChordProLine(input);
     expect(serializeChordProLine(line)).toBe(input);
   });

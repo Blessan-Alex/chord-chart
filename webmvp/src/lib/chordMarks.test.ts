@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createChordMark,
+  clampChordMarkToLyrics,
   getMarkEnd,
   getMarkStart,
   normalizeChordMark,
@@ -24,6 +25,14 @@ describe("chordMarks", () => {
     const mark = createChordMark("Am7", 3, 7);
     expect(getMarkStart(mark)).toBe(3);
     expect(getMarkEnd(mark)).toBe(7);
+  });
+
+  it("clamps trailing marks that exceed lyric length", () => {
+    const fixed = clampChordMarkToLyrics(
+      { chord: "A", start: 27, end: 28 },
+      27,
+    );
+    expect(fixed).toEqual({ chord: "A", start: 26, end: 27 });
   });
 
   it("normalizes sections on read", () => {

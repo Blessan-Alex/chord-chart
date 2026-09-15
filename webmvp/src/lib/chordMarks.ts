@@ -25,10 +25,46 @@ export function normalizeChordMark(mark: ChordMark): ChordMark {
   };
 }
 
+/** Keep start/end within `[0, lyrics.length]` (fixes trailing ChordPro marks and bad data). */
+export function clampChordMarkToLyrics(
+  mark: ChordMark,
+  lyricLength: number,
+): ChordMark {
+  const normalized = normalizeChordMark(mark);
+
+  if (lyricLength <= 0) {
+    return { chord: normalized.chord, start: 0, end: 1 };
+  }
+
+  let { start, end } = normalized;
+
+  if (end > lyricLength) {
+    if (start >= lyricLength) {
+      start = lyricLength - 1;
+      end = lyricLength;
+    } else {
+      end = lyricLength;
+    }
+  }
+
+  if (start > lyricLength) {
+    start = Math.max(0, lyricLength - 1);
+  }
+
+  if (start >= end) {
+    end = Math.min(start + 1, lyricLength);
+  }
+
+  return normalizeChordMark({ chord: normalized.chord, start, end });
+}
+
 export function normalizeLyricLine(line: LyricLine): LyricLine {
+  const lyricLength = line.lyrics.length;
   return {
     lyrics: line.lyrics,
-    chords: line.chords.map(normalizeChordMark),
+    chords: line.chords.map((mark) =>
+      clampChordMarkToLyrics(normalizeChordMark(mark), lyricLength),
+    ),
   };
 }
 
