@@ -3,14 +3,20 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { AuthDivider } from "@/components/AuthDivider";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { formatAuthError } from "@/lib/authErrors";
+
 type LoginFormProps = {
   onSubmit: (email: string, password: string) => Promise<void>;
+  onGoogleSignIn?: () => Promise<void>;
   loading?: boolean;
   signupHref?: string;
 };
 
 export function LoginForm({
   onSubmit,
+  onGoogleSignIn,
   loading = false,
   signupHref = "/signup",
 }: LoginFormProps) {
@@ -18,6 +24,7 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,16 +34,43 @@ export function LoginForm({
     try {
       await onSubmit(email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed.");
+      setError(formatAuthError(err));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const disabled = submitting || loading;
+  const handleGoogleSignIn = async () => {
+    if (!onGoogleSignIn) {
+      return;
+    }
+
+    setError(null);
+    setGoogleSubmitting(true);
+    try {
+      await onGoogleSignIn();
+    } catch (err) {
+      setError(formatAuthError(err));
+    } finally {
+      setGoogleSubmitting(false);
+    }
+  };
+
+  const disabled = submitting || googleSubmitting || loading;
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
+      {onGoogleSignIn && (
+        <>
+          <GoogleSignInButton
+            onClick={handleGoogleSignIn}
+            disabled={disabled}
+          />
+          <AuthDivider />
+        </>
+      )}
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-lf-text-secondary">Email</span>
         <input
@@ -79,12 +113,13 @@ export function LoginForm({
         {submitting ? "Signing in…" : "Sign in"}
       </button>
 
-      <p className="text-center text-sm text-lf-text-secondary">
-        New here?{" "}
-        <Link href={signupHref} className="font-medium text-lf-brand hover:underline">
-          Create account
-        </Link>
-      </p>
-    </form>
+        <p className="text-center text-sm text-lf-text-secondary">
+          New here?{" "}
+          <Link href={signupHref} className="font-medium text-lf-brand hover:underline">
+            Create account
+          </Link>
+        </p>
+      </form>
+    </div>
   );
 }

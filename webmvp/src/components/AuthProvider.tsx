@@ -3,8 +3,12 @@
 import {
   createUserWithEmailAndPassword,
   deleteUser,
+  getRedirectResult,
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   updateProfile,
   type User,
@@ -26,6 +30,7 @@ import {
   initAppCheck,
   isFirebaseEnabled,
 } from "@/lib/firebase";
+import { formatAuthError, prefersAuthRedirect } from "@/lib/authErrors";
 import {
   claimUsername,
   createUserProfile,
@@ -35,14 +40,19 @@ import {
   updateUserDisplayName,
 } from "@/lib/firestore/users";
 import type { UserProfile } from "@/lib/types";
+import { userInitials } from "@/lib/userDisplay";
 import { validateUsername } from "@/lib/validation";
 
 export type AuthContextValue = {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  profileResolved: boolean;
+  needsUsernameOnboarding: boolean;
+  authError: string | null;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -50,6 +60,7 @@ export type AuthContextValue = {
     username: string,
   ) => Promise<void>;
   signOut: () => Promise<void>;
+  clearAuthError: () => void;
   updateDisplayName: (displayName: string) => Promise<void>;
   claimUsername: (username: string) => Promise<void>;
   checkUsernameAvailable: (username: string) => Promise<boolean>;
@@ -72,6 +83,9 @@ async function ensureLegacyUserProfile(user: User): Promise<void> {
       user.displayName?.trim() ||
       user.email?.split("@")[0] ||
       "Musician",
+    avatarInitials: userInitials(
+      user.displayName?.trim() || user.email?.split("@")[0] || "Musician",
+    ),
     role: "musician",
     createdAt: serverTimestamp(),
     lastLoginAt: serverTimestamp(),
@@ -96,6 +110,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(isFirebaseEnabled());
+  const [profileResolved, setProfileResolved] = useState(!isFirebaseEnabled());
+  const [needsUsernameOnboarding, setNeedsUsernameOnboarding] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const signUpInProgressRef = useRef(false);
 
@@ -107,8 +124,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAppCheck();
     const auth = getFirebaseAuth();
 
+    void getRedirectResult(auth).catch((error) => {
+      setAuthError(formatAuthError(error));
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
+      setProfileResolved(false);
 
       if (nextUser) {
         try {
@@ -116,17 +138,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await ensureLegacyUserProfile(nextUser);
           }
           await touchLastLogin(nextUser.uid);
-          setProfile(await loadProfile(nextUser.uid));
+          const loadedProfile = await loadProfile(nextUser.uid);
+          setProfile(loadedProfile);
+          setNeedsUsernameOnboarding(
+            loadedProfile !== null && !loadedProfile.username,
+          );
           setIsAdmin(await readIsAdmin(nextUser));
         } catch {
           setProfile(null);
+          setNeedsUsernameOnboarding(false);
           setIsAdmin(false);
         }
       } else {
         setProfile(null);
+        setNeedsUsernameOnboarding(false);
         setIsAdmin(false);
       }
 
+      setProfileResolved(true);
       setLoading(false);
     });
 
@@ -138,6 +167,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Firebase is not configured");
     }
     await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+  }, []);
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!isFirebaseEnabled()) {
+      throw new Error("Firebase is not configured");
+    }
+
+    const auth = getFirebaseAuth();
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    if (prefersAuthRedirect()) {
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+
+    await signInWithPopup(auth, provider);
   }, []);
 
   const signUp = useCallback(
@@ -189,7 +235,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           username: usernameResult.normalized,
         });
 
-        setProfile(await loadProfile(credential.user.uid));
+        const loadedProfile = await loadProfile(credential.user.uid);
+        setProfile(loadedProfile);
+        setNeedsUsernameOnboarding(
+          loadedProfile !== null && !loadedProfile.username,
+        );
       } catch (error) {
         if (credential?.user) {
           try {
@@ -205,6 +255,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
 
   const signOut = useCallback(async () => {
     if (!isFirebaseEnabled()) {
@@ -239,7 +293,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       await claimUsername(user.uid, username);
-      setProfile(await loadProfile(user.uid));
+      const loadedProfile = await loadProfile(user.uid);
+      setProfile(loadedProfile);
+      setNeedsUsernameOnboarding(
+        loadedProfile !== null && !loadedProfile.username,
+      );
     },
     [user],
   );
@@ -257,10 +315,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       profile,
       loading,
+      profileResolved,
+      needsUsernameOnboarding,
+      authError,
       isAdmin,
       signIn,
+      signInWithGoogle,
       signUp,
       signOut,
+      clearAuthError,
       updateDisplayName,
       claimUsername: claimUsernameForUser,
       checkUsernameAvailable,
@@ -269,10 +332,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       profile,
       loading,
+      profileResolved,
+      needsUsernameOnboarding,
+      authError,
       isAdmin,
       signIn,
+      signInWithGoogle,
       signUp,
       signOut,
+      clearAuthError,
       updateDisplayName,
       claimUsernameForUser,
       checkUsernameAvailable,

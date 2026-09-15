@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { AppLogo } from "@/components/AppLogo";
 import { SignupForm } from "@/components/SignupForm";
@@ -9,21 +9,40 @@ import { getFirebaseAuth, isFirebaseEnabled } from "@/lib/firebase";
 import { useAuth } from "@/lib/hooks/useAuth";
 import {
   getSafeRedirectPath,
-  resolvePostAuthPath,
-  resolvePostAuthPathForUser,
+  resolvePostAuthDestination,
+  resolvePostAuthDestinationForUser,
 } from "@/lib/safeRedirect";
 
 function SignupPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = getSafeRedirectPath(searchParams.get("next"));
-  const { user, loading, isAdmin, signUp, checkUsernameAvailable } = useAuth();
+  const {
+    user,
+    profile,
+    loading,
+    profileResolved,
+    isAdmin,
+    signUp,
+    signInWithGoogle,
+    checkUsernameAvailable,
+    authError,
+    clearAuthError,
+  } = useAuth();
+  const [redirectError, setRedirectError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) {
-      router.replace(resolvePostAuthPath(nextPath, isAdmin));
+    if (authError) {
+      setRedirectError(authError);
+      clearAuthError();
     }
-  }, [loading, user, isAdmin, router, nextPath]);
+  }, [authError, clearAuthError]);
+
+  useEffect(() => {
+    if (!loading && profileResolved && user) {
+      router.replace(resolvePostAuthDestination(nextPath, isAdmin, profile));
+    }
+  }, [loading, profileResolved, user, profile, isAdmin, router, nextPath]);
 
   if (!isFirebaseEnabled()) {
     return (
@@ -35,6 +54,14 @@ function SignupPageContent() {
     );
   }
 
+  const navigateAfterAuth = async () => {
+    const destination = await resolvePostAuthDestinationForUser(
+      nextPath,
+      getFirebaseAuth().currentUser,
+    );
+    router.replace(destination);
+  };
+
   const handleSignUp = async (
     displayName: string,
     username: string,
@@ -42,11 +69,14 @@ function SignupPageContent() {
     password: string,
   ) => {
     await signUp(email, password, displayName, username);
-    const destination = await resolvePostAuthPathForUser(
-      nextPath,
-      getFirebaseAuth().currentUser,
-    );
-    router.replace(destination);
+    await navigateAfterAuth();
+  };
+
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle();
+    if (getFirebaseAuth().currentUser) {
+      await navigateAfterAuth();
+    }
   };
 
   const loginHref = nextPath
@@ -70,8 +100,15 @@ function SignupPageContent() {
           )}
         </div>
 
+        {redirectError && (
+          <p className="w-full max-w-md text-center text-sm text-lf-danger" role="alert">
+            {redirectError}
+          </p>
+        )}
+
         <SignupForm
           onSubmit={handleSignUp}
+          onGoogleSignIn={handleGoogleSignIn}
           onCheckUsername={checkUsernameAvailable}
           loading={loading}
           loginHref={loginHref}
