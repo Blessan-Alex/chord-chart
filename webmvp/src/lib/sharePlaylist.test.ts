@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   playlistInvitePath,
   playlistInviteUrl,
+  playlistShareMessage,
   playlistShareResultMessage,
   shareResultMessage,
+  songShareMessage,
   songShareUrl,
 } from "@/lib/sharePlaylist";
 import { getSafeRedirectPath } from "@/lib/safeRedirect";
@@ -24,9 +26,20 @@ describe("sharePlaylist", () => {
     );
   });
 
+  it("formats LF Chords share messages", () => {
+    expect(songShareMessage("Amazing Grace", "https://lfchords.vercel.app/song/1")).toBe(
+      'Check out "Amazing Grace" from the LF Chords app https://lfchords.vercel.app/song/1',
+    );
+    expect(
+      playlistShareMessage("Sunday Set", "https://lfchords.vercel.app/join/p/tok"),
+    ).toBe(
+      'Check out "Sunday Set" from the LF Chords app https://lfchords.vercel.app/join/p/tok',
+    );
+  });
+
   it("maps share results to user messages", () => {
-    expect(playlistShareResultMessage("copied")).toContain("Invite link copied");
-    expect(shareResultMessage("copied")).toContain("Link copied");
+    expect(playlistShareResultMessage("copied")).toContain("Message copied");
+    expect(shareResultMessage("copied")).toContain("Message copied");
     expect(shareResultMessage("cancelled")).toBeNull();
   });
 });

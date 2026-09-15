@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { IconActionButton } from "@/components/IconActionButton";
 import { KeySelectModal } from "@/components/KeySelectModal";
+import { MemberPills } from "@/components/MemberPills";
 import { SharePlaylistModal } from "@/components/SharePlaylistModal";
 import { SignInRequired } from "@/components/SignInRequired";
 import { type Key } from "@/lib/engine";
@@ -44,6 +45,11 @@ import {
   PUBLISH_CONFIRM_MESSAGE,
   playlistVisibilityLabel,
 } from "@/lib/playlistLabels";
+import {
+  buildPlaylistMemberList,
+  playlistAccessCount,
+  playlistAccessLabel,
+} from "@/lib/playlistMembers";
 import {
   playlistShareResultMessage,
   sharePlaylistNative,
@@ -87,6 +93,12 @@ export default function PlaylistDetailPage() {
     }
     return canViewPlaylist(session, user.uid, isAdmin);
   }, [session, user, isAdmin]);
+
+  const playlistMembers = useMemo(
+    () => (session ? buildPlaylistMemberList(session) : []),
+    [session],
+  );
+  const accessCount = session ? playlistAccessCount(session) : 0;
 
   const {
     songs,
@@ -457,6 +469,14 @@ export default function PlaylistDetailPage() {
                       <span> · @{session.ownerUsername}</span>
                     ) : null}
                   </p>
+                  <p className="mt-1 text-xs text-lf-text-tertiary">
+                    {playlistAccessLabel(accessCount)}
+                  </p>
+                  {playlistMembers.length > 0 && (
+                    <div className="mt-2">
+                      <MemberPills members={playlistMembers} maxVisible={8} />
+                    </div>
+                  )}
                 </div>
               </div>
 

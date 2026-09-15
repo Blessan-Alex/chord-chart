@@ -6,6 +6,7 @@ import { normalizeInviteToken } from "@/lib/playlistInviteToken";
 
 const PLAYLIST_INVITE_TOKENS = "playlistInviteTokens";
 const SESSIONS_COLLECTION = "sessions";
+const USERS_COLLECTION = "users";
 
 export async function POST(request: Request) {
   try {
@@ -54,8 +55,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ sessionId });
     }
 
+    const userSnap = await db.collection(USERS_COLLECTION).doc(uid).get();
+    const userData = userSnap.data();
+    const member = {
+      uid,
+      username: typeof userData?.username === "string" ? userData.username : undefined,
+      displayName:
+        (typeof userData?.displayName === "string" && userData.displayName.trim()) ||
+        (typeof userData?.email === "string" && userData.email.split("@")[0]) ||
+        "Musician",
+    };
+
     await sessionRef.update({
       sharedWith: FieldValue.arrayUnion(uid),
+      sharedMembers: FieldValue.arrayUnion(member),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

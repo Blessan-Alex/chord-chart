@@ -31,6 +31,14 @@ export function songShareUrl(songId: string, origin?: string): string {
   return `${base}${songPagePath(songId)}`;
 }
 
+export function songShareMessage(title: string, url: string): string {
+  return `Check out "${title}" from the LF Chords app ${url}`;
+}
+
+export function playlistShareMessage(title: string, url: string): string {
+  return `Check out "${title}" from the LF Chords app ${url}`;
+}
+
 async function copyTextFallback(text: string): Promise<boolean> {
   if (typeof document === "undefined") {
     return false;
@@ -53,24 +61,36 @@ async function copyTextFallback(text: string): Promise<boolean> {
   }
 }
 
-async function copyUrl(url: string): Promise<boolean> {
+async function copyText(text: string): Promise<boolean> {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(text);
       return true;
     } catch {
       /* fall through */
     }
   }
-  return copyTextFallback(url);
+  return copyTextFallback(text);
 }
 
-export async function copyPlaylistInviteLink(token: string): Promise<boolean> {
-  return copyUrl(playlistInviteUrl(token));
+export async function copyPlaylistInviteLink(
+  token: string,
+  title?: string,
+  origin?: string,
+): Promise<boolean> {
+  const url = playlistInviteUrl(token, origin);
+  const text = title ? playlistShareMessage(title, url) : url;
+  return copyText(text);
 }
 
-export async function copySongLink(songId: string): Promise<boolean> {
-  return copyUrl(songShareUrl(songId));
+export async function copySongLink(
+  songId: string,
+  title?: string,
+  origin?: string,
+): Promise<boolean> {
+  const url = songShareUrl(songId, origin);
+  const text = title ? songShareMessage(title, url) : url;
+  return copyText(text);
 }
 
 export function canUseNativeShare(): boolean {
@@ -86,7 +106,7 @@ async function shareNative(
 ): Promise<NativeShareResult> {
   if (canUseNativeShare()) {
     try {
-      await navigator.share({ title, text, url });
+      await navigator.share({ title, text });
       return "shared";
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -95,28 +115,26 @@ async function shareNative(
     }
   }
 
-  const copied = await copyUrl(url);
+  const copied = await copyText(text);
   return copied ? "copied" : "failed";
 }
 
 export async function sharePlaylistNative(
   session: PlaylistSharePayload,
 ): Promise<NativeShareResult> {
+  const url = playlistInviteUrl(session.inviteToken);
   return shareNative(
-    playlistInviteUrl(session.inviteToken),
+    url,
     session.title,
-    `Join set list: ${session.title}`,
+    playlistShareMessage(session.title, url),
   );
 }
 
 export async function shareSongNative(
   song: SongSharePayload,
 ): Promise<NativeShareResult> {
-  return shareNative(
-    songShareUrl(song.id),
-    song.title,
-    `Chord chart: ${song.title}`,
-  );
+  const url = songShareUrl(song.id);
+  return shareNative(url, song.title, songShareMessage(song.title, url));
 }
 
 export function shareResultMessage(result: NativeShareResult): string | null {
@@ -124,7 +142,7 @@ export function shareResultMessage(result: NativeShareResult): string | null {
     case "shared":
       return "Link shared.";
     case "copied":
-      return "Link copied — paste in WhatsApp or Messages.";
+      return "Message copied — paste in WhatsApp or Messages.";
     case "cancelled":
       return null;
     case "failed":
@@ -137,7 +155,7 @@ export function playlistShareResultMessage(result: NativeShareResult): string | 
     return "Invite link shared.";
   }
   if (result === "copied") {
-    return "Invite link copied — paste in WhatsApp or Messages.";
+    return "Message copied — paste in WhatsApp or Messages.";
   }
   return shareResultMessage(result);
 }

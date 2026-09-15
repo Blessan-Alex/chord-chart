@@ -164,6 +164,7 @@ export type SessionData = {
   ownerId: string;
   ownerUsername?: string;
   sharedWith: string[];
+  sharedMembers?: GroupMemberInfo[];
   shareToken?: string;
   groupId?: string;
   createdAt: Timestamp;

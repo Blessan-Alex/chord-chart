@@ -137,13 +137,13 @@ export function HomePage() {
     [libraryResults],
   );
   const {
-    setFocused: setSearchFocused,
+    setFocused: focusSearch,
     activeIndex: suggestionIndex,
     setActiveIndex: setSuggestionIndex,
     open: suggestionsOpen,
     close: closeSuggestions,
     dismiss: dismissSuggestions,
-  } = useSearchSuggestionsState(searchQuery);
+  } = useSearchSuggestionsState(searchQuery, searchSuggestions.length);
 
   const handleSelectSuggestion = useCallback(
     (entry: SongIndexEntry) => {
@@ -370,7 +370,7 @@ export function HomePage() {
   };
 
   const showLocalSongs =
-    !user && savedSongs.length > 0 && !searchQuery.trim() && !keyFilter;
+    !user && savedSongs.length > 0 && !searchQuery.trim() && !keyFilter && !languageFilter;
 
   return (
     <div className="mx-auto w-full max-w-3xl overflow-x-clip p-4 sm:p-8">
@@ -416,7 +416,7 @@ export function HomePage() {
           </p>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="flex flex-row items-stretch gap-2">
           <div className="relative min-w-0 flex-1">
             <label className="relative block">
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lf-text-tertiary">
@@ -426,8 +426,8 @@ export function HomePage() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
+                onFocus={() => focusSearch()}
+                onBlur={() => closeSuggestions()}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search songs, artists, lyrics…"
                 role="combobox"
@@ -451,7 +451,7 @@ export function HomePage() {
           <button
             type="button"
             onClick={() => setFilterSheetOpen(true)}
-            className={`inline-flex min-h-12 shrink-0 items-center gap-2 self-start rounded-[var(--lf-radius-md)] border px-4 text-sm font-medium transition-colors ${
+            className={`inline-flex min-h-12 shrink-0 items-center gap-2 rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors sm:px-4 ${
               hasActiveFilters
                 ? "border-lf-brand bg-lf-bg-active text-lf-brand"
                 : "border-lf-border bg-lf-bg-elevated text-lf-text-primary hover:bg-lf-bg-muted"
@@ -459,7 +459,9 @@ export function HomePage() {
             aria-label="Open library filters"
           >
             <FilterIcon />
-            <span className="max-w-[12rem] truncate">{filterButtonLabel}</span>
+            <span className="hidden max-w-[8rem] truncate sm:inline md:max-w-[12rem]">
+              {filterButtonLabel}
+            </span>
           </button>
         </div>
 

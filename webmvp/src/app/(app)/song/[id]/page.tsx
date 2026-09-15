@@ -13,7 +13,6 @@ import { PageLoading } from "@/components/PageLoading";
 import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
 import { PerformanceFullscreen } from "@/components/PerformanceFullscreen";
 import { SongControlBar } from "@/components/SongControlBar";
-import { SongShareButton } from "@/components/SongShareButton";
 import { SongHeader } from "@/components/SongHeader";
 import { type Key } from "@/lib/engine";
 import { firestoreSongToSong } from "@/lib/firestore/toSong";
@@ -405,11 +404,6 @@ export default function SongPage() {
           backHref={backHref}
           backLabel={backLabel}
           compact={isMobile || performanceMode}
-          trailing={
-            <SongShareButton
-              song={{ id: song.id, title: song.title }}
-            />
-          }
         />
       )}
 
@@ -436,6 +430,7 @@ export default function SongPage() {
           onToggleFullscreen={toggleFullscreen}
           showAddToPlaylist={Boolean(user)}
           onAddToPlaylist={() => setShowAddToSession(true)}
+          shareSong={{ id: song.id, title: song.title }}
         />
       )}
 

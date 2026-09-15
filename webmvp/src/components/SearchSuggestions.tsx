@@ -144,7 +144,7 @@ export function useSearchSuggestionsKeyboard({
   return handleKeyDown;
 }
 
-export function useSearchSuggestionsState(query: string) {
+export function useSearchSuggestionsState(query: string, resultCount: number) {
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -154,21 +154,39 @@ export function useSearchSuggestionsState(query: string) {
     setDismissed(false);
   }, [query]);
 
+  useEffect(() => {
+    setActiveIndex((current) => {
+      if (resultCount === 0) {
+        return 0;
+      }
+      return Math.min(current, resultCount - 1);
+    });
+  }, [resultCount]);
+
   const open =
     focused && query.trim().length >= 1 && !dismissed;
 
   const close = useCallback(() => {
+    setFocused(false);
+  }, []);
+
+  const dismiss = useCallback(() => {
     setDismissed(true);
     setFocused(false);
   }, []);
 
+  const focus = useCallback(() => {
+    setFocused(true);
+    setDismissed(false);
+  }, []);
+
   return {
     focused,
-    setFocused,
+    setFocused: focus,
     activeIndex,
     setActiveIndex,
     open,
     close,
-    dismiss: () => setDismissed(true),
+    dismiss,
   };
 }

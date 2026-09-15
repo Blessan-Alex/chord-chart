@@ -4,7 +4,9 @@ import { AutoscrollToggleButton } from "@/components/AutoscrollToggleButton";
 import { ChartZoomButtons } from "@/components/ChartZoomButtons";
 import { FullscreenToggleButton } from "@/components/FullscreenToggleButton";
 import { IconActionButton } from "@/components/IconActionButton";
+import { SongShareButton } from "@/components/SongShareButton";
 import type { Key } from "@/lib/engine";
+import type { SongSharePayload } from "@/lib/sharePlaylist";
 import type { SongViewMode } from "@/lib/types";
 
 type SongControlBarProps = {
@@ -25,6 +27,7 @@ type SongControlBarProps = {
   onToggleFullscreen?: () => void;
   showAddToPlaylist?: boolean;
   onAddToPlaylist?: () => void;
+  shareSong?: SongSharePayload;
 };
 
 function SegmentButton({
@@ -59,11 +62,15 @@ function PlaylistIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden
     >
-      <path d="M9 18V5l12-2v13" />
-      <circle cx="6" cy="18" r="3" />
-      <circle cx="18" cy="16" r="3" />
+      <path d="M16 5H3" />
+      <path d="M11 12H3" />
+      <path d="M11 19H3" />
+      <path d="M21 16V5" />
+      <path d="M18.5 16.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
     </svg>
   );
 }
@@ -101,6 +108,29 @@ function AddToPlaylistButton({ onAddToPlaylist }: { onAddToPlaylist: () => void 
   );
 }
 
+function SongActionButtons({
+  showAddToPlaylist,
+  onAddToPlaylist,
+  shareSong,
+}: {
+  showAddToPlaylist: boolean;
+  onAddToPlaylist?: () => void;
+  shareSong?: SongSharePayload;
+}) {
+  if (!shareSong && !(showAddToPlaylist && onAddToPlaylist)) {
+    return null;
+  }
+
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {showAddToPlaylist && onAddToPlaylist && (
+        <AddToPlaylistButton onAddToPlaylist={onAddToPlaylist} />
+      )}
+      {shareSong && <SongShareButton song={shareSong} />}
+    </div>
+  );
+}
+
 export function SongControlBar({
   targetKey,
   originalKey,
@@ -119,6 +149,7 @@ export function SongControlBar({
   onToggleFullscreen,
   showAddToPlaylist = false,
   onAddToPlaylist,
+  shareSong,
 }: SongControlBarProps) {
   const displayKey = transposeFlash ?? targetKey;
 
@@ -126,9 +157,11 @@ export function SongControlBar({
     return (
       <div className="mt-3 flex items-center justify-between gap-2">
         <ViewModeSegment viewMode={viewMode} onViewModeChange={onViewModeChange} />
-        {showAddToPlaylist && onAddToPlaylist && (
-          <AddToPlaylistButton onAddToPlaylist={onAddToPlaylist} />
-        )}
+        <SongActionButtons
+          showAddToPlaylist={showAddToPlaylist}
+          onAddToPlaylist={onAddToPlaylist}
+          shareSong={shareSong}
+        />
       </div>
     );
   }
@@ -165,9 +198,11 @@ export function SongControlBar({
 
         <ViewModeSegment viewMode={viewMode} onViewModeChange={onViewModeChange} />
 
-        {showAddToPlaylist && onAddToPlaylist && (
-          <AddToPlaylistButton onAddToPlaylist={onAddToPlaylist} />
-        )}
+        <SongActionButtons
+          showAddToPlaylist={showAddToPlaylist}
+          onAddToPlaylist={onAddToPlaylist}
+          shareSong={shareSong}
+        />
 
         <ChartZoomButtons
           variant="desktop"

@@ -28,6 +28,7 @@ import { validateUsername } from "@/lib/validation";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import type {
   CreateSessionInput,
+  GroupMemberInfo,
   Session,
   SessionData,
   SessionStatus,
@@ -79,6 +80,7 @@ function mapSession(snap: QueryDocumentSnapshot): Session {
     ...data,
     ownerId: data.ownerId ?? data.createdBy,
     sharedWith: data.sharedWith ?? [],
+    sharedMembers: data.sharedMembers ?? [],
   };
 }
 
@@ -278,9 +280,16 @@ export async function sharePlaylistByUsername(
     throw new Error("That user already has access");
   }
 
+  const member: GroupMemberInfo = {
+    uid: inviteeUid,
+    username: validated.normalized,
+    displayName: validated.normalized,
+  };
+
   const firestore = resolveDb(db);
   await updateDoc(doc(firestore, SESSIONS_COLLECTION, session.id), {
     sharedWith: arrayUnion(inviteeUid),
+    sharedMembers: arrayUnion(member),
     updatedAt: serverTimestamp(),
   });
 
