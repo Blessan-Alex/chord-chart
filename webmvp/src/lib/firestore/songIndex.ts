@@ -11,6 +11,7 @@ import {
 import { trackReads } from "@/lib/readCounter";
 
 import type { Key } from "@/lib/engine";
+import { rankSongIndexResults } from "@/lib/songSearchRank";
 import { getDb } from "@/lib/firebase";
 import { buildSongSearchText } from "@/lib/songSearchText";
 import type { Section, SongIndexChunk, SongIndexEntry } from "@/lib/types";
@@ -134,30 +135,7 @@ export function filterSongIndex(
   keyFilter?: Key,
   tagFilter?: string,
 ): SongIndexEntry[] {
-  const q = query.trim().toLowerCase();
-  let results = entries;
-
-  if (keyFilter) {
-    results = results.filter((entry) => entry.key === keyFilter);
-  }
-
-  if (tagFilter) {
-    results = results.filter((entry) => (entry.tags ?? []).includes(tagFilter));
-  }
-
-  if (!q) {
-    return [...results].sort((a, b) => a.title.localeCompare(b.title));
-  }
-
-  return results
-    .filter(
-      (entry) =>
-        entry.searchText?.includes(q) ||
-        entry.title.toLowerCase().includes(q) ||
-        (entry.artist ?? "").toLowerCase().includes(q) ||
-        (entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q)),
-    )
-    .sort((a, b) => a.title.localeCompare(b.title));
+  return rankSongIndexResults(entries, query, keyFilter, tagFilter);
 }
 
 function resolveDb(db?: Firestore): Firestore {

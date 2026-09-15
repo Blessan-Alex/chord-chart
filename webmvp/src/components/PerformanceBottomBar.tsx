@@ -10,8 +10,6 @@ import type { ChartTheme } from "@/lib/performancePreferences";
 
 type PerformanceBottomBarProps = {
   targetKey: Key;
-  onTransposeDown: () => void;
-  onTransposeUp: () => void;
   onOpenKeyModal: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
@@ -28,30 +26,6 @@ type PerformanceBottomBarProps = {
   fullscreenActive?: boolean;
   onToggleFullscreen?: () => void;
 };
-
-function IconButton({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-lf-text-primary transition-colors hover:bg-lf-bg-muted disabled:opacity-30"
-    >
-      {children}
-    </button>
-  );
-}
 
 function NavLink({
   href,
@@ -94,8 +68,6 @@ const THEME_LABELS: Record<ChartTheme, string> = {
 
 export function PerformanceBottomBar({
   targetKey,
-  onTransposeDown,
-  onTransposeUp,
   onOpenKeyModal,
   onZoomOut,
   onZoomIn,
@@ -145,11 +117,8 @@ export function PerformanceBottomBar({
           )}
 
           <div
-            className={`flex shrink-0 items-center gap-0.5 ${!(prevHref || nextHref) ? "mx-auto" : ""}`}
+            className={`flex shrink-0 items-center ${!(prevHref || nextHref) ? "mx-auto" : ""}`}
           >
-            <IconButton label="Transpose down" onClick={onTransposeDown}>
-              −
-            </IconButton>
             <button
               type="button"
               onClick={onOpenKeyModal}
@@ -161,9 +130,6 @@ export function PerformanceBottomBar({
                 {displayKey}
               </span>
             </button>
-            <IconButton label="Transpose up" onClick={onTransposeUp}>
-              +
-            </IconButton>
           </div>
 
           <div className="flex shrink-0 items-center gap-0.5">

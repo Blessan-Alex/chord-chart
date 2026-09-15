@@ -1,20 +1,29 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import {
+  LibraryFilterSheet,
+  libraryFilterLabel,
+} from "@/components/LibraryFilterSheet";
 import { PageError } from "@/components/PageError";
 import {
   PlaylistPreviewCard,
   type PlaylistPreviewSong,
 } from "@/components/PlaylistPreviewCard";
+import {
+  SearchSuggestions,
+  useSearchSuggestionsKeyboard,
+  useSearchSuggestionsState,
+} from "@/components/SearchSuggestions";
 import { SongRow } from "@/components/SongRow";
 import { SongRowSkeleton } from "@/components/SongRowSkeleton";
 import { HOME_LIBRARY_PAGE_SIZE, LIBRARY_BROWSE_CAP } from "@/lib/constants";
-import { ALL_KEYS, type Key } from "@/lib/engine";
+import type { Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
-import { LANGUAGE_TAGS } from "@/lib/languageTags";
 import { listGroupsForMember } from "@/lib/firestore/groups";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import {
@@ -29,10 +38,6 @@ import { useSongSearch } from "@/lib/hooks/useSongSearch";
 import { filterRecentByKnownIds } from "@/lib/recentSongs";
 import { deleteSong, getSongs } from "@/lib/storage";
 import type { Group, Session, Song, SongIndexEntry } from "@/lib/types";
-
-function isKey(value: string): value is Key {
-  return (ALL_KEYS as readonly string[]).includes(value);
-}
 
 function SectionHeader({
   title,
@@ -74,7 +79,23 @@ function SearchIcon() {
   );
 }
 
+function FilterIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+    </svg>
+  );
+}
+
 export function HomePage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { recentSongs } = useRecentSongs();
   const [savedSongs, setSavedSongs] = useState<Song[]>([]);
@@ -97,6 +118,7 @@ export function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [keyFilter, setKeyFilter] = useState<Key | "">("");
   const [languageFilter, setLanguageFilter] = useState("");
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [libraryPage, setLibraryPage] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
@@ -110,6 +132,43 @@ export function HomePage() {
     keyFilter || undefined,
     languageFilter || undefined,
   );
+  const searchSuggestions = useMemo(
+    () => libraryResults.slice(0, 6),
+    [libraryResults],
+  );
+  const {
+    setFocused: setSearchFocused,
+    activeIndex: suggestionIndex,
+    setActiveIndex: setSuggestionIndex,
+    open: suggestionsOpen,
+    close: closeSuggestions,
+    dismiss: dismissSuggestions,
+  } = useSearchSuggestionsState(searchQuery);
+
+  const handleSelectSuggestion = useCallback(
+    (entry: SongIndexEntry) => {
+      dismissSuggestions();
+      router.push(`/song/${entry.id}`);
+    },
+    [dismissSuggestions, router],
+  );
+
+  const handleSearchKeyDown = useSearchSuggestionsKeyboard({
+    open: suggestionsOpen,
+    resultCount: searchSuggestions.length,
+    activeIndex: suggestionIndex,
+    onActiveIndexChange: setSuggestionIndex,
+    onSelectFirst: () => {
+      const entry = searchSuggestions[suggestionIndex];
+      if (entry) {
+        handleSelectSuggestion(entry);
+      }
+    },
+    onClose: closeSuggestions,
+  });
+
+  const filterButtonLabel = libraryFilterLabel(keyFilter, languageFilter);
+  const hasActiveFilters = Boolean(keyFilter || languageFilter);
   const isBrowsingAll = !searchQuery.trim() && !keyFilter && !languageFilter;
   const libraryPageCount = Math.max(
     1,
@@ -357,75 +416,65 @@ export function HomePage() {
           </p>
         )}
 
-        <div className="flex flex-col gap-3">
-          <label className="relative block">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lf-text-tertiary">
-              <SearchIcon />
-            </span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search songs, artists, lyrics…"
-              className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated py-3 pl-12 pr-4 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <div className="relative min-w-0 flex-1">
+            <label className="relative block">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lf-text-tertiary">
+                <SearchIcon />
+              </span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search songs, artists, lyrics…"
+                role="combobox"
+                aria-expanded={suggestionsOpen}
+                aria-controls="search-suggestions"
+                aria-autocomplete="list"
+                className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated py-3 pl-12 pr-4 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+              />
+            </label>
+
+            <SearchSuggestions
+              open={suggestionsOpen}
+              results={searchSuggestions}
+              activeIndex={suggestionIndex}
+              onActiveIndexChange={setSuggestionIndex}
+              onSelect={handleSelectSuggestion}
+              onClose={closeSuggestions}
             />
-          </label>
-
-          <select
-            value={keyFilter}
-            onChange={(e) => {
-              const value = e.target.value;
-              setKeyFilter(value && isKey(value) ? value : "");
-            }}
-            className="min-h-11 max-w-xs rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-sm text-lf-text-primary"
-            aria-label="Filter by key"
-          >
-            <option value="">All keys</option>
-            {ALL_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {key}
-              </option>
-            ))}
-          </select>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-lf-text-tertiary">
-              Language
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setLanguageFilter("")}
-                className={`min-h-9 rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors ${
-                  !languageFilter
-                    ? "border-lf-brand bg-lf-bg-active text-lf-brand"
-                    : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
-                }`}
-              >
-                All
-              </button>
-              {LANGUAGE_TAGS.map((entry) => {
-                const isSelected = languageFilter === entry.value;
-                return (
-                  <button
-                    key={entry.value}
-                    type="button"
-                    onClick={() =>
-                      setLanguageFilter(isSelected ? "" : entry.value)
-                    }
-                    className={`min-h-9 rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors ${
-                      isSelected
-                        ? "border-lf-brand bg-lf-bg-active text-lf-brand"
-                        : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
-                    }`}
-                  >
-                    {entry.label}
-                  </button>
-                );
-              })}
-            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setFilterSheetOpen(true)}
+            className={`inline-flex min-h-12 shrink-0 items-center gap-2 self-start rounded-[var(--lf-radius-md)] border px-4 text-sm font-medium transition-colors ${
+              hasActiveFilters
+                ? "border-lf-brand bg-lf-bg-active text-lf-brand"
+                : "border-lf-border bg-lf-bg-elevated text-lf-text-primary hover:bg-lf-bg-muted"
+            }`}
+            aria-label="Open library filters"
+          >
+            <FilterIcon />
+            <span className="max-w-[12rem] truncate">{filterButtonLabel}</span>
+          </button>
         </div>
+
+        <LibraryFilterSheet
+          open={filterSheetOpen}
+          keyFilter={keyFilter}
+          languageFilter={languageFilter}
+          onKeyFilterChange={setKeyFilter}
+          onLanguageFilterChange={setLanguageFilter}
+          onClearFilters={() => {
+            setKeyFilter("");
+            setLanguageFilter("");
+          }}
+          onClose={() => setFilterSheetOpen(false)}
+        />
 
         {indexError && <PageError title="Library error" error={indexError} />}
         {socialError && (

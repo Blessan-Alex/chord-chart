@@ -405,8 +405,6 @@ export default function SongPage() {
           backHref={backHref}
           backLabel={backLabel}
           compact={isMobile || performanceMode}
-          showAddToPlaylist={Boolean(user)}
-          onAddToPlaylist={() => setShowAddToSession(true)}
           trailing={
             <SongShareButton
               song={{ id: song.id, title: song.title }}
@@ -436,6 +434,8 @@ export default function SongPage() {
           onToggleAutoscroll={toggleAutoscroll}
           fullscreenActive={fullscreen.active}
           onToggleFullscreen={toggleFullscreen}
+          showAddToPlaylist={Boolean(user)}
+          onAddToPlaylist={() => setShowAddToSession(true)}
         />
       )}
 
@@ -531,8 +531,6 @@ export default function SongPage() {
       {isMobile && !autoscroll.active && !fullscreen.active && (
         <PerformanceBottomBar
           targetKey={currentKey}
-          onTransposeDown={() => handleTranspose(-1)}
-          onTransposeUp={() => handleTranspose(1)}
           onOpenKeyModal={() => setShowKeyModal(true)}
           onZoomOut={zoom.zoomOut}
           onZoomIn={zoom.zoomIn}

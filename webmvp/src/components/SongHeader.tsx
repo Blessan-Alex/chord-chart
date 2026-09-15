@@ -8,8 +8,6 @@ type SongHeaderProps = {
   backHref: string;
   backLabel?: string;
   compact?: boolean;
-  showAddToPlaylist?: boolean;
-  onAddToPlaylist?: () => void;
   trailing?: React.ReactNode;
 };
 
@@ -19,8 +17,6 @@ export function SongHeader({
   backHref,
   backLabel = "Back",
   compact = false,
-  showAddToPlaylist = false,
-  onAddToPlaylist,
   trailing,
 }: SongHeaderProps) {
   return (
@@ -47,15 +43,6 @@ export function SongHeader({
           ) : null}
         </div>
 
-        {showAddToPlaylist && (
-          <button
-            type="button"
-            onClick={onAddToPlaylist}
-            className="min-h-11 shrink-0 rounded-[var(--lf-radius-md)] border border-lf-border px-3 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
-          >
-            + Playlist
-          </button>
-        )}
         {trailing}
       </div>
     </header>

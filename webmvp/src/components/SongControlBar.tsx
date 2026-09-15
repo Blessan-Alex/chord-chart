@@ -3,6 +3,7 @@
 import { AutoscrollToggleButton } from "@/components/AutoscrollToggleButton";
 import { ChartZoomButtons } from "@/components/ChartZoomButtons";
 import { FullscreenToggleButton } from "@/components/FullscreenToggleButton";
+import { IconActionButton } from "@/components/IconActionButton";
 import type { Key } from "@/lib/engine";
 import type { SongViewMode } from "@/lib/types";
 
@@ -22,6 +23,8 @@ type SongControlBarProps = {
   autoscrollActive?: boolean;
   fullscreenActive?: boolean;
   onToggleFullscreen?: () => void;
+  showAddToPlaylist?: boolean;
+  onAddToPlaylist?: () => void;
 };
 
 function SegmentButton({
@@ -48,6 +51,56 @@ function SegmentButton({
   );
 }
 
+function PlaylistIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </svg>
+  );
+}
+
+function ViewModeSegment({
+  viewMode,
+  onViewModeChange,
+}: {
+  viewMode: SongViewMode;
+  onViewModeChange: (mode: SongViewMode) => void;
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated">
+      <SegmentButton
+        active={viewMode === "chords"}
+        onClick={() => onViewModeChange("chords")}
+      >
+        Chords
+      </SegmentButton>
+      <SegmentButton
+        active={viewMode === "numbers"}
+        onClick={() => onViewModeChange("numbers")}
+      >
+        Numbers
+      </SegmentButton>
+    </div>
+  );
+}
+
+function AddToPlaylistButton({ onAddToPlaylist }: { onAddToPlaylist: () => void }) {
+  return (
+    <IconActionButton label="Add to playlist" onClick={onAddToPlaylist}>
+      <PlaylistIcon />
+    </IconActionButton>
+  );
+}
+
 export function SongControlBar({
   targetKey,
   originalKey,
@@ -64,26 +117,18 @@ export function SongControlBar({
   autoscrollActive = false,
   fullscreenActive = false,
   onToggleFullscreen,
+  showAddToPlaylist = false,
+  onAddToPlaylist,
 }: SongControlBarProps) {
   const displayKey = transposeFlash ?? targetKey;
 
   if (showMobileControls) {
     return (
-      <div className="mt-3">
-        <div className="flex overflow-hidden rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated">
-          <SegmentButton
-            active={viewMode === "chords"}
-            onClick={() => onViewModeChange("chords")}
-          >
-            Chords
-          </SegmentButton>
-          <SegmentButton
-            active={viewMode === "numbers"}
-            onClick={() => onViewModeChange("numbers")}
-          >
-            Numbers
-          </SegmentButton>
-        </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <ViewModeSegment viewMode={viewMode} onViewModeChange={onViewModeChange} />
+        {showAddToPlaylist && onAddToPlaylist && (
+          <AddToPlaylistButton onAddToPlaylist={onAddToPlaylist} />
+        )}
       </div>
     );
   }
@@ -118,20 +163,11 @@ export function SongControlBar({
           </button>
         </div>
 
-        <div className="flex overflow-hidden rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated">
-          <SegmentButton
-            active={viewMode === "chords"}
-            onClick={() => onViewModeChange("chords")}
-          >
-            Chords
-          </SegmentButton>
-          <SegmentButton
-            active={viewMode === "numbers"}
-            onClick={() => onViewModeChange("numbers")}
-          >
-            Numbers
-          </SegmentButton>
-        </div>
+        <ViewModeSegment viewMode={viewMode} onViewModeChange={onViewModeChange} />
+
+        {showAddToPlaylist && onAddToPlaylist && (
+          <AddToPlaylistButton onAddToPlaylist={onAddToPlaylist} />
+        )}
 
         <ChartZoomButtons
           variant="desktop"
