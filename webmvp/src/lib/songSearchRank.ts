@@ -1,4 +1,5 @@
 import type { Key } from "@/lib/engine";
+import { artistMatchesFilter } from "@/lib/libraryArtists";
 import type { SongIndexEntry } from "@/lib/types";
 
 function tokenize(query: string): string[] {
@@ -87,6 +88,7 @@ function applyFilters(
   entries: SongIndexEntry[],
   keyFilter?: Key,
   tagFilter?: string,
+  artistFilter?: string,
 ): SongIndexEntry[] {
   let results = entries;
 
@@ -98,6 +100,12 @@ function applyFilters(
     results = results.filter((entry) => (entry.tags ?? []).includes(tagFilter));
   }
 
+  if (artistFilter?.trim()) {
+    results = results.filter((entry) =>
+      artistMatchesFilter(entry.artist, artistFilter),
+    );
+  }
+
   return results;
 }
 
@@ -106,8 +114,9 @@ export function rankSongIndexResults(
   query: string,
   keyFilter?: Key,
   tagFilter?: string,
+  artistFilter?: string,
 ): SongIndexEntry[] {
-  const filtered = applyFilters(entries, keyFilter, tagFilter);
+  const filtered = applyFilters(entries, keyFilter, tagFilter, artistFilter);
   const tokens = tokenize(query);
 
   if (tokens.length === 0) {

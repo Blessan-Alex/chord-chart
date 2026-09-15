@@ -7,8 +7,11 @@ type LibraryFilterSheetProps = {
   open: boolean;
   keyFilter: Key | "";
   languageFilter: string;
+  artistFilter: string;
+  artists: string[];
   onKeyFilterChange: (key: Key | "") => void;
   onLanguageFilterChange: (tag: string) => void;
+  onArtistFilterChange: (artist: string) => void;
   onClearFilters: () => void;
   onClose: () => void;
 };
@@ -17,8 +20,11 @@ export function LibraryFilterSheet({
   open,
   keyFilter,
   languageFilter,
+  artistFilter,
+  artists,
   onKeyFilterChange,
   onLanguageFilterChange,
+  onArtistFilterChange,
   onClearFilters,
   onClose,
 }: LibraryFilterSheetProps) {
@@ -26,7 +32,7 @@ export function LibraryFilterSheet({
     return null;
   }
 
-  const hasActiveFilters = Boolean(keyFilter || languageFilter);
+  const hasActiveFilters = Boolean(keyFilter || languageFilter || artistFilter);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
@@ -41,7 +47,7 @@ export function LibraryFilterSheet({
           <div>
             <h2 className="text-lg font-semibold text-lf-text-primary">Filters</h2>
             <p className="text-sm text-lf-text-secondary">
-              Filter by key, language, or both
+              Filter by key, language, or artist
             </p>
           </div>
           <button
@@ -128,6 +134,49 @@ export function LibraryFilterSheet({
           </div>
         </section>
 
+        <section className="mb-6">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-lf-text-tertiary">
+            Artist
+          </h3>
+          {artists.length === 0 ? (
+            <p className="text-sm text-lf-text-secondary">
+              No artists in the library yet. Add an artist when editing a song to filter by
+              artist here.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onArtistFilterChange("")}
+                className={`min-h-9 rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors ${
+                  !artistFilter
+                    ? "border-lf-brand bg-lf-bg-active text-lf-brand"
+                    : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
+                }`}
+              >
+                All
+              </button>
+              {artists.map((name) => {
+                const isSelected = artistFilter === name;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => onArtistFilterChange(isSelected ? "" : name)}
+                    className={`min-h-9 max-w-full truncate rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors ${
+                      isSelected
+                        ? "border-lf-brand bg-lf-bg-active text-lf-brand"
+                        : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
+                    }`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {hasActiveFilters && (
           <button
             type="button"
@@ -145,6 +194,7 @@ export function LibraryFilterSheet({
 export function libraryFilterLabel(
   keyFilter: Key | "",
   languageFilter: string,
+  artistFilter: string,
 ): string {
   const parts: string[] = [];
 
@@ -157,6 +207,10 @@ export function libraryFilterLabel(
     if (label) {
       parts.push(label);
     }
+  }
+
+  if (artistFilter) {
+    parts.push(artistFilter);
   }
 
   if (parts.length === 0) {

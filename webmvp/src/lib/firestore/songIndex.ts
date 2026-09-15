@@ -134,8 +134,9 @@ export function filterSongIndex(
   query: string,
   keyFilter?: Key,
   tagFilter?: string,
+  artistFilter?: string,
 ): SongIndexEntry[] {
-  return rankSongIndexResults(entries, query, keyFilter, tagFilter);
+  return rankSongIndexResults(entries, query, keyFilter, tagFilter, artistFilter);
 }
 
 function resolveDb(db?: Firestore): Firestore {

@@ -71,6 +71,17 @@ describe("rankSongIndexResults", () => {
     expect(results.map((entry) => entry.id)).toEqual(["malayalam-song"]);
   });
 
+  it("applies artist filter before scoring", () => {
+    const results = rankSongIndexResults(
+      entries,
+      "",
+      undefined,
+      undefined,
+      "Chris Tomlin",
+    );
+    expect(results.map((entry) => entry.id)).toEqual(["good-good-father"]);
+  });
+
   it("sorts alphabetically when query is empty", () => {
     const results = rankSongIndexResults(entries, "");
     expect(results.map((entry) => entry.title)).toEqual([

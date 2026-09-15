@@ -35,6 +35,7 @@ import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessi
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
+import { collectLibraryArtists, isArtistFilterValid } from "@/lib/libraryArtists";
 import { filterRecentByKnownIds } from "@/lib/recentSongs";
 import { deleteSong, getSongs } from "@/lib/storage";
 import type { Group, Session, Song, SongIndexEntry } from "@/lib/types";
@@ -118,6 +119,7 @@ export function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [keyFilter, setKeyFilter] = useState<Key | "">("");
   const [languageFilter, setLanguageFilter] = useState("");
+  const [artistFilter, setArtistFilter] = useState("");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [libraryPage, setLibraryPage] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<{
@@ -126,11 +128,23 @@ export function HomePage() {
     source: "local";
   } | null>(null);
 
+  const libraryArtists = useMemo(
+    () => collectLibraryArtists(indexEntries),
+    [indexEntries],
+  );
+
+  useEffect(() => {
+    if (!isArtistFilterValid(artistFilter, libraryArtists)) {
+      setArtistFilter("");
+    }
+  }, [artistFilter, libraryArtists]);
+
   const libraryResults = useSongSearch(
     indexEntries,
     searchQuery,
     keyFilter || undefined,
     languageFilter || undefined,
+    artistFilter || undefined,
   );
   const searchSuggestions = useMemo(
     () => libraryResults.slice(0, 6),
@@ -167,9 +181,14 @@ export function HomePage() {
     onClose: closeSuggestions,
   });
 
-  const filterButtonLabel = libraryFilterLabel(keyFilter, languageFilter);
-  const hasActiveFilters = Boolean(keyFilter || languageFilter);
-  const isBrowsingAll = !searchQuery.trim() && !keyFilter && !languageFilter;
+  const filterButtonLabel = libraryFilterLabel(
+    keyFilter,
+    languageFilter,
+    artistFilter,
+  );
+  const hasActiveFilters = Boolean(keyFilter || languageFilter || artistFilter);
+  const isBrowsingAll =
+    !searchQuery.trim() && !keyFilter && !languageFilter && !artistFilter;
   const libraryPageCount = Math.max(
     1,
     Math.ceil(libraryResults.length / HOME_LIBRARY_PAGE_SIZE),
@@ -197,7 +216,8 @@ export function HomePage() {
     visibleRecent.length > 0 &&
     !searchQuery.trim() &&
     !keyFilter &&
-    !languageFilter;
+    !languageFilter &&
+    !artistFilter;
 
   const refreshLocalSongs = useCallback(() => {
     setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
@@ -209,7 +229,7 @@ export function HomePage() {
 
   useEffect(() => {
     setLibraryPage(0);
-  }, [searchQuery, keyFilter, languageFilter]);
+  }, [searchQuery, keyFilter, languageFilter, artistFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -370,7 +390,7 @@ export function HomePage() {
   };
 
   const showLocalSongs =
-    !user && savedSongs.length > 0 && !searchQuery.trim() && !keyFilter && !languageFilter;
+    !user && savedSongs.length > 0 && !searchQuery.trim() && !keyFilter && !languageFilter && !artistFilter;
 
   return (
     <div className="mx-auto w-full max-w-3xl overflow-x-clip p-4 sm:p-8">
@@ -469,11 +489,15 @@ export function HomePage() {
           open={filterSheetOpen}
           keyFilter={keyFilter}
           languageFilter={languageFilter}
+          artistFilter={artistFilter}
+          artists={libraryArtists}
           onKeyFilterChange={setKeyFilter}
           onLanguageFilterChange={setLanguageFilter}
+          onArtistFilterChange={setArtistFilter}
           onClearFilters={() => {
             setKeyFilter("");
             setLanguageFilter("");
+            setArtistFilter("");
           }}
           onClose={() => setFilterSheetOpen(false)}
         />
@@ -500,7 +524,7 @@ export function HomePage() {
           </section>
         )}
 
-        {user && !searchQuery.trim() && !keyFilter && !languageFilter && (
+        {user && !searchQuery.trim() && !keyFilter && !languageFilter && !artistFilter && (
           <>
             <section>
               <SectionHeader title="My playlists" seeAllHref="/playlists" />
