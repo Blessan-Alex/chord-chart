@@ -1,3 +1,4 @@
+import { prefersAuthRedirect as prefersAuthRedirectFromSignals } from "@/lib/authRedirect";
 import { formatError } from "@/lib/formatError";
 
 function authErrorCode(error: unknown): string | null {
@@ -30,6 +31,12 @@ export function formatAuthError(error: unknown): string {
       return "Too many attempts. Wait a moment and try again.";
     case "auth/network-request-failed":
       return "Network error. Check your connection and try again.";
+    case "auth/redirect-cancelled-by-user":
+      return "Sign-in was cancelled.";
+    case "auth/unauthorized-domain":
+      return "This site is not authorized for sign-in. Contact support if this persists.";
+    case "auth/operation-not-allowed":
+      return "Google sign-in is not enabled for this app.";
     default:
       return formatError(error);
   }
@@ -40,10 +47,12 @@ function prefersAuthRedirect(): boolean {
     return false;
   }
 
-  return (
-    window.matchMedia("(max-width: 768px), (pointer: coarse)").matches ||
-    navigator.maxTouchPoints > 0
-  );
+  return prefersAuthRedirectFromSignals({
+    userAgent: navigator.userAgent,
+    coarsePointer: window.matchMedia("(pointer: coarse)").matches,
+    hoverNone: window.matchMedia("(hover: none)").matches,
+    maxWidth1024: window.matchMedia("(max-width: 1024px)").matches,
+  });
 }
 
 export { prefersAuthRedirect };

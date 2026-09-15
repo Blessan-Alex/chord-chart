@@ -30,6 +30,10 @@ import {
   initAppCheck,
   isFirebaseEnabled,
 } from "@/lib/firebase";
+import {
+  clearAuthRedirectPending,
+  markAuthRedirectPending,
+} from "@/lib/authRedirect";
 import { formatAuthError, prefersAuthRedirect } from "@/lib/authErrors";
 import {
   claimUsername,
@@ -123,43 +127,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAppCheck();
     const auth = getFirebaseAuth();
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
 
-    void getRedirectResult(auth).catch((error) => {
-      setAuthError(formatAuthError(error));
-    });
+    void (async () => {
+      try {
+        await getRedirectResult(auth);
+        clearAuthRedirectPending();
+      } catch (error) {
+        clearAuthRedirectPending();
+        if (!cancelled) {
+          setAuthError(formatAuthError(error));
+        }
+      }
 
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
-      setProfileResolved(false);
+      if (cancelled) {
+        return;
+      }
 
-      if (nextUser) {
-        try {
-          if (!signUpInProgressRef.current) {
-            await ensureLegacyUserProfile(nextUser);
+      unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+        setUser(nextUser);
+        setProfileResolved(false);
+
+        if (nextUser) {
+          try {
+            if (!signUpInProgressRef.current) {
+              await ensureLegacyUserProfile(nextUser);
+            }
+            await touchLastLogin(nextUser.uid);
+            const loadedProfile = await loadProfile(nextUser.uid);
+            setProfile(loadedProfile);
+            setNeedsUsernameOnboarding(
+              loadedProfile !== null && !loadedProfile.username,
+            );
+            setIsAdmin(await readIsAdmin(nextUser));
+          } catch {
+            setProfile(null);
+            setNeedsUsernameOnboarding(false);
+            setIsAdmin(false);
           }
-          await touchLastLogin(nextUser.uid);
-          const loadedProfile = await loadProfile(nextUser.uid);
-          setProfile(loadedProfile);
-          setNeedsUsernameOnboarding(
-            loadedProfile !== null && !loadedProfile.username,
-          );
-          setIsAdmin(await readIsAdmin(nextUser));
-        } catch {
+        } else {
           setProfile(null);
           setNeedsUsernameOnboarding(false);
           setIsAdmin(false);
         }
-      } else {
-        setProfile(null);
-        setNeedsUsernameOnboarding(false);
-        setIsAdmin(false);
-      }
 
-      setProfileResolved(true);
-      setLoading(false);
-    });
+        setProfileResolved(true);
+        setLoading(false);
+      });
+    })();
 
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -179,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     provider.setCustomParameters({ prompt: "select_account" });
 
     if (prefersAuthRedirect()) {
+      markAuthRedirectPending();
       await signInWithRedirect(auth, provider);
       return;
     }

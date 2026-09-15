@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
+import { resolveFirebaseAuthDomain } from "@/lib/firebaseAuthDomain";
 import {
   connectFirestoreEmulator,
   initializeFirestore,
@@ -10,17 +11,30 @@ import {
   type Firestore,
 } from "firebase/firestore";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
 function isFirebaseConfigured(): boolean {
-  return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+  return Boolean(
+    process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  );
+}
+
+function buildFirebaseConfig() {
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  const hostname =
+    typeof window === "undefined" ? "localhost" : window.location.hostname;
+
+  return {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: resolveFirebaseAuthDomain({
+      configured: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      hostname,
+      projectId,
+    }),
+    projectId,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  };
 }
 
 let app: FirebaseApp | undefined;
@@ -36,7 +50,8 @@ export function getFirebaseApp(): FirebaseApp {
   }
 
   if (!app) {
-    app = getApps().length > 0 ? getApps()[0]! : initializeApp(firebaseConfig);
+    app =
+      getApps().length > 0 ? getApps()[0]! : initializeApp(buildFirebaseConfig());
   }
 
   return app;

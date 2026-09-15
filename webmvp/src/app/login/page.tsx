@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { DemoAccounts } from "@/components/DemoAccounts";
 import { LoginForm } from "@/components/LoginForm";
+import { isAuthRedirectPending } from "@/lib/authRedirect";
 import { getFirebaseAuth, isFirebaseEnabled } from "@/lib/firebase";
 import { useAuth } from "@/lib/hooks/useAuth";
 import {
@@ -24,6 +25,11 @@ function LoginPageContent() {
   const { user, profile, loading, profileResolved, isAdmin, signIn, signInWithGoogle, authError, clearAuthError } =
     useAuth();
   const [redirectError, setRedirectError] = useState<string | null>(null);
+  const [completingRedirect, setCompletingRedirect] = useState(false);
+
+  useEffect(() => {
+    setCompletingRedirect(isAuthRedirectPending());
+  }, []);
 
   useEffect(() => {
     if (authError) {
@@ -31,6 +37,12 @@ function LoginPageContent() {
       clearAuthError();
     }
   }, [authError, clearAuthError]);
+
+  useEffect(() => {
+    if (!loading && profileResolved) {
+      setCompletingRedirect(false);
+    }
+  }, [loading, profileResolved]);
 
   useEffect(() => {
     if (!loading && profileResolved && user) {
@@ -92,6 +104,12 @@ function LoginPageContent() {
             </p>
           )}
 
+          {completingRedirect && loading && (
+            <p className="mb-4 text-sm text-lf-text-secondary" role="status">
+              Completing sign-in…
+            </p>
+          )}
+
           {redirectError && (
             <p className="mb-4 text-sm text-lf-danger" role="alert">
               {redirectError}
@@ -101,7 +119,7 @@ function LoginPageContent() {
           <LoginForm
             onSubmit={handleSignIn}
             onGoogleSignIn={handleGoogleSignIn}
-            loading={loading}
+            loading={loading || completingRedirect}
             signupHref={signupHref}
           />
 
