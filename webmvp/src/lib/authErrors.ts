@@ -1,4 +1,3 @@
-import { prefersAuthRedirect as prefersAuthRedirectFromSignals } from "@/lib/authRedirect";
 import { formatError } from "@/lib/formatError";
 
 function authErrorCode(error: unknown): string | null {
@@ -41,18 +40,3 @@ export function formatAuthError(error: unknown): string {
       return formatError(error);
   }
 }
-
-function prefersAuthRedirect(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return prefersAuthRedirectFromSignals({
-    userAgent: navigator.userAgent,
-    coarsePointer: window.matchMedia("(pointer: coarse)").matches,
-    hoverNone: window.matchMedia("(hover: none)").matches,
-    maxWidth1024: window.matchMedia("(max-width: 1024px)").matches,
-  });
-}
-
-export { prefersAuthRedirect };

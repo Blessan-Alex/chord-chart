@@ -1,21 +1,3 @@
-export function prefersAuthRedirect(options: {
-  userAgent: string;
-  coarsePointer: boolean;
-  hoverNone: boolean;
-  maxWidth1024: boolean;
-}): boolean {
-  const mobileUa =
-    /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
-      options.userAgent,
-    );
-
-  return (
-    mobileUa ||
-    options.coarsePointer ||
-    (options.hoverNone && options.maxWidth1024)
-  );
-}
-
 export const AUTH_REDIRECT_PENDING_KEY = "authRedirectPending";
 
 export function markAuthRedirectPending(): void {

@@ -4,10 +4,8 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   getRedirectResult,
-  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signInWithRedirect,
   signOut as firebaseSignOut,
   updateProfile,
@@ -34,7 +32,8 @@ import {
   clearAuthRedirectPending,
   markAuthRedirectPending,
 } from "@/lib/authRedirect";
-import { formatAuthError, prefersAuthRedirect } from "@/lib/authErrors";
+import { formatAuthError } from "@/lib/authErrors";
+import { createGoogleAuthProvider } from "@/lib/googleAuth";
 import {
   claimUsername,
   createUserProfile,
@@ -195,17 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Firebase is not configured");
     }
 
-    const auth = getFirebaseAuth();
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-
-    if (prefersAuthRedirect()) {
-      markAuthRedirectPending();
-      await signInWithRedirect(auth, provider);
-      return;
-    }
-
-    await signInWithPopup(auth, provider);
+    markAuthRedirectPending();
+    await signInWithRedirect(
+      getFirebaseAuth(),
+      createGoogleAuthProvider(),
+    );
   }, []);
 
   const signUp = useCallback(
