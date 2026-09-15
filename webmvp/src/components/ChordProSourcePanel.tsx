@@ -7,6 +7,7 @@ import {
   parseChordProSections,
   sectionsToChordProText,
 } from "@/lib/chordProParser";
+import { EDITOR_SOURCE_HEADING } from "@/lib/editorLabels";
 import type { Section } from "@/lib/types";
 
 type ChordProSourcePanelProps = {
@@ -44,7 +45,7 @@ export function ChordProSourcePanel({
     <div className="flex flex-col gap-4">
       <div>
         <h3 className="text-sm font-semibold text-lf-text-primary">
-          ChordPro source
+          {EDITOR_SOURCE_HEADING}
         </h3>
         <p className="mt-1 text-sm text-lf-text-secondary">
           Paste lyrics with inline chords like{" "}

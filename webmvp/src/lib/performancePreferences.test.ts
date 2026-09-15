@@ -26,7 +26,8 @@ describe("performancePreferences", () => {
   });
 
   it("clamps zoom scale", () => {
-    expect(clampChartScale(0.5)).toBe(0.85);
+    expect(clampChartScale(0.5)).toBe(0.65);
+    expect(clampChartScale(0.65)).toBe(0.65);
     expect(clampChartScale(3)).toBe(2);
     expect(clampChartScale(1.2)).toBe(1.2);
   });

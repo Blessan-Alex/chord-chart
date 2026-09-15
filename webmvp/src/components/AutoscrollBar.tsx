@@ -1,5 +1,7 @@
 "use client";
 
+import { formatAutoscrollSpeed } from "@/lib/autoscrollSpeed";
+
 type AutoscrollBarProps = {
   speed: number;
   paused: boolean;
@@ -39,7 +41,7 @@ export function AutoscrollBar({
             −
           </button>
           <span className="inline-flex min-w-16 items-center justify-center text-sm font-semibold tabular-nums text-lf-brand">
-            {speed.toFixed(1)}x
+            {formatAutoscrollSpeed(speed)}x
           </span>
           <button
             type="button"

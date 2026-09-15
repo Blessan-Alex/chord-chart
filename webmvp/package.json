@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "seed": "tsx scripts/seed-songs.ts",
     "rebuild-index": "tsx scripts/rebuild-index.ts",
+    "measure-index": "tsx scripts/measure-index-size.ts",
     "set-admin": "tsx scripts/set-admin.ts",
     "export-songs": "tsx scripts/export-songs.ts",
     "seed-load-test": "tsx scripts/seed-load-test.ts",

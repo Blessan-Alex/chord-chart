@@ -47,7 +47,7 @@ export function useChartZoom({ sessionId }: UseChartZoomOptions = {}) {
     }
     indicatorTimeout.current = setTimeout(() => {
       setShowIndicator(false);
-    }, 1200);
+    }, 1500);
   }, []);
 
   const setScale = useCallback(

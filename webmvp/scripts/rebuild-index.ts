@@ -6,6 +6,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 
 import type { Key } from "../src/lib/engine";
+import type { Section } from "../src/lib/types";
 import {
   buildIndexChunks,
   songToIndexEntry,
@@ -26,6 +27,7 @@ export async function rebuildIndex(db = getAdminDb()): Promise<void> {
       artist: doc.data().artist as string | undefined,
       originalKey: doc.data().originalKey as Key,
       tags: doc.data().tags as string[] | undefined,
+      sections: doc.data().sections as Section[] | undefined,
     }),
   );
 

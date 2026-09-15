@@ -48,6 +48,7 @@ async function seedSongs(): Promise<void> {
         id: preset.presetId,
         title: preset.title,
         originalKey: preset.originalKey,
+        sections: preset.sections,
       }),
     );
   }

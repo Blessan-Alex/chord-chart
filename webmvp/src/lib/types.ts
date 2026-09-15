@@ -42,6 +42,8 @@ export type SongIndexEntry = {
   artist: string;
   key: Key;
   tags: string[];
+  /** Lowercase normalized text for client-side search (title + artist + tags + lyrics). */
+  searchText?: string;
 };
 
 /** `songIndex/{chunkId}` document shape. */

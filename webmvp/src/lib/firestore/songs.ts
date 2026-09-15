@@ -173,7 +173,31 @@ export async function updateSong(
   if (patch.copyright !== undefined) updates.copyright = patch.copyright;
   if (patch.notes !== undefined) updates.notes = patch.notes;
 
-  await updateDoc(doc(resolveDb(db), SONGS_COLLECTION, songId), updates);
+  const firestore = resolveDb(db);
+  await updateDoc(doc(firestore, SONGS_COLLECTION, songId), updates);
+
+  if (
+    patch.title !== undefined ||
+    patch.artist !== undefined ||
+    patch.originalKey !== undefined ||
+    patch.tags !== undefined ||
+    patch.sections !== undefined
+  ) {
+    const song = await getSong(songId, firestore);
+    if (song) {
+      await upsertSongIndexEntry(
+        songToIndexEntry({
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          originalKey: song.originalKey,
+          tags: song.tags,
+          sections: song.sections,
+        }),
+        firestore,
+      );
+    }
+  }
 }
 
 /** Soft-delete — keeps session references intact. */

@@ -14,6 +14,7 @@ import { SongRowSkeleton } from "@/components/SongRowSkeleton";
 import { HOME_LIBRARY_PAGE_SIZE, LIBRARY_BROWSE_CAP } from "@/lib/constants";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { formatError } from "@/lib/formatError";
+import { LANGUAGE_TAGS } from "@/lib/languageTags";
 import { listGroupsForMember } from "@/lib/firestore/groups";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import {
@@ -95,6 +96,7 @@ export function HomePage() {
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [keyFilter, setKeyFilter] = useState<Key | "">("");
+  const [languageFilter, setLanguageFilter] = useState("");
   const [libraryPage, setLibraryPage] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
@@ -106,8 +108,9 @@ export function HomePage() {
     indexEntries,
     searchQuery,
     keyFilter || undefined,
+    languageFilter || undefined,
   );
-  const isBrowsingAll = !searchQuery.trim() && !keyFilter;
+  const isBrowsingAll = !searchQuery.trim() && !keyFilter && !languageFilter;
   const libraryPageCount = Math.max(
     1,
     Math.ceil(libraryResults.length / HOME_LIBRARY_PAGE_SIZE),
@@ -132,7 +135,10 @@ export function HomePage() {
   );
 
   const showRecent =
-    visibleRecent.length > 0 && !searchQuery.trim() && !keyFilter;
+    visibleRecent.length > 0 &&
+    !searchQuery.trim() &&
+    !keyFilter &&
+    !languageFilter;
 
   const refreshLocalSongs = useCallback(() => {
     setSavedSongs(getSongs().sort((a, b) => a.title.localeCompare(b.title)));
@@ -144,7 +150,7 @@ export function HomePage() {
 
   useEffect(() => {
     setLibraryPage(0);
-  }, [searchQuery, keyFilter]);
+  }, [searchQuery, keyFilter, languageFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -360,7 +366,7 @@ export function HomePage() {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search songs, artists…"
+              placeholder="Search songs, artists, lyrics…"
               className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated py-3 pl-12 pr-4 text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
             />
           </label>
@@ -381,6 +387,44 @@ export function HomePage() {
               </option>
             ))}
           </select>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-lf-text-tertiary">
+              Language
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setLanguageFilter("")}
+                className={`min-h-9 rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors ${
+                  !languageFilter
+                    ? "border-lf-brand bg-lf-bg-active text-lf-brand"
+                    : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
+                }`}
+              >
+                All
+              </button>
+              {LANGUAGE_TAGS.map((entry) => {
+                const isSelected = languageFilter === entry.value;
+                return (
+                  <button
+                    key={entry.value}
+                    type="button"
+                    onClick={() =>
+                      setLanguageFilter(isSelected ? "" : entry.value)
+                    }
+                    className={`min-h-9 rounded-[var(--lf-radius-md)] border px-3 text-sm font-medium transition-colors ${
+                      isSelected
+                        ? "border-lf-brand bg-lf-bg-active text-lf-brand"
+                        : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
+                    }`}
+                  >
+                    {entry.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {indexError && <PageError title="Library error" error={indexError} />}
@@ -405,7 +449,7 @@ export function HomePage() {
           </section>
         )}
 
-        {user && !searchQuery.trim() && !keyFilter && (
+        {user && !searchQuery.trim() && !keyFilter && !languageFilter && (
           <>
             <section>
               <SectionHeader title="My playlists" seeAllHref="/playlists" />
@@ -536,6 +580,7 @@ export function HomePage() {
                       title={entry.title}
                       artist={entry.artist ?? ""}
                       songKey={entry.key}
+                      tags={entry.tags}
                       href={`/song/${entry.id}`}
                     />
                   ))}

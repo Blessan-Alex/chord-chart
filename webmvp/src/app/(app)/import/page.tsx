@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { InteractiveEditor } from "@/components/InteractiveEditor";
+import { LanguageTagPicker } from "@/components/LanguageTagPicker";
 import { parseRawLyrics } from "@/lib/editorParser";
+import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { createSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -50,6 +52,7 @@ export default function ImportPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [title, setTitle] = useState("");
   const [originalKey, setOriginalKey] = useState<Key>("C");
+  const [tags, setTags] = useState<string[]>([]);
   const [rawText, setRawText] = useState("");
   const [sections, setSections] = useState<Section[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export default function ImportPage() {
             title: title.trim(),
             originalKey,
             sections: finalSections,
+            tags,
           },
           user.uid,
         );
@@ -170,6 +174,8 @@ export default function ImportPage() {
             </label>
           </div>
 
+          <LanguageTagPicker value={tags} onChange={setTags} />
+
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-lf-text-primary">
               Lyrics
@@ -204,6 +210,9 @@ export default function ImportPage() {
             </h1>
             <p className="mt-1 truncate text-sm text-lf-text-secondary">
               {title} · {originalKey}
+            </p>
+            <p className="mt-1 text-sm text-lf-text-secondary">
+              {EDITOR_EDIT_SUBTITLE}
             </p>
           </div>
 

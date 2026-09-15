@@ -8,15 +8,15 @@ import {
   type RefObject,
 } from "react";
 
-const MIN_SPEED = 0.3;
-const MAX_SPEED = 2;
-const SPEED_STEP = 0.1;
-/** Slow scroll for live use — ~20px/s at speed 1.0 */
-const BASE_PIXELS_PER_SECOND = 20;
+import {
+  decreaseAutoscrollSpeed,
+  detectTouchAutoscrollDevice,
+  increaseAutoscrollSpeed,
+  resolveAutoscrollPixelsPerSecond,
+  resolveDefaultAutoscrollSpeed,
+} from "@/lib/autoscrollSpeed";
 
-export function clampAutoscrollSpeed(speed: number): number {
-  return Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(speed.toFixed(1))));
-}
+export { clampAutoscrollSpeed } from "@/lib/autoscrollSpeed";
 
 function scrollBy(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
   const container = scrollRef?.current;
@@ -37,14 +37,34 @@ function scrollBy(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
 export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   const [active, setActive] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState(0.7);
+  const [speed, setSpeed] = useState(() =>
+    resolveDefaultAutoscrollSpeed(false),
+  );
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const scrollRefStable = useRef(scrollRef);
+  const isTouchDeviceRef = useRef(false);
 
   useEffect(() => {
     scrollRefStable.current = scrollRef;
   }, [scrollRef]);
+
+  useEffect(() => {
+    const query = window.matchMedia(
+      "(max-width: 1024px), (pointer: coarse), (hover: none)",
+    );
+
+    const update = () => {
+      const touch = detectTouchAutoscrollDevice();
+      isTouchDeviceRef.current = touch;
+      setIsTouchDevice(touch);
+    };
+
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   const stop = useCallback(() => {
     setActive(false);
@@ -60,6 +80,7 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
         root.scrollTop = 0;
       }
     }
+    setSpeed(resolveDefaultAutoscrollSpeed(isTouchDeviceRef.current));
     setActive(true);
     setPaused(false);
   }, []);
@@ -73,11 +94,11 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   }, []);
 
   const decreaseSpeed = useCallback(() => {
-    setSpeed((current) => clampAutoscrollSpeed(current - SPEED_STEP));
+    setSpeed((current) => decreaseAutoscrollSpeed(current));
   }, []);
 
   const increaseSpeed = useCallback(() => {
-    setSpeed((current) => clampAutoscrollSpeed(current + SPEED_STEP));
+    setSpeed((current) => increaseAutoscrollSpeed(current));
   }, []);
 
   useEffect(() => {
@@ -106,7 +127,8 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
       if (lastTimeRef.current !== null) {
         const deltaSeconds = (time - lastTimeRef.current) / 1000;
         scrollBy(
-          deltaSeconds * BASE_PIXELS_PER_SECOND * speed,
+          deltaSeconds *
+            resolveAutoscrollPixelsPerSecond(speed, isTouchDeviceRef.current),
           scrollRefStable.current,
         );
       }
@@ -129,6 +151,7 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
     active,
     paused,
     speed,
+    isTouchDevice,
     start,
     stop,
     pause,

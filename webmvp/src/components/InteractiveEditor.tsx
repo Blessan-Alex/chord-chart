@@ -12,6 +12,10 @@ import {
   normalizeChordMark,
 } from "@/lib/chordMarks";
 import { countChordsInSections } from "@/lib/chordProParser";
+import {
+  EDITOR_TAB_SOURCE,
+  EDITOR_TAB_VISUAL,
+} from "@/lib/editorLabels";
 import { getDiatonicChords, isValidChord, type Key } from "@/lib/engine";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useTouchEditor } from "@/lib/hooks/useTouchEditor";
@@ -254,7 +258,7 @@ export function InteractiveEditor({
                   : "text-lf-text-secondary hover:text-lf-text-primary"
               }`}
             >
-              ChordPro source
+              {EDITOR_TAB_SOURCE}
             </button>
             <button
               type="button"
@@ -267,7 +271,7 @@ export function InteractiveEditor({
                   : "text-lf-text-secondary hover:text-lf-text-primary"
               }`}
             >
-              Visual fine-tune
+              {EDITOR_TAB_VISUAL}
             </button>
           </div>
 

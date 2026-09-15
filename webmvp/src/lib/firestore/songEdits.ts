@@ -218,7 +218,7 @@ export async function discardDraft(
 export async function publishDraft(
   editId: string,
   editedBy: string,
-  extras?: { artist?: string },
+  extras?: { artist?: string; tags?: string[] },
   db?: Firestore,
 ): Promise<string> {
   const firestore = resolveDb(db);
@@ -271,6 +271,7 @@ export async function publishDraft(
       notes: edit.notes,
       version: edit.version,
       ...(extras?.artist !== undefined ? { artist: extras.artist.trim() } : {}),
+      ...(extras?.tags !== undefined ? { tags: extras.tags } : {}),
       updatedAt: serverTimestamp(),
     });
 
@@ -307,6 +308,7 @@ export async function publishDraft(
         artist: song.artist,
         originalKey: song.originalKey,
         tags: song.tags,
+        sections: song.sections,
       }),
       firestore,
     );

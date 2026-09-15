@@ -11,6 +11,7 @@ import { ChordLine } from "@/components/ChordLine";
 import { KeySelectModal } from "@/components/KeySelectModal";
 import { PageLoading } from "@/components/PageLoading";
 import { PerformanceBottomBar } from "@/components/PerformanceBottomBar";
+import { PerformanceFullscreen } from "@/components/PerformanceFullscreen";
 import { SongControlBar } from "@/components/SongControlBar";
 import { SongShareButton } from "@/components/SongShareButton";
 import { SongHeader } from "@/components/SongHeader";
@@ -27,7 +28,9 @@ import { useAutoscroll } from "@/lib/hooks/useAutoscroll";
 import { useChartZoom } from "@/lib/hooks/useChartZoom";
 import { useChartLayout } from "@/lib/hooks/useChartLayout";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { usePerformanceFullscreen } from "@/lib/hooks/usePerformanceFullscreen";
 import { usePerformanceMode } from "@/lib/hooks/usePerformanceMode";
+import { useWakeLock } from "@/lib/hooks/useWakeLock";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { isKey, transposeKeyBy } from "@/lib/keyUtils";
 import {
@@ -79,6 +82,8 @@ export default function SongPage() {
   const zoom = useChartZoom({ sessionId });
   const { containerRef, maxChars } = useChartLayout(zoom.scale, performanceMode);
   const autoscroll = useAutoscroll(scrollContainerRef);
+  const fullscreen = usePerformanceFullscreen();
+  const wakeLock = useWakeLock(fullscreen.active || autoscroll.active);
 
   const toggleAutoscroll = useCallback(() => {
     if (autoscroll.active) {
@@ -87,6 +92,10 @@ export default function SongPage() {
       autoscroll.start();
     }
   }, [autoscroll]);
+
+  const toggleFullscreen = useCallback(() => {
+    void fullscreen.toggle();
+  }, [fullscreen]);
 
   useEffect(() => {
     const canonical = canonicalPlaylistSearchParams(searchParams);
@@ -363,16 +372,17 @@ export default function SongPage() {
       ? `${sessionIndex + 1}/${sessionSongs.length}`
       : null;
 
-  const bottomPadding = isMobile ? "pb-28 sm:pb-32" : "pb-8";
+  const bottomPadding = isMobile && !fullscreen.active ? "pb-28 sm:pb-32" : "pb-8";
   const backHref = sessionId ? `/playlists/${sessionId}` : "/";
   const backLabel = sessionId ? "Back to playlist" : "Back to home";
+  const immersive = autoscroll.active || fullscreen.active;
 
   return (
     <main
       className={`song-page--landscape mx-auto flex w-full flex-col p-4 sm:p-8 ${bottomPadding} ${
         performanceMode ? "song-page--performance" : ""
       } ${
-        autoscroll.active
+        immersive
           ? "fixed inset-0 z-[60] h-[100dvh] max-w-none overflow-hidden bg-lf-bg-page"
           : "min-h-0 max-w-2xl flex-1"
       }`}
@@ -388,41 +398,46 @@ export default function SongPage() {
         />
       )}
 
-      <SongHeader
-        title={song.title}
-        artist={artist}
-        backHref={backHref}
-        backLabel={backLabel}
-        compact={isMobile || performanceMode}
-        showAddToPlaylist={Boolean(user)}
-        onAddToPlaylist={() => setShowAddToSession(true)}
-        trailing={
-          <SongShareButton
-            song={{ id: song.id, title: song.title }}
-          />
-        }
-      />
+      {!fullscreen.active && (
+        <SongHeader
+          title={song.title}
+          artist={artist}
+          backHref={backHref}
+          backLabel={backLabel}
+          compact={isMobile || performanceMode}
+          showAddToPlaylist={Boolean(user)}
+          onAddToPlaylist={() => setShowAddToSession(true)}
+          trailing={
+            <SongShareButton
+              song={{ id: song.id, title: song.title }}
+            />
+          }
+        />
+      )}
 
-      {version !== null && isAdmin && (
+      {!fullscreen.active && version !== null && isAdmin && (
         <p className="text-xs text-lf-text-tertiary">Library version {version}</p>
       )}
 
-      <SongControlBar
-        targetKey={currentKey}
-        originalKey={originalKey}
-        viewMode={viewMode}
-        scalePercent={zoom.scalePercent}
-        transposeFlash={transposeFlash}
-        showMobileControls={isMobile}
-        onTransposeDown={() => handleTranspose(-1)}
-        onTransposeUp={() => handleTranspose(1)}
-        onOpenKeyModal={() => setShowKeyModal(true)}
-        onViewModeChange={setViewMode}
-        onZoomOut={zoom.zoomOut}
-        onZoomIn={zoom.zoomIn}
-        autoscrollActive={autoscroll.active}
-        onToggleAutoscroll={toggleAutoscroll}
-      />
+      {!(isMobile && autoscroll.active) && !fullscreen.active && (
+        <SongControlBar
+          targetKey={currentKey}
+          originalKey={originalKey}
+          viewMode={viewMode}
+          transposeFlash={transposeFlash}
+          showMobileControls={isMobile}
+          onTransposeDown={() => handleTranspose(-1)}
+          onTransposeUp={() => handleTranspose(1)}
+          onOpenKeyModal={() => setShowKeyModal(true)}
+          onViewModeChange={setViewMode}
+          onZoomOut={zoom.zoomOut}
+          onZoomIn={zoom.zoomIn}
+          autoscrollActive={autoscroll.active}
+          onToggleAutoscroll={toggleAutoscroll}
+          fullscreenActive={fullscreen.active}
+          onToggleFullscreen={toggleFullscreen}
+        />
+      )}
 
       <KeySelectModal
         open={showKeyModal}
@@ -449,7 +464,7 @@ export default function SongPage() {
         />
       )}
 
-      {!performanceMode && draft && (
+      {!performanceMode && !fullscreen.active && draft && (
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           Draft in progress.{" "}
           <Link href={`/song/${id}/edit`} className="font-medium underline">
@@ -463,7 +478,9 @@ export default function SongPage() {
         className={`min-w-0 flex-1 ${
           autoscroll.active
             ? "min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] pb-24"
-            : ""
+            : fullscreen.active
+              ? "min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] pb-24"
+              : ""
         }`}
       >
         <ChordChartViewport
@@ -498,16 +515,27 @@ export default function SongPage() {
         </ChordChartViewport>
       </div>
 
-      {isMobile && !autoscroll.active && (
+      {fullscreen.active && (
+        <PerformanceFullscreen
+          onExit={() => {
+            void fullscreen.exit();
+          }}
+          nextHref={nextHref}
+          sessionPosition={sessionPosition}
+          onZoomIn={zoom.zoomIn}
+          onZoomOut={zoom.zoomOut}
+          wakeLockSupported={wakeLock.supported}
+        />
+      )}
+
+      {isMobile && !autoscroll.active && !fullscreen.active && (
         <PerformanceBottomBar
           targetKey={currentKey}
-          originalKey={originalKey}
           onTransposeDown={() => handleTranspose(-1)}
           onTransposeUp={() => handleTranspose(1)}
           onOpenKeyModal={() => setShowKeyModal(true)}
           onZoomOut={zoom.zoomOut}
           onZoomIn={zoom.zoomIn}
-          scalePercent={zoom.scalePercent}
           chartTheme={chartTheme}
           onToggleTheme={handleToggleTheme}
           transposeFlash={transposeFlash}
@@ -518,10 +546,12 @@ export default function SongPage() {
           sessionBackHref={sessionId ? `/playlists/${sessionId}` : null}
           autoscrollActive={autoscroll.active}
           onToggleAutoscroll={toggleAutoscroll}
+          fullscreenActive={fullscreen.active}
+          onToggleFullscreen={toggleFullscreen}
         />
       )}
 
-      {user && isAdmin && archives.length > 0 && (
+      {!fullscreen.active && user && isAdmin && archives.length > 0 && (
         <section className="mt-8 border-t border-lf-border pt-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-lf-text-tertiary">
             Version history

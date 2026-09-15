@@ -1,10 +1,13 @@
 import Link from "next/link";
 
+import { languageLabel } from "@/lib/languageTags";
+
 type SongRowProps = {
   title: string;
   artist?: string;
   songKey: string;
   href: string;
+  tags?: string[];
   onDelete?: () => void;
 };
 
@@ -26,8 +29,12 @@ export function SongRow({
   artist = "",
   songKey,
   href,
+  tags = [],
   onDelete,
 }: SongRowProps) {
+  const language =
+    tags.map((tag) => languageLabel(tag)).find((label) => label !== null) ?? null;
+
   return (
     <li className="group flex min-h-16 items-stretch border-b border-lf-border last:border-b-0">
       <Link
@@ -44,9 +51,14 @@ export function SongRow({
           </p>
           {artist ? (
             <p className="truncate text-sm text-lf-text-secondary">{artist}</p>
+          ) : language ? (
+            <p className="truncate text-sm text-lf-text-secondary">{language}</p>
           ) : (
             <p className="truncate text-sm text-lf-text-tertiary">&nbsp;</p>
           )}
+          {artist && language ? (
+            <p className="truncate text-xs text-lf-text-tertiary">{language}</p>
+          ) : null}
         </div>
 
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-lf-bg-active text-sm font-semibold text-lf-brand">

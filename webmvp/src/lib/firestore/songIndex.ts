@@ -12,7 +12,8 @@ import { trackReads } from "@/lib/readCounter";
 
 import type { Key } from "@/lib/engine";
 import { getDb } from "@/lib/firebase";
-import type { SongIndexChunk, SongIndexEntry } from "@/lib/types";
+import { buildSongSearchText } from "@/lib/songSearchText";
+import type { Section, SongIndexChunk, SongIndexEntry } from "@/lib/types";
 
 export const SONG_INDEX_CHUNK_IDS = [
   "chunk0",
@@ -50,13 +51,23 @@ export function songToIndexEntry(song: {
   artist?: string;
   originalKey: Key;
   tags?: string[];
+  sections?: Section[];
 }): SongIndexEntry {
+  const artist = song.artist ?? "";
+  const tags = song.tags ?? [];
+
   return {
     id: song.id,
     title: song.title,
-    artist: song.artist ?? "",
+    artist,
     key: song.originalKey,
-    tags: song.tags ?? [],
+    tags,
+    searchText: buildSongSearchText({
+      title: song.title,
+      artist,
+      tags,
+      sections: song.sections,
+    }),
   };
 }
 
@@ -93,12 +104,17 @@ export function filterSongIndex(
   entries: SongIndexEntry[],
   query: string,
   keyFilter?: Key,
+  tagFilter?: string,
 ): SongIndexEntry[] {
   const q = query.trim().toLowerCase();
   let results = entries;
 
   if (keyFilter) {
     results = results.filter((entry) => entry.key === keyFilter);
+  }
+
+  if (tagFilter) {
+    results = results.filter((entry) => (entry.tags ?? []).includes(tagFilter));
   }
 
   if (!q) {
@@ -108,6 +124,7 @@ export function filterSongIndex(
   return results
     .filter(
       (entry) =>
+        entry.searchText?.includes(q) ||
         entry.title.toLowerCase().includes(q) ||
         (entry.artist ?? "").toLowerCase().includes(q) ||
         (entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q)),

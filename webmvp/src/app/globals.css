@@ -320,3 +320,13 @@ html.song-autoscroll-active [data-app-shell-main] {
   width: 100%;
   max-width: 100%;
 }
+
+html.song-fullscreen-active [data-app-sidebar],
+html.song-fullscreen-active [data-app-mobile-topbar] {
+  display: none !important;
+}
+
+html.song-fullscreen-active [data-app-shell-main] {
+  width: 100%;
+  max-width: 100%;
+}

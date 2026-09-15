@@ -19,6 +19,7 @@ const sampleEntries: SongIndexEntry[] = [
     artist: "Sinach",
     key: "E",
     tags: ["worship"],
+    searchText: "way maker sinach worship",
   },
   {
     id: "good-good-father",
@@ -26,6 +27,7 @@ const sampleEntries: SongIndexEntry[] = [
     artist: "Chris Tomlin",
     key: "A",
     tags: ["worship"],
+    searchText: "good good father chris tomlin worship",
   },
   {
     id: "twinkle",
@@ -33,6 +35,7 @@ const sampleEntries: SongIndexEntry[] = [
     artist: "",
     key: "C",
     tags: [],
+    searchText: "twinkle twinkle little star",
   },
 ];
 
@@ -48,6 +51,22 @@ describe("songToIndexEntry", () => {
       }),
     ).toEqual(sampleEntries[0]);
   });
+
+  it("builds searchText from sections", () => {
+    const entry = songToIndexEntry({
+      id: "amazing-grace",
+      title: "Amazing Grace",
+      originalKey: "G",
+      sections: [
+        {
+          label: "Verse 1",
+          lines: [{ lyrics: "Amazing grace, how sweet the sound", chords: [] }],
+        },
+      ],
+    });
+
+    expect(entry.searchText).toContain("sweet the sound");
+  });
 });
 
 describe("filterSongIndex", () => {
@@ -57,9 +76,40 @@ describe("filterSongIndex", () => {
     expect(results[0]?.id).toBe("way-maker");
   });
 
+  it("finds songs by lyric phrase in searchText", () => {
+    const entries: SongIndexEntry[] = [
+      {
+        id: "amazing-grace",
+        title: "Amazing Grace",
+        artist: "",
+        key: "G",
+        tags: [],
+        searchText: "amazing grace how sweet the sound",
+      },
+    ];
+
+    const results = filterSongIndex(entries, "sweet the sound");
+    expect(results.map((entry) => entry.id)).toEqual(["amazing-grace"]);
+  });
+
   it("filters by key", () => {
     const results = filterSongIndex(sampleEntries, "", "C");
     expect(results.map((entry) => entry.id)).toEqual(["twinkle"]);
+  });
+
+  it("filters by language tag", () => {
+    const entries: SongIndexEntry[] = [
+      ...sampleEntries,
+      {
+        id: "malayalam-song",
+        title: "Malayalam Song",
+        artist: "",
+        key: "C",
+        tags: ["lang:malayalam"],
+      },
+    ];
+    const results = filterSongIndex(entries, "", undefined, "lang:malayalam");
+    expect(results.map((entry) => entry.id)).toEqual(["malayalam-song"]);
   });
 
   it("sorts alphabetically when query is empty", () => {

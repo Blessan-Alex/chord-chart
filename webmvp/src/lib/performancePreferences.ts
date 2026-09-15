@@ -4,7 +4,7 @@ const ZOOM_KEY = "lf-zoom-level";
 const THEME_KEY = "lf-theme";
 const VIEW_MODE_KEY = "lf-view-mode";
 
-export const CHART_SCALE_MIN = 0.85;
+export const CHART_SCALE_MIN = 0.65;
 export const CHART_SCALE_MAX = 2;
 export const CHART_SCALE_STEP = 0.05;
 

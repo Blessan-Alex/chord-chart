@@ -10,9 +10,10 @@ export function useSongSearch(
   entries: SongIndexEntry[],
   query: string,
   keyFilter?: Key,
+  tagFilter?: string,
 ): SongIndexEntry[] {
   return useMemo(
-    () => filterSongIndex(entries, query, keyFilter),
-    [entries, query, keyFilter],
+    () => filterSongIndex(entries, query, keyFilter, tagFilter),
+    [entries, query, keyFilter, tagFilter],
   );
 }

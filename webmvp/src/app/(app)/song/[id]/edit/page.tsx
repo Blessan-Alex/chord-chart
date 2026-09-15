@@ -6,9 +6,11 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { InteractiveEditor } from "@/components/InteractiveEditor";
+import { LanguageTagPicker } from "@/components/LanguageTagPicker";
 import { SignInRequired } from "@/components/SignInRequired";
 import { normalizeSections } from "@/lib/chordMarks";
 import { ALL_KEYS, type Key } from "@/lib/engine";
+import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
 import {
   createDraft,
   discardDraft,
@@ -30,6 +32,7 @@ export default function SongEditPage() {
   const [draft, setDraft] = useState<SongEdit | null>(null);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [originalKey, setOriginalKey] = useState<Key>("C");
   const [notes, setNotes] = useState("");
   const [sections, setSections] = useState<Section[]>([]);
@@ -59,6 +62,7 @@ export default function SongEditPage() {
       setDraft(nextDraft);
       setTitle(nextDraft.title);
       setArtist(song?.artist ?? "");
+      setTags(song?.tags ?? []);
       setOriginalKey(nextDraft.originalKey);
       setNotes(nextDraft.notes ?? "");
       setSections(normalizeSections(nextDraft.sections));
@@ -114,7 +118,10 @@ export default function SongEditPage() {
         sections,
         notes: notes.trim() || null,
       });
-      await publishDraft(draft.id, user!.uid, { artist: artist.trim() });
+      await publishDraft(draft.id, user!.uid, {
+        artist: artist.trim(),
+        tags,
+      });
       router.push(`/song/${songId}`);
     } catch (err) {
       if (err instanceof DraftVersionConflictError) {
@@ -207,7 +214,7 @@ export default function SongEditPage() {
         <div>
           <h1 className="text-2xl font-semibold text-lf-text-primary">Edit song</h1>
           <p className="mt-1 text-sm text-lf-text-secondary">
-            Use ChordPro source for bulk entry, then fine-tune in the visual chart.
+            {EDITOR_EDIT_SUBTITLE}
           </p>
         </div>
 
@@ -241,6 +248,8 @@ export default function SongEditPage() {
                   className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
                 />
               </label>
+
+              <LanguageTagPicker value={tags} onChange={setTags} />
 
               <div className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-lf-text-primary">

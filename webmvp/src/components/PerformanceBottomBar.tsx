@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 
+import { AutoscrollToggleButton } from "@/components/AutoscrollToggleButton";
+import { ChartZoomButtons } from "@/components/ChartZoomButtons";
+import { FullscreenToggleButton } from "@/components/FullscreenToggleButton";
 import type { Key } from "@/lib/engine";
 import type { ChartTheme } from "@/lib/performancePreferences";
 
 type PerformanceBottomBarProps = {
   targetKey: Key;
-  originalKey: Key;
   onTransposeDown: () => void;
   onTransposeUp: () => void;
   onOpenKeyModal: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
-  scalePercent: number;
   chartTheme: ChartTheme;
   onToggleTheme: () => void;
   transposeFlash?: Key | null;
@@ -24,6 +25,8 @@ type PerformanceBottomBarProps = {
   sessionBackHref?: string | null;
   autoscrollActive?: boolean;
   onToggleAutoscroll?: () => void;
+  fullscreenActive?: boolean;
+  onToggleFullscreen?: () => void;
 };
 
 function IconButton({
@@ -43,7 +46,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-sm font-semibold text-lf-text-primary transition-colors hover:bg-lf-bg-muted disabled:opacity-30"
+      className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-lf-text-primary transition-colors hover:bg-lf-bg-muted disabled:opacity-30"
     >
       {children}
     </button>
@@ -91,13 +94,11 @@ const THEME_LABELS: Record<ChartTheme, string> = {
 
 export function PerformanceBottomBar({
   targetKey,
-  originalKey,
   onTransposeDown,
   onTransposeUp,
   onOpenKeyModal,
   onZoomOut,
   onZoomIn,
-  scalePercent,
   chartTheme,
   onToggleTheme,
   transposeFlash,
@@ -108,9 +109,10 @@ export function PerformanceBottomBar({
   sessionBackHref,
   autoscrollActive = false,
   onToggleAutoscroll,
+  fullscreenActive = false,
+  onToggleFullscreen,
 }: PerformanceBottomBarProps) {
   const displayKey = transposeFlash ?? targetKey;
-  const transposed = displayKey !== originalKey;
 
   return (
     <div className="performance-bottom-bar fixed inset-x-0 bottom-0 z-30 border-t border-lf-border bg-lf-bg-sidebar/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md">
@@ -132,7 +134,7 @@ export function PerformanceBottomBar({
 
         <div className="flex items-center justify-between gap-1">
           {(prevHref || nextHref) && (
-            <div className="flex items-center">
+            <div className="flex shrink-0 items-center">
               <NavLink href={prevHref ?? "#"} label="Previous song" disabled={!prevHref}>
                 ◀
               </NavLink>
@@ -142,61 +144,55 @@ export function PerformanceBottomBar({
             </div>
           )}
 
-          <div className={`flex items-center gap-0.5 ${!(prevHref || nextHref) ? "mx-auto" : ""}`}>
+          <div
+            className={`flex shrink-0 items-center gap-0.5 ${!(prevHref || nextHref) ? "mx-auto" : ""}`}
+          >
             <IconButton label="Transpose down" onClick={onTransposeDown}>
               −
             </IconButton>
             <button
               type="button"
               onClick={onOpenKeyModal}
-              className="inline-flex min-h-11 min-w-[3.75rem] flex-col items-center justify-center rounded-[var(--lf-radius-md)] bg-lf-bg-active px-2 text-center"
+              className="inline-flex min-h-11 min-w-16 shrink-0 items-center justify-center rounded-[var(--lf-radius-md)] bg-lf-bg-active px-3 text-center"
               aria-label={`Key ${displayKey}. Tap to choose key.`}
               aria-live="polite"
             >
-              <span className="text-base font-bold leading-none text-lf-brand">
+              <span className="text-xl font-bold leading-none text-lf-brand">
                 {displayKey}
               </span>
-              {transposed && (
-                <span className="text-[10px] leading-none text-lf-text-secondary">
-                  from {originalKey}
-                </span>
-              )}
             </button>
             <IconButton label="Transpose up" onClick={onTransposeUp}>
               +
             </IconButton>
           </div>
 
-          <div className="flex items-center gap-0.5">
-            <IconButton label="Text smaller" onClick={onZoomOut}>
-              A−
-            </IconButton>
-            <span className="inline-flex h-11 min-w-10 items-center justify-center text-xs tabular-nums text-lf-text-secondary">
-              {scalePercent}%
-            </span>
-            <IconButton label="Text larger" onClick={onZoomIn}>
-              A+
-            </IconButton>
-            <IconButton
-              label={`Theme: ${THEME_LABELS[chartTheme]}`}
+          <div className="flex shrink-0 items-center gap-0.5">
+            <ChartZoomButtons
+              variant="bar"
+              onZoomOut={onZoomOut}
+              onZoomIn={onZoomIn}
+            />
+            <button
+              type="button"
+              aria-label={`Theme: ${THEME_LABELS[chartTheme]}`}
               onClick={onToggleTheme}
+              className="inline-flex h-12 min-w-12 shrink-0 items-center justify-center rounded-full text-xl text-lf-text-primary transition-colors hover:bg-lf-bg-muted"
             >
               ◐
-            </IconButton>
+            </button>
             {onToggleAutoscroll && (
-              <button
-                type="button"
-                aria-label={autoscrollActive ? "Stop autoscroll" : "Start autoscroll"}
-                aria-pressed={autoscrollActive}
+              <AutoscrollToggleButton
+                variant="bar"
+                active={autoscrollActive}
                 onClick={onToggleAutoscroll}
-                className={`inline-flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-xs font-bold ${
-                  autoscrollActive
-                    ? "bg-lf-brand text-lf-text-inverse"
-                    : "text-lf-text-primary hover:bg-lf-bg-muted"
-                }`}
-              >
-                Auto
-              </button>
+              />
+            )}
+            {onToggleFullscreen && (
+              <FullscreenToggleButton
+                variant="bar"
+                active={fullscreenActive}
+                onClick={onToggleFullscreen}
+              />
             )}
           </div>
         </div>
