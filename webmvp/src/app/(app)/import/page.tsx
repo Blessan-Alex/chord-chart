@@ -174,7 +174,9 @@ export default function ImportPage() {
             </label>
           </div>
 
-          <LanguageTagPicker value={tags} onChange={setTags} />
+          {user && isAdmin && (
+            <LanguageTagPicker value={tags} onChange={setTags} />
+          )}
 
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-lf-text-primary">

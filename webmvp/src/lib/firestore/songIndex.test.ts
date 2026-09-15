@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { SongIndexEntry } from "@/lib/types";
 
 import {
+  assertIndexChunkSizes,
   buildIndexChunks,
   filterSongIndex,
   mergeIndexEntry,
   SONG_INDEX_CAPACITY,
   SongIndexCapacityError,
+  SongIndexChunkSizeError,
+  SONG_INDEX_CHUNK_MAX_BYTES,
   songToIndexEntry,
   writeSongIndexEntries,
 } from "./songIndex";
@@ -171,6 +174,22 @@ describe("buildIndexChunks", () => {
     const chunks = buildIndexChunks(sampleEntries);
     expect(chunks.size).toBe(1);
     expect(chunks.get("chunk0")).toHaveLength(3);
+  });
+});
+
+describe("assertIndexChunkSizes", () => {
+  it("rejects chunks that exceed the Firestore byte budget", () => {
+    const hugeEntry: SongIndexEntry = {
+      id: "huge",
+      title: "Huge Song",
+      artist: "",
+      key: "C",
+      tags: [],
+      searchText: "x".repeat(SONG_INDEX_CHUNK_MAX_BYTES),
+    };
+    const chunks = buildIndexChunks([hugeEntry]);
+
+    expect(() => assertIndexChunkSizes(chunks)).toThrow(SongIndexChunkSizeError);
   });
 });
 

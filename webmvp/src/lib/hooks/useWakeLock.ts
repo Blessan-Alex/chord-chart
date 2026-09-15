@@ -12,30 +12,33 @@ export function useWakeLock(enabled: boolean): { supported: boolean; active: boo
   const sentinelRef = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
-    if (!supported || !enabled) {
-      void sentinelRef.current?.release().catch(() => {});
-      sentinelRef.current = null;
-      setActive(false);
+    if (!supported) {
       return;
     }
 
     let cancelled = false;
 
+    const release = () => {
+      void sentinelRef.current?.release().catch(() => {});
+      sentinelRef.current = null;
+      setActive(false);
+    };
+
     const acquire = async () => {
+      if (cancelled || !enabled) {
+        return;
+      }
+
       try {
         const sentinel = await navigator.wakeLock!.request("screen");
-        if (cancelled) {
+        if (cancelled || !enabled) {
           await sentinel.release();
           return;
         }
 
+        void sentinelRef.current?.release().catch(() => {});
         sentinelRef.current = sentinel;
         setActive(true);
-        sentinel.addEventListener("release", () => {
-          if (!cancelled) {
-            setActive(false);
-          }
-        });
       } catch {
         if (!cancelled) {
           setActive(false);
@@ -43,41 +46,24 @@ export function useWakeLock(enabled: boolean): { supported: boolean; active: boo
       }
     };
 
-    void acquire();
-
-    return () => {
-      cancelled = true;
-      void sentinelRef.current?.release().catch(() => {});
-      sentinelRef.current = null;
-      setActive(false);
-    };
-  }, [enabled, supported]);
-
-  useEffect(() => {
-    if (!supported || !enabled) {
-      return;
+    if (enabled) {
+      void acquire();
+    } else {
+      release();
     }
 
     const onVisibilityChange = () => {
-      if (document.visibilityState !== "visible") {
-        return;
+      if (document.visibilityState === "visible" && enabled && !cancelled) {
+        void acquire();
       }
-
-      void navigator.wakeLock
-        ?.request("screen")
-        .then((sentinel) => {
-          void sentinelRef.current?.release().catch(() => {});
-          sentinelRef.current = sentinel;
-          setActive(true);
-        })
-        .catch(() => {
-          setActive(false);
-        });
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
+      cancelled = true;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      release();
     };
   }, [enabled, supported]);
 

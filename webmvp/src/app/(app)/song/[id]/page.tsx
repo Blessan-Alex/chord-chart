@@ -372,10 +372,10 @@ export default function SongPage() {
       ? `${sessionIndex + 1}/${sessionSongs.length}`
       : null;
 
-  const bottomPadding = isMobile && !fullscreen.active ? "pb-28 sm:pb-32" : "pb-8";
+  const immersive = autoscroll.active || fullscreen.active;
+  const bottomPadding = isMobile && !immersive ? "pb-28 sm:pb-32" : "pb-8";
   const backHref = sessionId ? `/playlists/${sessionId}` : "/";
   const backLabel = sessionId ? "Back to playlist" : "Back to home";
-  const immersive = autoscroll.active || fullscreen.active;
 
   return (
     <main

@@ -1,7 +1,7 @@
 import type { Section } from "@/lib/types";
 
-/** Max chars per index entry search blob (Firestore chunk size budget at 10k scale). */
-export const SONG_INDEX_SEARCH_TEXT_MAX = 2048;
+/** Max chars per index entry search blob (fits ~2000 entries under Firestore 1 MiB/chunk). */
+export const SONG_INDEX_SEARCH_TEXT_MAX = 512;
 
 export function flattenSectionsLyrics(sections: Section[]): string[] {
   return sections.flatMap((section) => section.lines.map((line) => line.lyrics));

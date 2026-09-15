@@ -19,7 +19,7 @@ import {
   publishDraft,
   updateDraft,
 } from "@/lib/firestore/songEdits";
-import { getSong } from "@/lib/firestore/songs";
+import { getSong, updateSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { Section, SongEdit } from "@/lib/types";
 
@@ -94,6 +94,10 @@ export default function SongEditPage() {
         originalKey,
         sections,
         notes: notes.trim() || null,
+      });
+      await updateSong(songId, {
+        artist: artist.trim(),
+        tags,
       });
       const refreshed = await getDraftForSong(songId);
       setDraft(refreshed);

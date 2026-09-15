@@ -43,6 +43,34 @@ export class SongIndexCapacityError extends Error {
   }
 }
 
+/** Firestore document size limit is 1 MiB; keep headroom for metadata. */
+export const SONG_INDEX_CHUNK_MAX_BYTES = 900 * 1024;
+
+export class SongIndexChunkSizeError extends Error {
+  constructor(chunkId: string, bytes: number) {
+    super(
+      `Song index chunk "${chunkId}" is ${bytes} bytes (max ${SONG_INDEX_CHUNK_MAX_BYTES}). ` +
+        `Lower SONG_INDEX_SEARCH_TEXT_MAX or reduce entries per chunk.`,
+    );
+    this.name = "SongIndexChunkSizeError";
+  }
+}
+
+function indexChunkByteLength(entries: SongIndexEntry[]): number {
+  return new TextEncoder().encode(JSON.stringify({ entries })).length;
+}
+
+export function assertIndexChunkSizes(
+  chunks: Map<SongIndexChunkId, SongIndexEntry[]>,
+): void {
+  for (const [chunkId, chunkEntries] of chunks) {
+    const bytes = indexChunkByteLength(chunkEntries);
+    if (bytes > SONG_INDEX_CHUNK_MAX_BYTES) {
+      throw new SongIndexChunkSizeError(chunkId, bytes);
+    }
+  }
+}
+
 export type SongIndexChunkId = (typeof SONG_INDEX_CHUNK_IDS)[number];
 
 export function songToIndexEntry(song: {
@@ -185,6 +213,7 @@ export async function writeSongIndexEntries(
 
   const firestore = resolveDb(db);
   const chunks = buildIndexChunks(entries);
+  assertIndexChunkSizes(chunks);
   const updatedAt = serverTimestamp();
 
   for (const [chunkId, chunkEntries] of chunks) {
