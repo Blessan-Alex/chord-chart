@@ -217,7 +217,7 @@ export default function SongPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, isAdmin, id, loaded, useFirestore, liveSong.song?.version]);
+  }, [user, isAdmin, id, loaded, useFirestore, liveSong.version]);
 
   useEffect(() => {
     if (!sessionId) {
