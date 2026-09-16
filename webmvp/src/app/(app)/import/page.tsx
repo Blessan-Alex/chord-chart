@@ -5,7 +5,8 @@ import { useState } from "react";
 
 import { InteractiveEditor } from "@/components/InteractiveEditor";
 import { LanguageTagPicker } from "@/components/LanguageTagPicker";
-import { parseRawLyrics } from "@/lib/editorParser";
+import { countChordsInSections } from "@/lib/chordProParser";
+import { looksLikeChordPro, parseImportText } from "@/lib/parseImportText";
 import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
 import { ALL_KEYS, type Key } from "@/lib/engine";
 import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
@@ -86,9 +87,12 @@ export default function ImportPage() {
       return;
     }
 
-    setSections(parseRawLyrics(rawText));
+    setSections(parseImportText(rawText));
     setStep(2);
   };
+
+  const step2HasChords = countChordsInSections(sections) > 0;
+  const step1ShowsChordPro = looksLikeChordPro(rawText);
 
   const handleSave = async (finalSections: Section[]) => {
     setSaveError(null);
@@ -133,11 +137,13 @@ export default function ImportPage() {
         <form onSubmit={handleNext} className="mt-6 flex flex-col gap-5">
           <div>
             <h1 className="text-xl font-semibold text-lf-text-primary sm:text-2xl">
-              Paste lyrics
+              Paste lyrics or ChordPro
             </h1>
             <p className="mt-1 text-sm text-lf-text-secondary">
-              Put each section name on its own line, e.g.{" "}
+              Section headers like{" "}
               <span className="font-mono text-lf-text-primary">[Verse 1]</span>
+              , or inline chords like{" "}
+              <span className="font-mono text-lf-text-primary">[E]nthu [B]Njaan</span>
             </p>
           </div>
 
@@ -182,7 +188,7 @@ export default function ImportPage() {
 
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-lf-text-primary">
-              Lyrics
+              Lyrics or ChordPro
             </span>
             <textarea
               required
@@ -191,7 +197,7 @@ export default function ImportPage() {
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               placeholder={
-                "[Verse 1]\nOh, I've heard a thousand stories\nOf what they think You're like..."
+                "[Intro]\n[E]nthu [B]Njaan Pakaram Nalk[B]um\n\n[Verse 1]\nPlain lyrics only also work here."
               }
             />
           </label>
@@ -201,7 +207,9 @@ export default function ImportPage() {
             disabled={!title.trim() || !rawText.trim()}
             className="min-h-12 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-5 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-40"
           >
-            Next: place chords →
+            {step1ShowsChordPro
+              ? "Next: review chart →"
+              : "Next: place chords →"}
           </button>
         </form>
       )}
@@ -210,14 +218,21 @@ export default function ImportPage() {
         <div className="mt-6 flex flex-col gap-4">
           <div>
             <h1 className="text-xl font-semibold text-lf-text-primary sm:text-2xl">
-              Place chords
+              {step2HasChords ? "Review chart" : "Place chords"}
             </h1>
             <p className="mt-1 truncate text-sm text-lf-text-secondary">
               {title} · {originalKey}
             </p>
-            <p className="mt-1 text-sm text-lf-text-secondary">
-              {EDITOR_EDIT_SUBTITLE}
-            </p>
+            {step2HasChords ? (
+              <p className="mt-1 text-sm text-lf-text-secondary">
+                Chords from your paste — use the Source tab in the editor to
+                edit ChordPro text.
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-lf-text-secondary">
+                {EDITOR_EDIT_SUBTITLE}
+              </p>
+            )}
           </div>
 
           {saveError && (
