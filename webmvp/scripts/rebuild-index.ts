@@ -20,16 +20,19 @@ export async function rebuildIndex(db = getAdminDb()): Promise<void> {
     .where("status", "==", "active")
     .get();
 
-  const entries = songsSnap.docs.map((doc) =>
-    songToIndexEntry({
-      id: doc.id,
-      title: doc.data().title as string,
-      artist: doc.data().artist as string | undefined,
-      originalKey: doc.data().originalKey as Key,
-      tags: doc.data().tags as string[] | undefined,
-      sections: doc.data().sections as Section[] | undefined,
-    }),
-  );
+  const entries = songsSnap.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return songToIndexEntry({
+      id: docSnap.id,
+      title: data.title as string,
+      artist: data.artist as string | undefined,
+      originalKey: data.originalKey as Key,
+      tags: data.tags as string[] | undefined,
+      sections: data.sections as Section[] | undefined,
+      updatedAt: data.updatedAt as import("firebase/firestore").Timestamp,
+      createdAt: data.createdAt as import("firebase/firestore").Timestamp,
+    });
+  });
 
   const chunks = buildIndexChunks(entries);
   const batch = db.batch();

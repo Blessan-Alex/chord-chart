@@ -3,6 +3,7 @@ import type { SongIndexEntry } from "@/lib/types";
 import { doc, onSnapshot } from "firebase/firestore";
 
 import { getDb } from "@/lib/firebase";
+import { sortLibraryEntries } from "@/lib/songSearchRank";
 
 import {
   loadSongIndex,
@@ -104,9 +105,7 @@ export async function loadSongIndexCachedProgressive(
 
       const remainingIds = SONG_INDEX_CHUNK_IDS.slice(1);
       const rest = await loadSongIndexChunks(remainingIds, undefined, options);
-      const merged = [...chunk0, ...rest].sort((a, b) =>
-        a.title.localeCompare(b.title),
-      );
+      const merged = sortLibraryEntries([...chunk0, ...rest]);
       if (!isCurrentGeneration(loadGeneration)) {
         return cachedEntries ?? merged;
       }
@@ -133,7 +132,9 @@ function notifyIndexListeners(entries: SongIndexEntry[]) {
 
 async function refreshIndexFromServer(): Promise<SongIndexEntry[]> {
   const refreshGeneration = beginCacheRefresh();
-  const entries = await loadSongIndex(undefined, { preferServer: true });
+  const entries = sortLibraryEntries(
+    await loadSongIndex(undefined, { preferServer: true }),
+  );
   if (!isCurrentGeneration(refreshGeneration)) {
     return cachedEntries ?? entries;
   }
@@ -141,6 +142,11 @@ async function refreshIndexFromServer(): Promise<SongIndexEntry[]> {
   partialEntries = null;
   notifyIndexListeners(entries);
   return entries;
+}
+
+/** Force server reload and notify all index subscribers (same tab + debounced remote). */
+export async function invalidateSongIndexCache(): Promise<SongIndexEntry[]> {
+  return refreshIndexFromServer();
 }
 
 /** One listener on chunk0 — reloads full index when songs are added (Spark-safe). */
@@ -163,7 +169,7 @@ export function subscribeSongIndexUpdates(
       if (skipInitialSnapshot) {
         skipInitialSnapshot = false;
         if (!cachedEntries) {
-          void refreshIndexFromServer();
+          void invalidateSongIndexCache();
         }
         return;
       }
@@ -171,7 +177,7 @@ export function subscribeSongIndexUpdates(
         clearTimeout(debounce);
       }
       debounce = setTimeout(() => {
-        void refreshIndexFromServer();
+        void invalidateSongIndexCache();
       }, 400);
     });
   }

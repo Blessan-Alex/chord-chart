@@ -44,6 +44,8 @@ export type SongIndexEntry = {
   tags: string[];
   /** Lowercase normalized text for client-side search (title + artist + tags + lyrics). */
   searchText?: string;
+  /** Epoch ms from Firestore updatedAt (fallback createdAt) for library sort. */
+  updatedAtMs?: number;
 };
 
 /** `songIndex/{chunkId}` document shape. */

@@ -13,6 +13,7 @@ import {
   type AdminStats,
 } from "@/lib/firestore/adminStats";
 import {
+  invalidateSongIndexCache,
   peekFullSongIndexCache,
   subscribeSongIndexUpdates,
 } from "@/lib/firestore/songIndexCache";
@@ -125,6 +126,7 @@ export default function AdminPage() {
     }
     try {
       await archiveSong(pendingDelete.id);
+      await invalidateSongIndexCache();
       setEntries((prev) => prev.filter((entry) => entry.id !== pendingDelete.id));
       setStats((prev) => ({
         ...prev,
@@ -169,6 +171,18 @@ export default function AdminPage() {
             <h1 className="mt-2 text-2xl font-semibold text-lf-text-primary sm:text-3xl">
               Admin
             </h1>
+            <button
+              type="button"
+              disabled={pageLoading}
+              onClick={() => {
+                void invalidateSongIndexCache().catch((err) => {
+                  setError(formatError(err));
+                });
+              }}
+              className="mt-2 text-sm font-medium text-lf-brand hover:underline disabled:opacity-50"
+            >
+              Refresh library
+            </button>
           </div>
           <Link
             href="/import"

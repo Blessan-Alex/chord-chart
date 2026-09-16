@@ -18,20 +18,18 @@ import {
 
 export { clampAutoscrollSpeed } from "@/lib/autoscrollSpeed";
 
-function scrollBy(delta: number, scrollRef?: RefObject<HTMLElement | null>) {
+function scrollContainerBy(
+  delta: number,
+  scrollRef?: RefObject<HTMLElement | null>,
+) {
   const container = scrollRef?.current;
-  if (container && container.scrollHeight - container.clientHeight > 4) {
+  if (!container) {
+    return;
+  }
+
+  if (container.scrollHeight - container.clientHeight > 4) {
     container.scrollTop += delta;
-    return;
   }
-
-  const root = document.scrollingElement ?? document.documentElement;
-  if (root.scrollHeight - root.clientHeight > 4) {
-    root.scrollTop += delta;
-    return;
-  }
-
-  window.scrollBy(0, delta);
 }
 
 export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
@@ -45,6 +43,13 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   const lastTimeRef = useRef<number | null>(null);
   const scrollRefStable = useRef(scrollRef);
   const isTouchDeviceRef = useRef(false);
+  const speedRef = useRef(speed);
+  const activeRef = useRef(active);
+  const pausedRef = useRef(paused);
+
+  speedRef.current = speed;
+  activeRef.current = active;
+  pausedRef.current = paused;
 
   useEffect(() => {
     scrollRefStable.current = scrollRef;
@@ -72,6 +77,16 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   }, []);
 
   const start = useCallback(() => {
+    setSpeed(resolveDefaultAutoscrollSpeed(isTouchDeviceRef.current));
+    setActive(true);
+    setPaused(false);
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+
     const container = scrollRefStable.current?.current;
     if (container) {
       const root = document.scrollingElement ?? document.documentElement;
@@ -80,16 +95,14 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
         root.scrollTop = 0;
       }
     }
-    setSpeed(resolveDefaultAutoscrollSpeed(isTouchDeviceRef.current));
-    setActive(true);
-    setPaused(false);
-  }, []);
+  }, [active]);
 
   const pause = useCallback(() => {
     setPaused(true);
   }, []);
 
   const resume = useCallback(() => {
+    lastTimeRef.current = null;
     setPaused(false);
   }, []);
 
@@ -114,7 +127,7 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
   }, [active]);
 
   useEffect(() => {
-    if (!active || paused) {
+    if (!active) {
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
@@ -123,29 +136,50 @@ export function useAutoscroll(scrollRef?: RefObject<HTMLElement | null>) {
       return;
     }
 
-    const tick = (time: number) => {
-      if (lastTimeRef.current !== null) {
-        const deltaSeconds = (time - lastTimeRef.current) / 1000;
-        scrollBy(
-          deltaSeconds *
-            resolveAutoscrollPixelsPerSecond(speed, isTouchDeviceRef.current),
-          scrollRefStable.current,
-        );
+    let cancelled = false;
+
+    const runLoop = () => {
+      if (cancelled) {
+        return;
       }
-      lastTimeRef.current = time;
+
+      const tick = (time: number) => {
+        if (cancelled || !activeRef.current) {
+          return;
+        }
+
+        if (!pausedRef.current && lastTimeRef.current !== null) {
+          const deltaSeconds = (time - lastTimeRef.current) / 1000;
+          scrollContainerBy(
+            deltaSeconds *
+              resolveAutoscrollPixelsPerSecond(
+                speedRef.current,
+                isTouchDeviceRef.current,
+              ),
+            scrollRefStable.current,
+          );
+        }
+        if (!pausedRef.current) {
+          lastTimeRef.current = time;
+        }
+        frameRef.current = requestAnimationFrame(tick);
+      };
+
+      lastTimeRef.current = null;
       frameRef.current = requestAnimationFrame(tick);
     };
 
-    frameRef.current = requestAnimationFrame(tick);
+    requestAnimationFrame(runLoop);
 
     return () => {
+      cancelled = true;
       if (frameRef.current !== null) {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
       }
       lastTimeRef.current = null;
     };
-  }, [active, paused, speed]);
+  }, [active]);
 
   return {
     active,

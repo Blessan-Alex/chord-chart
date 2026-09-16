@@ -82,13 +82,17 @@ describe("rankSongIndexResults", () => {
     expect(results.map((entry) => entry.id)).toEqual(["good-good-father"]);
   });
 
-  it("sorts alphabetically when query is empty", () => {
-    const results = rankSongIndexResults(entries, "");
-    expect(results.map((entry) => entry.title)).toEqual([
-      "Another Song",
-      "Good Good Father",
-      "Malayalam Song",
-      "Way Maker",
+  it("sorts by updatedAtMs descending when query is empty", () => {
+    const dated: SongIndexEntry[] = [
+      { ...entries[0], updatedAtMs: 100 },
+      { ...entries[2], updatedAtMs: 300 },
+      { ...entries[3], updatedAtMs: 200 },
+    ];
+    const results = rankSongIndexResults(dated, "");
+    expect(results.map((entry) => entry.id)).toEqual([
+      "good-good-father",
+      "malayalam-song",
+      "way-maker",
     ]);
   });
 

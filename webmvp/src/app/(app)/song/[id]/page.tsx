@@ -15,15 +15,14 @@ import { PerformanceFullscreen } from "@/components/PerformanceFullscreen";
 import { SongControlBar } from "@/components/SongControlBar";
 import { SongHeader } from "@/components/SongHeader";
 import { type Key } from "@/lib/engine";
-import { firestoreSongToSong } from "@/lib/firestore/toSong";
 import {
   getDraftForSong,
   listArchivedVersions,
 } from "@/lib/firestore/songEdits";
 import { listSessionSongs } from "@/lib/firestore/sessionSongs";
 import { getSession } from "@/lib/firestore/sessions";
-import { getSong as getFirestoreSong } from "@/lib/firestore/songs";
 import { useAutoscroll } from "@/lib/hooks/useAutoscroll";
+import { useSongLive } from "@/lib/hooks/useSongLive";
 import { useChartZoom } from "@/lib/hooks/useChartZoom";
 import { useChartLayout } from "@/lib/hooks/useChartLayout";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
@@ -44,6 +43,7 @@ import {
   parseSessionNavParams,
 } from "@/lib/sessionNavigation";
 import { recordRecentSong } from "@/lib/recentSongs";
+import { isFirebaseEnabled } from "@/lib/firebase";
 import { getSong as getLocalSong } from "@/lib/storage";
 import type { Session, SessionSong, Song, SongEdit, SongViewMode } from "@/lib/types";
 
@@ -58,14 +58,19 @@ export default function SongPage() {
   const { sessionId, index: sessionIndex } = parseSessionNavParams(searchParams);
   const { user, loading: authLoading, isAdmin } = useAuth();
 
-  const [song, setSong] = useState<Song | null>(null);
-  const [artist, setArtist] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const [localSong, setLocalSong] = useState<Song | null>(null);
+  const [localResolved, setLocalResolved] = useState(false);
+  const useFirestore = isFirebaseEnabled() && !authLoading;
+  const liveSong = useSongLive(id, useFirestore);
+  const song = liveSong.song ?? localSong;
+  const artist = liveSong.song ? liveSong.artist : "";
+  const version = liveSong.song ? liveSong.version : null;
+  const loaded =
+    !authLoading && (useFirestore ? !liveSong.isLoading && localResolved : localResolved);
   const [targetKey, setTargetKey] = useState<string>("C");
   const [viewMode, setViewMode] = useState<SongViewMode>("chords");
   const [showAddToSession, setShowAddToSession] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
-  const [version, setVersion] = useState<number | null>(null);
   const [draft, setDraft] = useState<SongEdit | null>(null);
   const [archives, setArchives] = useState<SongEdit[]>([]);
   const [session, setSession] = useState<Session | null>(null);
@@ -153,77 +158,66 @@ export default function SongPage() {
   }, [loaded, song, artist]);
 
   useEffect(() => {
-    let cancelled = false;
+    if (authLoading) {
+      return;
+    }
 
-    async function loadSong() {
-      setLoaded(false);
-
-      try {
-        const firestoreSong = await getFirestoreSong(id);
-        if (!cancelled) {
-          if (firestoreSong) {
-            const found = firestoreSongToSong(firestoreSong);
-            setSong(found);
-            setArtist(firestoreSong.artist ?? "");
-            setVersion(firestoreSong.version);
-            if (keyParam && isKey(keyParam)) {
-              setTargetKey(keyParam);
-            } else if (isKey(found.originalKey)) {
-              setTargetKey(found.originalKey);
-            }
-            if (user && isAdmin) {
-              const [openDraft, versions] = await Promise.all([
-                getDraftForSong(id),
-                listArchivedVersions(id),
-              ]);
-              if (!cancelled) {
-                setDraft(openDraft);
-                setArchives(versions);
-              }
-            }
-            setLoaded(true);
-            return;
-          }
-        }
-      } catch {
-        /* fall through to local storage */
-      }
-
-      if (user) {
-        if (!cancelled) {
-          setSong(null);
-          setArtist("");
-          setVersion(null);
-          setDraft(null);
-          setArchives([]);
-          setLoaded(true);
-        }
-        return;
-      }
-
+    if (!useFirestore) {
       const found = getLocalSong(id);
-      if (!cancelled) {
-        setSong(found ?? null);
-        setArtist("");
-        if (found) {
-          if (keyParam && isKey(keyParam)) {
-            setTargetKey(keyParam);
-          } else if (isKey(found.originalKey)) {
-            setTargetKey(found.originalKey);
-          }
-        }
-        setLoaded(true);
-      }
+      setLocalSong(found ?? null);
+      setLocalResolved(true);
+      return;
     }
 
-    if (!authLoading) {
-      void loadSong();
+    if (liveSong.isLoading) {
+      setLocalResolved(false);
+      return;
     }
+
+    if (!liveSong.song && !user) {
+      setLocalSong(getLocalSong(id) ?? null);
+    } else {
+      setLocalSong(null);
+    }
+    setLocalResolved(true);
+  }, [authLoading, useFirestore, id, liveSong.isLoading, liveSong.song, user]);
+
+  useEffect(() => {
+    if (!loaded || !song) {
+      return;
+    }
+    if (keyParam && isKey(keyParam)) {
+      setTargetKey(keyParam);
+    } else if (isKey(song.originalKey)) {
+      setTargetKey(song.originalKey);
+    }
+  }, [loaded, song?.id, song?.originalKey, keyParam]);
+
+  useEffect(() => {
+    if (!user || !isAdmin || !id || !loaded || !useFirestore) {
+      if (!user || !isAdmin) {
+        setDraft(null);
+        setArchives([]);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const [openDraft, versions] = await Promise.all([
+        getDraftForSong(id),
+        listArchivedVersions(id),
+      ]);
+      if (!cancelled) {
+        setDraft(openDraft);
+        setArchives(versions);
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [id, user, authLoading, keyParam, isAdmin]);
+  }, [user, isAdmin, id, loaded, useFirestore, liveSong.song?.version]);
 
   useEffect(() => {
     if (!sessionId) {

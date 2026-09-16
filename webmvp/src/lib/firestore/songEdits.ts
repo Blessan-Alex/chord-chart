@@ -309,6 +309,8 @@ export async function publishDraft(
         originalKey: song.originalKey,
         tags: song.tags,
         sections: song.sections,
+        updatedAt: song.updatedAt,
+        createdAt: song.createdAt,
       }),
       firestore,
     );

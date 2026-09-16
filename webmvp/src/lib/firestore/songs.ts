@@ -126,9 +126,22 @@ export async function createSong(
   const firestore = resolveDb(db);
   const ref = doc(firestore, SONGS_COLLECTION, id);
   await setDoc(ref, data);
-  await upsertSongIndexEntry(songToIndexEntry({ ...data, id }), firestore);
-
   const created = await getSong(id, firestore);
+  if (created) {
+    await upsertSongIndexEntry(
+      songToIndexEntry({
+        id: created.id,
+        title: created.title,
+        artist: created.artist,
+        originalKey: created.originalKey,
+        tags: created.tags,
+        sections: created.sections,
+        updatedAt: created.updatedAt,
+        createdAt: created.createdAt,
+      }),
+      firestore,
+    );
+  }
   if (!created) {
     throw new Error(`Failed to read created song: ${id}`);
   }
@@ -193,6 +206,8 @@ export async function updateSong(
           originalKey: song.originalKey,
           tags: song.tags,
           sections: song.sections,
+          updatedAt: song.updatedAt,
+          createdAt: song.createdAt,
         }),
         firestore,
       );

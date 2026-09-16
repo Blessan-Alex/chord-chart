@@ -8,6 +8,7 @@ import { LanguageTagPicker } from "@/components/LanguageTagPicker";
 import { parseRawLyrics } from "@/lib/editorParser";
 import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
 import { ALL_KEYS, type Key } from "@/lib/engine";
+import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
 import { createSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { saveSong } from "@/lib/storage";
@@ -103,6 +104,7 @@ export default function ImportPage() {
           },
           user.uid,
         );
+        await invalidateSongIndexCache();
         router.push(`/song/${created.id}`);
         return;
       }

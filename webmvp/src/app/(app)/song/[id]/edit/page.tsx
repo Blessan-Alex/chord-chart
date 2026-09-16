@@ -19,6 +19,7 @@ import {
   publishDraft,
   updateDraft,
 } from "@/lib/firestore/songEdits";
+import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
 import { getSong, updateSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { Section, SongEdit } from "@/lib/types";
@@ -99,6 +100,7 @@ export default function SongEditPage() {
         artist: artist.trim(),
         tags,
       });
+      await invalidateSongIndexCache();
       const refreshed = await getDraftForSong(songId);
       setDraft(refreshed);
     } catch (err) {
@@ -126,6 +128,7 @@ export default function SongEditPage() {
         artist: artist.trim(),
         tags,
       });
+      await invalidateSongIndexCache();
       router.push(`/song/${songId}`);
     } catch (err) {
       if (err instanceof DraftVersionConflictError) {

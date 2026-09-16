@@ -52,7 +52,7 @@ describe("songToIndexEntry", () => {
         originalKey: "E",
         tags: ["worship"],
       }),
-    ).toEqual(sampleEntries[0]);
+    ).toEqual({ ...sampleEntries[0], updatedAtMs: 0 });
   });
 
   it("builds searchText from sections", () => {

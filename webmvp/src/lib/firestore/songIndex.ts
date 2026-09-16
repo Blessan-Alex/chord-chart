@@ -6,6 +6,7 @@ import {
   serverTimestamp,
   setDoc,
   type Firestore,
+  type Timestamp,
 } from "firebase/firestore";
 
 import { trackReads } from "@/lib/readCounter";
@@ -74,6 +75,19 @@ export function assertIndexChunkSizes(
 
 export type SongIndexChunkId = (typeof SONG_INDEX_CHUNK_IDS)[number];
 
+function resolveUpdatedAtMs(
+  updatedAt?: Timestamp,
+  createdAt?: Timestamp,
+): number {
+  if (updatedAt && typeof updatedAt.toMillis === "function") {
+    return updatedAt.toMillis();
+  }
+  if (createdAt && typeof createdAt.toMillis === "function") {
+    return createdAt.toMillis();
+  }
+  return 0;
+}
+
 export function songToIndexEntry(song: {
   id: string;
   title: string;
@@ -81,6 +95,8 @@ export function songToIndexEntry(song: {
   originalKey: Key;
   tags?: string[];
   sections?: Section[];
+  updatedAt?: Timestamp;
+  createdAt?: Timestamp;
 }): SongIndexEntry {
   const artist = song.artist ?? "";
   const tags = song.tags ?? [];
@@ -91,6 +107,7 @@ export function songToIndexEntry(song: {
     artist,
     key: song.originalKey,
     tags,
+    updatedAtMs: resolveUpdatedAtMs(song.updatedAt, song.createdAt),
     searchText: buildSongSearchText({
       title: song.title,
       artist,

@@ -120,7 +120,7 @@ export function rankSongIndexResults(
   const tokens = tokenize(query);
 
   if (tokens.length === 0) {
-    return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    return sortLibraryEntries(filtered);
   }
 
   return filtered
@@ -128,6 +128,24 @@ export function rankSongIndexResults(
     .filter(({ score }) => score >= 0)
     .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title))
     .map(({ entry }) => entry);
+}
+
+export function compareLibraryEntries(
+  a: SongIndexEntry,
+  b: SongIndexEntry,
+): number {
+  const aMs = a.updatedAtMs ?? 0;
+  const bMs = b.updatedAtMs ?? 0;
+  if (bMs !== aMs) {
+    return bMs - aMs;
+  }
+  return a.title.localeCompare(b.title);
+}
+
+export function sortLibraryEntries(
+  entries: SongIndexEntry[],
+): SongIndexEntry[] {
+  return [...entries].sort(compareLibraryEntries);
 }
 
 export function entryMatchesQuery(entry: SongIndexEntry, query: string): boolean {

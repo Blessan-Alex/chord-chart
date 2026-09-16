@@ -56,6 +56,12 @@ describe("resolveAutoscrollPixelsPerSecond", () => {
   it("uses full rate on desktop", () => {
     expect(resolveAutoscrollPixelsPerSecond(0.7, false)).toBeCloseTo(14, 5);
   });
+
+  it("scales scroll rate with speed setting", () => {
+    const slow = resolveAutoscrollPixelsPerSecond(0.1, false);
+    const fast = resolveAutoscrollPixelsPerSecond(2, false);
+    expect(fast).toBeGreaterThan(slow * 10);
+  });
 });
 
 describe("formatAutoscrollSpeed", () => {
