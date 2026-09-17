@@ -14,6 +14,7 @@ type ChordProSourcePanelProps = {
   onApply: () => void;
   applyError?: string | null;
   large?: boolean;
+  applyButtonLabel?: string;
 };
 
 export function ChordProSourcePanel({
@@ -22,6 +23,7 @@ export function ChordProSourcePanel({
   onApply,
   applyError = null,
   large = false,
+  applyButtonLabel = "Apply to chart",
 }: ChordProSourcePanelProps) {
   const preview = useMemo(() => {
     try {
@@ -80,8 +82,8 @@ export function ChordProSourcePanel({
           onClick={onApply}
           className="min-h-10 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
         >
-          Apply to chart
-        </button>
+            {applyButtonLabel}
+          </button>
       </div>
 
       {applyError && (

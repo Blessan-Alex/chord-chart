@@ -280,33 +280,33 @@ export default function SongEditPage() {
         )}
 
         {!loading && draft && (
-          <AdminSongComposer
-            ref={composerRef}
-            title={title}
-            onTitleChange={setTitle}
-            artist={artist}
-            onArtistChange={setArtist}
-            originalKey={originalKey}
-            onOriginalKeyChange={setOriginalKey}
-            tags={tags}
-            onTagsChange={setTags}
-            sections={sections}
-            onSectionsChange={setSections}
-            notes={notes}
-            onNotesChange={setNotes}
-            footer={
-              <div className="flex flex-wrap gap-2 border-t border-lf-border pt-4">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setShowDiscard(true)}
-                  className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
-                >
-                  Discard draft
-                </button>
-              </div>
-            }
-          />
+          <div className="flex flex-col gap-4">
+            <AdminSongComposer
+              ref={composerRef}
+              title={title}
+              onTitleChange={setTitle}
+              artist={artist}
+              onArtistChange={setArtist}
+              originalKey={originalKey}
+              onOriginalKeyChange={setOriginalKey}
+              tags={tags}
+              onTagsChange={setTags}
+              sections={sections}
+              onSectionsChange={setSections}
+              notes={notes}
+              onNotesChange={setNotes}
+            />
+            <div className="border-t border-lf-border pt-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setShowDiscard(true)}
+                className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
+              >
+                Discard draft
+              </button>
+            </div>
+          </div>
         )}
 
         {!loading && !draft && (
