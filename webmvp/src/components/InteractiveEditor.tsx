@@ -11,10 +11,17 @@ import {
   getMarkStart,
   normalizeChordMark,
 } from "@/lib/chordMarks";
+import {
+  sectionsSignature,
+  syncSourceTextFromSections,
+  tryFlushChordSource,
+} from "@/lib/chordSourceSync";
 import { countChordsInSections } from "@/lib/chordProParser";
 import {
   EDITOR_TAB_SOURCE,
   EDITOR_TAB_VISUAL,
+  EDITOR_VISUAL_HEADING,
+  EDITOR_VISUAL_HINT,
 } from "@/lib/editorLabels";
 import { getDiatonicChords, isValidChord, type Key } from "@/lib/engine";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
@@ -37,6 +44,8 @@ type InteractiveEditorProps = {
   onSave?: (sections: Section[]) => void;
   onSectionsChange?: (sections: Section[]) => void;
   originalKey: Key;
+  /** Stacked: visual fine-tuner only (source panel lives in parent). */
+  layout?: "tabs" | "stacked";
 };
 
 function findChordAtStart(chords: ChordMark[], start: number): ChordMark | undefined {
@@ -62,13 +71,25 @@ export function InteractiveEditor({
   onSave,
   onSectionsChange,
   originalKey,
+  layout = "tabs",
 }: InteractiveEditorProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
-  const [editorMode, setEditorMode] = useState<EditorMode>("visual");
+  const [editorMode, setEditorMode] = useState<EditorMode>(
+    layout === "stacked" ? "visual" : "visual",
+  );
+  const isStacked = layout === "stacked";
+  const initialSectionsSig = useMemo(
+    () => sectionsSignature(initialSections),
+    [initialSections],
+  );
   const [activeSelection, setActiveSelection] = useState<ActiveSelection | null>(
     null,
   );
   const [chordError, setChordError] = useState<string | null>(null);
+  const [tabSourceText, setTabSourceText] = useState(() =>
+    syncSourceTextFromSections(initialSections),
+  );
+  const [tabSourceError, setTabSourceError] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const touchEditor = useTouchEditor();
 
@@ -82,7 +103,10 @@ export function InteractiveEditor({
 
   useEffect(() => {
     setSections(initialSections);
-  }, [initialSections]);
+    if (!isStacked) {
+      setTabSourceText(syncSourceTextFromSections(initialSections));
+    }
+  }, [initialSectionsSig, initialSections, isStacked]);
 
   const chordStats = useMemo(() => {
     const lineCount = sections.reduce((n, section) => n + section.lines.length, 0);
@@ -242,38 +266,51 @@ export function InteractiveEditor({
     <div className="flex flex-col gap-4 pb-24 sm:pb-0">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div
-            className="inline-flex rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted p-1"
-            role="tablist"
-            aria-label="Editor mode"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={editorMode === "source"}
-              onClick={() => setEditorMode("source")}
-              className={`min-h-10 rounded-[var(--lf-radius-sm)] px-4 text-sm font-medium transition-colors ${
-                editorMode === "source"
-                  ? "bg-lf-bg-elevated text-lf-text-primary shadow-sm"
-                  : "text-lf-text-secondary hover:text-lf-text-primary"
-              }`}
+          {isStacked ? (
+            <div>
+              <h3 className="text-sm font-semibold text-lf-text-primary">
+                {EDITOR_VISUAL_HEADING}
+              </h3>
+              <p className="mt-0.5 text-sm text-lf-text-secondary">
+                {touchEditor
+                  ? "Tap a syllable or highlight lyrics — the chord picker opens at the bottom."
+                  : EDITOR_VISUAL_HINT}
+              </p>
+            </div>
+          ) : (
+            <div
+              className="inline-flex rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted p-1"
+              role="tablist"
+              aria-label="Editor mode"
             >
-              {EDITOR_TAB_SOURCE}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={editorMode === "visual"}
-              onClick={() => setEditorMode("visual")}
-              className={`min-h-10 rounded-[var(--lf-radius-sm)] px-4 text-sm font-medium transition-colors ${
-                editorMode === "visual"
-                  ? "bg-lf-bg-elevated text-lf-text-primary shadow-sm"
-                  : "text-lf-text-secondary hover:text-lf-text-primary"
-              }`}
-            >
-              {EDITOR_TAB_VISUAL}
-            </button>
-          </div>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={editorMode === "source"}
+                onClick={() => setEditorMode("source")}
+                className={`min-h-10 rounded-[var(--lf-radius-sm)] px-4 text-sm font-medium transition-colors ${
+                  editorMode === "source"
+                    ? "bg-lf-bg-elevated text-lf-text-primary shadow-sm"
+                    : "text-lf-text-secondary hover:text-lf-text-primary"
+                }`}
+              >
+                {EDITOR_TAB_SOURCE}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={editorMode === "visual"}
+                onClick={() => setEditorMode("visual")}
+                className={`min-h-10 rounded-[var(--lf-radius-sm)] px-4 text-sm font-medium transition-colors ${
+                  editorMode === "visual"
+                    ? "bg-lf-bg-elevated text-lf-text-primary shadow-sm"
+                    : "text-lf-text-secondary hover:text-lf-text-primary"
+                }`}
+              >
+                {EDITOR_TAB_VISUAL}
+              </button>
+            </div>
+          )}
 
           <p className="text-sm tabular-nums text-lf-text-secondary">
             {chordStats.chordCount} chords · {chordStats.chordedLines}/
@@ -281,7 +318,7 @@ export function InteractiveEditor({
           </p>
         </div>
 
-        {editorMode === "visual" && (
+        {!isStacked && editorMode === "visual" && (
           <p className="text-sm text-lf-text-secondary">
             {touchEditor ? (
               <>
@@ -313,19 +350,32 @@ export function InteractiveEditor({
         )}
       </div>
 
-      {editorMode === "source" ? (
+      {!isStacked && editorMode === "source" ? (
         <ChordProSourcePanel
-          sections={sections}
-          onApply={(next) => {
-            updateSections(next);
+          sourceText={tabSourceText}
+          onSourceTextChange={(text) => {
+            setTabSourceText(text);
+            setTabSourceError(null);
+          }}
+          applyError={tabSourceError}
+          onApply={() => {
+            const result = tryFlushChordSource(tabSourceText);
+            if (!result.ok) {
+              setTabSourceError(result.error);
+              return;
+            }
+            updateSections(result.sections);
+            setTabSourceError(null);
             setEditorMode("visual");
           }}
         />
-      ) : (
+      ) : null}
+
+      {(isStacked || editorMode === "visual") && (
         <div className="chord-chart chord-chart-editor rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-4 shadow-sm">
           {sections.map((section, sIndex) => (
             <div key={`s-${sIndex}`} className="mb-6 last:mb-0">
-              <div className="section-label">[{section.label}]</div>
+              <div className="section-label">{`{${section.label}}`}</div>
 
               {section.lines.map((line, lIndex) => (
                 <LyricLineEditor
@@ -374,7 +424,7 @@ export function InteractiveEditor({
         </div>
       )}
 
-      {editorMode === "visual" && touchEditor && activeSelection ? (
+      {(isStacked || editorMode === "visual") && touchEditor && activeSelection ? (
         <InlineChordToolbar
           palette={palette}
           value={activeSelection.currentVal}
@@ -392,7 +442,7 @@ export function InteractiveEditor({
           onRemove={removeChord}
           onCancel={clearPlacement}
         />
-      ) : editorMode === "visual" ? (
+      ) : isStacked || editorMode === "visual" ? (
         <ChordInputPopover
           open={activeSelection !== null}
           value={activeSelection?.currentVal ?? ""}

@@ -1,27 +1,10 @@
+import { isSectionHeaderLine, parseSectionHeaderLabel } from "./sectionHeaders";
 import type { Section } from "./types";
-
-const SECTION_LABEL_RE =
-  /^(verse|chorus|bridge|intro|outro|tag|pre-chorus|instrumental|hook|refrain|breakdown|interlude|section)(\s+\d+)?$/i;
-
-function isSectionHeader(line: string): boolean {
-  const bracketMatch = line.match(/^\[(.+)\]$/);
-  if (bracketMatch) {
-    return true;
-  }
-
-  const colonMatch = line.match(/^(.*?):$/);
-  if (!colonMatch) {
-    return false;
-  }
-
-  const label = colonMatch[1].trim();
-  return SECTION_LABEL_RE.test(label);
-}
 
 export function parseRawLyrics(rawText: string): Section[] {
   const lines = rawText.split(/\r?\n/);
   const sections: Section[] = [];
-  
+
   let currentSection: Section | null = null;
   let defaultSectionCounter = 1;
 
@@ -31,10 +14,8 @@ export function parseRawLyrics(rawText: string): Section[] {
       continue;
     }
 
-    if (isSectionHeader(line)) {
-      const bracketMatch = line.match(/^\[(.*?)\]$/);
-      const colonMatch = line.match(/^(.*?):$/);
-      const label = (bracketMatch?.[1] ?? colonMatch?.[1] ?? line).trim();
+    if (isSectionHeaderLine(line)) {
+      const label = parseSectionHeaderLabel(line) ?? line;
       currentSection = { label, lines: [] };
       sections.push(currentSection);
       continue;

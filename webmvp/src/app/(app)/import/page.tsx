@@ -1,67 +1,38 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
-import { InteractiveEditor } from "@/components/InteractiveEditor";
-import { LanguageTagPicker } from "@/components/LanguageTagPicker";
-import { countChordsInSections } from "@/lib/chordProParser";
-import { looksLikeChordPro, parseImportText } from "@/lib/parseImportText";
+import {
+  AdminSongComposer,
+  type AdminSongComposerHandle,
+} from "@/components/AdminSongComposer";
 import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
-import { ALL_KEYS, type Key } from "@/lib/engine";
+import type { Key } from "@/lib/engine";
 import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
 import { createSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { saveSong } from "@/lib/storage";
 import type { Section, Song } from "@/lib/types";
 
-function isKey(value: string): value is Key {
-  return (ALL_KEYS as readonly string[]).includes(value);
-}
-
-function StepIndicator({ step }: { step: 1 | 2 }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <span
-        className={`rounded-full px-2.5 py-0.5 font-medium ${
-          step === 1
-            ? "bg-lf-bg-active text-lf-brand"
-            : "text-lf-text-tertiary"
-        }`}
-      >
-        1 · Paste
-      </span>
-      <span className="text-lf-text-tertiary" aria-hidden>
-        →
-      </span>
-      <span
-        className={`rounded-full px-2.5 py-0.5 font-medium ${
-          step === 2
-            ? "bg-lf-bg-active text-lf-brand"
-            : "text-lf-text-tertiary"
-        }`}
-      >
-        2 · Chords
-      </span>
-    </div>
-  );
-}
+const EMPTY_SECTIONS: Section[] = [{ label: "Verse 1", lines: [] }];
 
 export default function ImportPage() {
   const router = useRouter();
   const { user, loading, isAdmin } = useAuth();
+  const composerRef = useRef<AdminSongComposerHandle>(null);
 
-  const [step, setStep] = useState<1 | 2>(1);
   const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
   const [originalKey, setOriginalKey] = useState<Key>("C");
   const [tags, setTags] = useState<string[]>([]);
-  const [rawText, setRawText] = useState("");
-  const [sections, setSections] = useState<Section[]>([]);
+  const [sections, setSections] = useState<Section[]>(EMPTY_SECTIONS);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   if (loading) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl items-center justify-center p-4">
+      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-4">
         <p className="text-lf-text-secondary">Loading…</p>
       </main>
     );
@@ -69,7 +40,7 @@ export default function ImportPage() {
 
   if (user && !isAdmin) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-4 p-4 sm:p-8">
+      <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 p-4 sm:p-8">
         <h1 className="text-xl font-semibold text-lf-text-primary">
           Admin only
         </h1>
@@ -81,27 +52,16 @@ export default function ImportPage() {
     );
   }
 
-  const handleNext = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !rawText.trim()) {
-      return;
-    }
-
-    setSections(parseImportText(rawText));
-    setStep(2);
-  };
-
-  const step2HasChords = countChordsInSections(sections) > 0;
-  const step1ShowsChordPro = looksLikeChordPro(rawText);
-
-  const handleSave = async (finalSections: Section[]) => {
+  const handleCreate = async (finalSections: Section[]) => {
     setSaveError(null);
+    setSaving(true);
 
     try {
       if (user && isAdmin) {
         const created = await createSong(
           {
             title: title.trim(),
+            artist: artist.trim(),
             originalKey,
             sections: finalSections,
             tags,
@@ -116,6 +76,7 @@ export default function ImportPage() {
       const song: Song = {
         id: "",
         title: title.trim(),
+        artist: artist.trim() || undefined,
         originalKey,
         sections: finalSections,
       };
@@ -126,130 +87,66 @@ export default function ImportPage() {
       setSaveError(
         error instanceof Error ? error.message : "Could not save song.",
       );
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col p-4 pb-8 sm:p-8">
-      <StepIndicator step={step} />
+    <main className="mx-auto flex w-full max-w-5xl flex-col p-4 pb-12 sm:p-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-lf-text-primary sm:text-3xl">
+          Add song
+        </h1>
+        <p className="mt-1 text-sm text-lf-text-secondary">
+          {EDITOR_EDIT_SUBTITLE}
+        </p>
+      </div>
 
-      {step === 1 && (
-        <form onSubmit={handleNext} className="mt-6 flex flex-col gap-5">
-          <div>
-            <h1 className="text-xl font-semibold text-lf-text-primary sm:text-2xl">
-              Paste lyrics or ChordPro
-            </h1>
-            <p className="mt-1 text-sm text-lf-text-secondary">
-              Section headers like{" "}
-              <span className="font-mono text-lf-text-primary">[Verse 1]</span>
-              , or inline chords like{" "}
-              <span className="font-mono text-lf-text-primary">[E]nthu [B]Njaan</span>
-            </p>
-          </div>
+      {saveError && (
+        <p className="mb-4 text-sm text-lf-danger" role="alert">
+          {saveError}
+        </p>
+      )}
 
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <label className="min-w-0 flex-1">
-              <span className="mb-1.5 block text-sm font-medium text-lf-text-primary">
-                Title
-              </span>
-              <input
-                type="text"
-                required
-                className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-4 text-base text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Good Good Father"
-              />
-            </label>
-
-            <label className="w-28 shrink-0 sm:w-24">
-              <span className="mb-1.5 block text-sm font-medium text-lf-text-primary">
-                Key
-              </span>
-              <select
-                className="min-h-12 w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-                value={originalKey}
-                onChange={(e) =>
-                  isKey(e.target.value) && setOriginalKey(e.target.value)
+      <AdminSongComposer
+        ref={composerRef}
+        title={title}
+        onTitleChange={setTitle}
+        artist={artist}
+        onArtistChange={setArtist}
+        originalKey={originalKey}
+        onOriginalKeyChange={setOriginalKey}
+        tags={tags}
+        onTagsChange={setTags}
+        sections={sections}
+        onSectionsChange={setSections}
+        showLanguageTags={Boolean(user && isAdmin)}
+        footer={
+          <div className="flex justify-end border-t border-lf-border pt-4">
+            <button
+              type="button"
+              disabled={!title.trim() || saving}
+              onClick={() => {
+                const resolved =
+                  composerRef.current?.getSectionsForSave();
+                if (!resolved || !resolved.ok) {
+                  setSaveError(
+                    resolved && !resolved.ok
+                      ? resolved.error
+                      : "Could not read chart data.",
+                  );
+                  return;
                 }
-              >
-                {ALL_KEYS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </select>
-            </label>
+                void handleCreate(resolved.sections);
+              }}
+              className="min-h-12 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-6 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-40"
+            >
+              {saving ? "Saving…" : "Create song"}
+            </button>
           </div>
-
-          {user && isAdmin && (
-            <LanguageTagPicker value={tags} onChange={setTags} />
-          )}
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-lf-text-primary">
-              Lyrics or ChordPro
-            </span>
-            <textarea
-              required
-              rows={14}
-              className="w-full rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-elevated px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary placeholder:text-lf-text-tertiary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              placeholder={
-                "[Intro]\n[E]nthu [B]Njaan Pakaram Nalk[B]um\n\n[Verse 1]\nPlain lyrics only also work here."
-              }
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={!title.trim() || !rawText.trim()}
-            className="min-h-12 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-5 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-40"
-          >
-            {step1ShowsChordPro
-              ? "Next: review chart →"
-              : "Next: place chords →"}
-          </button>
-        </form>
-      )}
-
-      {step === 2 && (
-        <div className="mt-6 flex flex-col gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-lf-text-primary sm:text-2xl">
-              {step2HasChords ? "Review chart" : "Place chords"}
-            </h1>
-            <p className="mt-1 truncate text-sm text-lf-text-secondary">
-              {title} · {originalKey}
-            </p>
-            {step2HasChords ? (
-              <p className="mt-1 text-sm text-lf-text-secondary">
-                Chords from your paste — use the Source tab in the editor to
-                edit ChordPro text.
-              </p>
-            ) : (
-              <p className="mt-1 text-sm text-lf-text-secondary">
-                {EDITOR_EDIT_SUBTITLE}
-              </p>
-            )}
-          </div>
-
-          {saveError && (
-            <p className="text-sm text-lf-danger" role="alert">
-              {saveError}
-            </p>
-          )}
-
-          <InteractiveEditor
-            sections={sections}
-            originalKey={originalKey}
-            onSave={(finalSections) => {
-              void handleSave(finalSections);
-            }}
-          />
-        </div>
-      )}
+        }
+      />
     </main>
   );
 }

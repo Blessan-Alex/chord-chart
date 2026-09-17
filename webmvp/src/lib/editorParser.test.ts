@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { parseRawLyrics } from "./editorParser";
 
 describe("parseRawLyrics", () => {
-  it("parses a section header in brackets", () => {
-    const sections = parseRawLyrics("[Verse 1]\nLine one\nLine two");
+  it("parses a section header in curly braces", () => {
+    const sections = parseRawLyrics("{Verse 1}\nLine one\nLine two");
     expect(sections).toHaveLength(1);
     expect(sections[0].label).toBe("Verse 1");
     expect(sections[0].lines).toHaveLength(2);
@@ -20,7 +20,7 @@ describe("parseRawLyrics", () => {
   });
 
   it("parses multiple sections", () => {
-    const sections = parseRawLyrics("[Verse 1]\nLine\n\n[Chorus]\nLine");
+    const sections = parseRawLyrics("{Verse 1}\nLine\n\n{Chorus}\nLine");
     expect(sections).toHaveLength(2);
     expect(sections[0].label).toBe("Verse 1");
     expect(sections[0].lines).toHaveLength(1);
@@ -36,7 +36,7 @@ describe("parseRawLyrics", () => {
   });
 
   it('treats "He said:" as a lyric line, not a section header', () => {
-    const sections = parseRawLyrics("[Verse 1]\nHe said:\nHello");
+    const sections = parseRawLyrics("{Verse 1}\nHe said:\nHello");
     expect(sections).toHaveLength(1);
     expect(sections[0].label).toBe("Verse 1");
     expect(sections[0].lines).toHaveLength(2);

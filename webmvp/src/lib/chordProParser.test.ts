@@ -48,7 +48,7 @@ describe("parseChordProLine", () => {
 describe("parseChordProSections", () => {
   it("parses sections and chords together", () => {
     const sections = parseChordProSections(
-      "[Verse 1]\n[Am]Line one\nPlain line\n\n[Chorus]\n[G]Sing",
+      "{Verse 1}\n[Am]Line one\nPlain line\n\n{Chorus}\n[G]Sing",
     );
     expect(sections).toHaveLength(2);
     expect(sections[0].lines[0].chords[0]?.chord).toBe("Am");
@@ -79,14 +79,14 @@ describe("serializeChordProLine", () => {
 
 describe("sectionsToChordProText", () => {
   it("serializes sections for the source editor", () => {
-    const sections = parseChordProSections("[Verse]\n[Am]Hello");
-    expect(sectionsToChordProText(sections)).toBe("[Verse]\n[Am]Hello");
+    const sections = parseChordProSections("{Verse}\n[Am]Hello");
+    expect(sectionsToChordProText(sections)).toBe("{Verse}\n[Am]Hello");
   });
 });
 
 describe("countChordsInSections", () => {
   it("counts all chord marks", () => {
-    const sections = parseChordProSections("[Verse]\n[Am]a [G]b");
+    const sections = parseChordProSections("{Verse}\n[Am]a [G]b");
     expect(countChordsInSections(sections)).toBe(2);
   });
 });

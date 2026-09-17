@@ -27,6 +27,7 @@ export type Section = {
 export type Song = {
   id: string;
   title: string;
+  artist?: string;
   originalKey: Key;
   sections: Section[];
 };

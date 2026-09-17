@@ -1,29 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import {
   countChordsInSections,
   parseChordProSections,
-  sectionsToChordProText,
 } from "@/lib/chordProParser";
-import { EDITOR_SOURCE_HEADING } from "@/lib/editorLabels";
-import type { Section } from "@/lib/types";
+import { EDITOR_SOURCE_HEADING, EDITOR_SOURCE_HINT } from "@/lib/editorLabels";
 
 type ChordProSourcePanelProps = {
-  sections: Section[];
-  onApply: (sections: Section[]) => void;
+  sourceText: string;
+  onSourceTextChange: (text: string) => void;
+  onApply: () => void;
+  applyError?: string | null;
+  large?: boolean;
 };
 
 export function ChordProSourcePanel({
-  sections,
+  sourceText,
+  onSourceTextChange,
   onApply,
+  applyError = null,
+  large = false,
 }: ChordProSourcePanelProps) {
-  const [sourceText, setSourceText] = useState(() =>
-    sectionsToChordProText(sections),
-  );
-  const [parseError, setParseError] = useState<string | null>(null);
-
   const preview = useMemo(() => {
     try {
       const parsed = parseChordProSections(sourceText);
@@ -47,29 +46,22 @@ export function ChordProSourcePanel({
         <h3 className="text-sm font-semibold text-lf-text-primary">
           {EDITOR_SOURCE_HEADING}
         </h3>
-        <p className="mt-1 text-sm text-lf-text-secondary">
-          Paste lyrics with inline chords like{" "}
-          <code className="rounded bg-lf-bg-muted px-1 font-mono text-xs">
-            [Am]Amazing [G]grace
-          </code>
-          . Use{" "}
-          <code className="rounded bg-lf-bg-muted px-1 font-mono text-xs">
-            [Verse 1]
-          </code>{" "}
-          for sections. Apply to update the visual chart.
-        </p>
+        <p className="mt-1 text-sm text-lf-text-secondary">{EDITOR_SOURCE_HINT}</p>
       </div>
 
       <textarea
         value={sourceText}
         onChange={(event) => {
-          setSourceText(event.target.value);
-          setParseError(null);
+          onSourceTextChange(event.target.value);
         }}
-        rows={14}
+        rows={large ? 20 : 14}
         spellCheck={false}
-        className="min-h-[280px] w-full rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-page px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-        placeholder={"[Verse 1]\n[Am]Amazing [G]grace how [C]sweet the sound"}
+        className={
+          large
+            ? "min-h-[420px] w-full rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-page px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+            : "min-h-[280px] w-full rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-page px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
+        }
+        placeholder={`{Verse 1}\n[F#m]Nin mukham kaanman nadha en [E]Ashaya [D]\n[F#m]Nin ishttam cheyyvan ennum en [E]vancha [D]`}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -82,38 +74,19 @@ export function ChordProSourcePanel({
             </>
           )}
         </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setSourceText(sectionsToChordProText(sections))}
-            className="min-h-10 rounded-[var(--lf-radius-md)] border border-lf-border px-4 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted"
-          >
-            Reset from chart
-          </button>
-          <button
-            type="button"
-            disabled={Boolean(preview.error) || preview.lineCount === 0}
-            onClick={() => {
-              try {
-                const parsed = parseChordProSections(sourceText);
-                onApply(parsed);
-                setParseError(null);
-              } catch (error) {
-                setParseError(
-                  error instanceof Error ? error.message : "Could not apply.",
-                );
-              }
-            }}
-            className="min-h-10 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
-          >
-            Apply to chart
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={Boolean(preview.error) || preview.lineCount === 0}
+          onClick={onApply}
+          className="min-h-10 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
+        >
+          Apply to chart
+        </button>
       </div>
 
-      {parseError && (
+      {applyError && (
         <p className="text-sm text-lf-danger" role="alert">
-          {parseError}
+          {applyError}
         </p>
       )}
     </div>

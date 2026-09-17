@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  AdminSongComposer,
+  type AdminSongComposerHandle,
+} from "@/components/AdminSongComposer";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { InteractiveEditor } from "@/components/InteractiveEditor";
-import { LanguageTagPicker } from "@/components/LanguageTagPicker";
 import { SignInRequired } from "@/components/SignInRequired";
 import { normalizeSections } from "@/lib/chordMarks";
-import { ALL_KEYS, type Key } from "@/lib/engine";
 import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
+import { type Key } from "@/lib/engine";
 import {
   createDraft,
   discardDraft,
@@ -29,6 +31,7 @@ export default function SongEditPage() {
   const router = useRouter();
   const songId = typeof params.id === "string" ? params.id : "";
   const { user, isAdmin, loading: authLoading } = useAuth();
+  const composerRef = useRef<AdminSongComposerHandle>(null);
 
   const [draft, setDraft] = useState<SongEdit | null>(null);
   const [title, setTitle] = useState("");
@@ -39,12 +42,14 @@ export default function SongEditPage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
 
   const loadDraft = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSaveNotice(null);
     try {
       const [song, existingDraft] = await Promise.all([
         getSong(songId),
@@ -82,27 +87,58 @@ export default function SongEditPage() {
     }
   }, [authLoading, user, isAdmin, loadDraft]);
 
+  const resolveSectionsForSave = (): Section[] | null => {
+    const resolved = composerRef.current?.getSectionsForSave();
+    if (!resolved || !resolved.ok) {
+      setError(
+        resolved && !resolved.ok
+          ? resolved.error
+          : "Could not read chart data.",
+      );
+      return null;
+    }
+    setSections(resolved.sections);
+    return resolved.sections;
+  };
+
   const saveDraft = async () => {
     if (!draft) {
       return;
     }
 
+    const sectionsToSave = resolveSectionsForSave();
+    if (!sectionsToSave) {
+      return;
+    }
+
     setBusy(true);
     setError(null);
+    setSaveNotice(null);
     try {
       await updateDraft(draft.id, {
         title: title.trim(),
         originalKey,
-        sections,
+        sections: sectionsToSave,
         notes: notes.trim() || null,
       });
-      await updateSong(songId, {
-        artist: artist.trim(),
-        tags,
-      });
+
+      let metaWarning: string | null = null;
+      try {
+        await updateSong(songId, {
+          artist: artist.trim(),
+          tags,
+        });
+      } catch (metaErr) {
+        metaWarning =
+          metaErr instanceof Error
+            ? `Draft saved; metadata: ${metaErr.message}`
+            : "Draft saved; artist/tags could not be updated.";
+      }
+
       await invalidateSongIndexCache();
       const refreshed = await getDraftForSong(songId);
       setDraft(refreshed);
+      setSaveNotice(metaWarning ?? "Draft saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save draft.");
     } finally {
@@ -115,13 +151,19 @@ export default function SongEditPage() {
       return;
     }
 
+    const sectionsToSave = resolveSectionsForSave();
+    if (!sectionsToSave) {
+      return;
+    }
+
     setBusy(true);
     setError(null);
+    setSaveNotice(null);
     try {
       await updateDraft(draft.id, {
         title: title.trim(),
         originalKey,
-        sections,
+        sections: sectionsToSave,
         notes: notes.trim() || null,
       });
       await publishDraft(draft.id, user!.uid, {
@@ -161,7 +203,7 @@ export default function SongEditPage() {
 
   if (!authLoading && user && !isAdmin) {
     return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 sm:p-6">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 sm:p-6">
         <h1 className="text-2xl font-semibold text-lf-text-primary">Admin only</h1>
         <p className="text-lf-text-secondary">
           Only admins can edit songs.
@@ -186,7 +228,7 @@ export default function SongEditPage() {
         onCancel={() => setShowDiscard(false)}
       />
 
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 pb-24 sm:p-6 sm:pb-8">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 pb-24 sm:p-6 sm:pb-8">
         <div className="flex items-center justify-between gap-4">
           <Link
             href={`/song/${songId}`}
@@ -231,86 +273,40 @@ export default function SongEditPage() {
             {error}
           </p>
         )}
+        {saveNotice && (
+          <p className="text-sm text-lf-brand" role="status">
+            {saveNotice}
+          </p>
+        )}
 
         {!loading && draft && (
-          <>
-            <div className="flex flex-col gap-5">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-lf-text-primary">Title</span>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-lf-text-primary">Artist</span>
-                <input
-                  type="text"
-                  value={artist}
-                  onChange={(e) => setArtist(e.target.value)}
-                  placeholder="Optional"
-                  className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-base text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-                />
-              </label>
-
-              <LanguageTagPicker value={tags} onChange={setTags} />
-
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-lf-text-primary">
-                  Original key
-                </span>
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                  {ALL_KEYS.map((key) => {
-                    const isSelected = key === originalKey;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setOriginalKey(key)}
-                        className={`min-h-12 rounded-[var(--lf-radius-md)] border px-2 text-sm font-semibold transition-colors ${
-                          isSelected
-                            ? "border-lf-brand bg-lf-bg-active text-lf-brand"
-                            : "border-lf-border bg-lf-bg-muted text-lf-text-primary hover:bg-lf-bg-active"
-                        }`}
-                      >
-                        {key}
-                      </button>
-                    );
-                  })}
-                </div>
+          <AdminSongComposer
+            ref={composerRef}
+            title={title}
+            onTitleChange={setTitle}
+            artist={artist}
+            onArtistChange={setArtist}
+            originalKey={originalKey}
+            onOriginalKeyChange={setOriginalKey}
+            tags={tags}
+            onTagsChange={setTags}
+            sections={sections}
+            onSectionsChange={setSections}
+            notes={notes}
+            onNotesChange={setNotes}
+            footer={
+              <div className="flex flex-wrap gap-2 border-t border-lf-border pt-4">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setShowDiscard(true)}
+                  className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
+                >
+                  Discard draft
+                </button>
               </div>
-
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-lf-text-primary">Notes</span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  className="rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-page px-4 py-3 text-sm text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
-                />
-              </label>
-            </div>
-
-            <InteractiveEditor
-              sections={sections}
-              originalKey={originalKey}
-              onSectionsChange={setSections}
-            />
-
-            <div className="flex flex-wrap gap-2 border-t border-lf-border pt-4">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setShowDiscard(true)}
-                className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
-              >
-                Discard draft
-              </button>
-            </div>
-          </>
+            }
+          />
         )}
 
         {!loading && !draft && (

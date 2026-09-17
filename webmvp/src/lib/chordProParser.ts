@@ -1,22 +1,9 @@
 import { getMarkEnd, getMarkStart, normalizeChordMark } from "./chordMarks";
+import {
+  isSectionHeaderLine,
+  parseSectionHeaderLabel,
+} from "./sectionHeaders";
 import type { ChordMark, LyricLine, Section } from "./types";
-
-const SECTION_LABEL_RE =
-  /^(verse|chorus|bridge|intro|outro|tag|pre-chorus|instrumental|hook|refrain|breakdown|interlude|section)(\s+\d+)?$/i;
-
-function isSectionHeader(line: string): boolean {
-  const bracketMatch = line.match(/^\[(.+)\]$/);
-  if (bracketMatch) {
-    return true;
-  }
-
-  const colonMatch = line.match(/^(.*?):$/);
-  if (!colonMatch) {
-    return false;
-  }
-
-  return SECTION_LABEL_RE.test(colonMatch[1].trim());
-}
 
 /** Parses "[Am]Amazing [G]grace" into lyrics + chord marks. */
 export function parseChordProLine(input: string): LyricLine {
@@ -52,7 +39,7 @@ export function parseChordProLine(input: string): LyricLine {
   return { lyrics, chords };
 }
 
-/** Parse multi-line ChordPro text with optional [Section] headers. */
+/** Parse multi-line ChordPro text with optional `{Section}` headers. */
 export function parseChordProSections(rawText: string): Section[] {
   const lines = rawText.split(/\r?\n/);
   const sections: Section[] = [];
@@ -65,10 +52,8 @@ export function parseChordProSections(rawText: string): Section[] {
       continue;
     }
 
-    if (isSectionHeader(line)) {
-      const bracketMatch = line.match(/^\[(.*?)\]$/);
-      const colonMatch = line.match(/^(.*?):$/);
-      const label = (bracketMatch?.[1] ?? colonMatch?.[1] ?? line).trim();
+    if (isSectionHeaderLine(line)) {
+      const label = parseSectionHeaderLabel(line) ?? line;
       currentSection = { label, lines: [] };
       sections.push(currentSection);
       continue;
@@ -134,7 +119,7 @@ export function serializeChordProLine(line: LyricLine): string {
 export function sectionsToChordProText(sections: Section[]): string {
   return sections
     .map((section) => {
-      const header = `[${section.label}]`;
+      const header = `{${section.label}}`;
       const body = section.lines.map(serializeChordProLine).join("\n");
       return body ? `${header}\n${body}` : header;
     })
