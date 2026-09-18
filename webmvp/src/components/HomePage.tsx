@@ -415,14 +415,6 @@ export function HomePage() {
             : `${indexEntries.length} songs`}
         </p>
 
-        {!user && (
-          <Link
-            href="/import"
-            className="inline-flex min-h-11 items-center justify-center self-start rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
-          >
-            + Add song
-          </Link>
-        )}
       </div>
 
       <div className="mt-6 flex flex-col gap-8">

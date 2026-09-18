@@ -19,12 +19,44 @@ import {
   DraftVersionConflictError,
   getDraftForSong,
   publishDraft,
+  reconcileDraftWithSong,
   updateDraft,
 } from "@/lib/firestore/songEdits";
 import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
 import { getSong, updateSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { Section, SongEdit } from "@/lib/types";
+
+function EditDraftActions({
+  busy,
+  onSaveDraft,
+  onPublish,
+}: {
+  busy: boolean;
+  onSaveDraft: () => void;
+  onPublish: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onSaveDraft}
+        className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
+      >
+        Save draft
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onPublish}
+        className="rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
+      >
+        Publish
+      </button>
+    </div>
+  );
+}
 
 export default function SongEditPage() {
   const params = useParams();
@@ -63,6 +95,16 @@ export default function SongEditPage() {
       if (!nextDraft) {
         setDraft(null);
         return;
+      }
+
+      if (song) {
+        const reconciled = await reconcileDraftWithSong(
+          nextDraft.id,
+          song.version,
+        );
+        if (reconciled) {
+          nextDraft = reconciled;
+        }
       }
 
       setDraft(nextDraft);
@@ -136,12 +178,14 @@ export default function SongEditPage() {
       }
 
       await invalidateSongIndexCache();
-      const refreshed = await getDraftForSong(songId);
-      setDraft(refreshed);
-      setSaveNotice(metaWarning ?? "Draft saved.");
+      if (metaWarning) {
+        setSaveNotice(metaWarning);
+        setBusy(false);
+        return;
+      }
+      router.push(`/song/${songId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save draft.");
-    } finally {
       setBusy(false);
     }
   };
@@ -166,7 +210,18 @@ export default function SongEditPage() {
         sections: sectionsToSave,
         notes: notes.trim() || null,
       });
-      await publishDraft(draft.id, user!.uid, {
+
+      const song = await getSong(songId);
+      let draftToPublish = draft;
+      if (song) {
+        const reconciled = await reconcileDraftWithSong(draft.id, song.version);
+        if (reconciled) {
+          draftToPublish = reconciled;
+          setDraft(reconciled);
+        }
+      }
+
+      await publishDraft(draftToPublish.id, user!.uid, {
         artist: artist.trim(),
         tags,
       });
@@ -175,7 +230,7 @@ export default function SongEditPage() {
     } catch (err) {
       if (err instanceof DraftVersionConflictError) {
         setError(
-          "Someone else published changes while you were editing. Reload and try again.",
+          "The song changed while publishing. Reload this page and try again.",
         );
       } else {
         setError(err instanceof Error ? err.message : "Could not publish.");
@@ -228,7 +283,7 @@ export default function SongEditPage() {
         onCancel={() => setShowDiscard(false)}
       />
 
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 pb-24 sm:p-6 sm:pb-8">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 pb-28 sm:p-6 sm:pb-8">
         <div className="flex items-center justify-between gap-4">
           <Link
             href={`/song/${songId}`}
@@ -236,28 +291,17 @@ export default function SongEditPage() {
           >
             ← Back
           </Link>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
+          {draft && (
+            <EditDraftActions
+              busy={busy}
+              onSaveDraft={() => {
                 void saveDraft();
               }}
-              className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
-            >
-              Save draft
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
+              onPublish={() => {
                 void handlePublish();
               }}
-              className="rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
-            >
-              Publish
-            </button>
-          </div>
+            />
+          )}
         </div>
 
         <div>
@@ -296,7 +340,23 @@ export default function SongEditPage() {
               notes={notes}
               onNotesChange={setNotes}
             />
-            <div className="border-t border-lf-border pt-4">
+          </div>
+        )}
+
+        {!loading && draft && (
+          <div
+            className="fixed inset-x-0 bottom-0 z-20 border-t border-lf-border bg-lf-bg-elevated/95 px-4 py-3 backdrop-blur sm:hidden"
+          >
+            <div className="mx-auto flex max-w-5xl flex-col gap-3">
+              <EditDraftActions
+                busy={busy}
+                onSaveDraft={() => {
+                  void saveDraft();
+                }}
+                onPublish={() => {
+                  void handlePublish();
+                }}
+              />
               <button
                 type="button"
                 disabled={busy}
@@ -305,6 +365,30 @@ export default function SongEditPage() {
               >
                 Discard draft
               </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && draft && (
+          <div className="hidden border-t border-lf-border pt-4 sm:block">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setShowDiscard(true)}
+                className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
+              >
+                Discard draft
+              </button>
+              <EditDraftActions
+                busy={busy}
+                onSaveDraft={() => {
+                  void saveDraft();
+                }}
+                onPublish={() => {
+                  void handlePublish();
+                }}
+              />
             </div>
           </div>
         )}

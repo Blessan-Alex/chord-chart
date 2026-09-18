@@ -8,6 +8,7 @@ import {
   getDraftForSong,
   listArchivedVersions,
   publishDraft,
+  reconcileDraftWithSong,
   updateDraft,
 } from "@/lib/firestore/songEdits";
 import { createSong, getSong } from "@/lib/firestore/songs";
@@ -109,7 +110,45 @@ describe.skipIf(!emulatorEnabled).sequential("songEdits integration", () => {
     expect(await getDraftForSong("discard-song", adminDb)).toBeNull();
   });
 
-  it("throws on baseVersion conflict", async () => {
+  it("reconciles stale baseVersion then publishes successfully", async () => {
+    await createSong(
+      {
+        id: "reconcile-song",
+        title: "Reconcile Song",
+        originalKey: "G",
+        sections: sampleSongSections,
+      },
+      "admin-uid",
+      adminDb,
+    );
+
+    const draft = await createDraft("reconcile-song", "admin-uid", adminDb);
+    await publishDraft(draft.id, "admin-uid", undefined, adminDb);
+
+    const staleDraft = await createDraft("reconcile-song", "admin-uid", adminDb);
+    await updateDoc(doc(adminDb, "songEdits", staleDraft.id), {
+      baseVersion: 1,
+      version: 2,
+    });
+
+    const song = await getSong("reconcile-song", adminDb);
+    expect(song?.version).toBe(2);
+
+    const reconciled = await reconcileDraftWithSong(
+      staleDraft.id,
+      song!.version,
+      adminDb,
+    );
+    expect(reconciled?.baseVersion).toBe(2);
+    expect(reconciled?.version).toBe(3);
+
+    await publishDraft(staleDraft.id, "admin-uid", undefined, adminDb);
+
+    const published = await getSong("reconcile-song", adminDb);
+    expect(published?.version).toBe(3);
+  });
+
+  it("throws on baseVersion conflict when song changed during publish", async () => {
     await createSong(
       {
         id: "conflict-song",
@@ -127,6 +166,9 @@ describe.skipIf(!emulatorEnabled).sequential("songEdits integration", () => {
     const staleDraft = await createDraft("conflict-song", "admin-uid", adminDb);
     await updateDoc(doc(adminDb, "songEdits", staleDraft.id), {
       baseVersion: 1,
+    });
+    await updateDoc(doc(adminDb, "songs", "conflict-song"), {
+      version: 3,
     });
 
     await expect(

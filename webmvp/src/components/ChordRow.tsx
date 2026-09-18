@@ -1,12 +1,33 @@
 "use client";
 
-import { useMemo, useRef, type CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { getMarkStart, markKey, normalizeChordMark } from "@/lib/chordMarks";
+import {
+  chordRowFontFromElement,
+  measureChordLabelWidths,
+} from "@/lib/chordLabelMeasure";
 import { chordToDegree, transposeChord } from "@/lib/engine";
 import { useChordRowLayout } from "@/lib/hooks/useChordRowLayout";
 import type { ChordLayoutPlacement } from "@/lib/chordLayout";
 import type { ChordMark } from "@/lib/types";
+
+const PACKED_CHORD_GAP_PX = 12;
+
+function buildPackedAnchorOffsets(
+  chordStarts: readonly number[],
+  displayLabels: readonly string[],
+  font: string,
+): Record<number, number> {
+  const widths = measureChordLabelWidths(displayLabels, font);
+  const offsets: Record<number, number> = {};
+  let left = 0;
+  for (let i = 0; i < chordStarts.length; i++) {
+    offsets[chordStarts[i]] = left;
+    left += widths[i] + PACKED_CHORD_GAP_PX;
+  }
+  return offsets;
+}
 
 type ChordRowProps = {
   chords: ChordMark[];
@@ -14,6 +35,8 @@ type ChordRowProps = {
   targetKey: string;
   viewMode: "chords" | "numbers";
   chordOffsets?: Record<number, number>;
+  /** Horizontal packed layout when there are no visible lyrics to measure. */
+  packed?: boolean;
   previewMark?: ChordMark | null;
   onChordClick?: (mark: ChordMark) => void;
 };
@@ -73,10 +96,14 @@ export function ChordRow({
   targetKey,
   viewMode,
   chordOffsets,
+  packed = false,
   previewMark,
   onChordClick,
 }: ChordRowProps) {
   const chordRowRef = useRef<HTMLDivElement>(null);
+  const [packedOffsets, setPackedOffsets] = useState<Record<number, number>>(
+    {},
+  );
   const sorted = useMemo(() => {
     const normalized = chords.map(normalizeChordMark);
     const preview =
@@ -109,15 +136,56 @@ export function ChordRow({
     [sorted, originalKey, targetKey, viewMode],
   );
 
+  const startsKey = chordStarts.join(",");
+  const labelsKey = displayLabels.join("\u0001");
+
+  useLayoutEffect(() => {
+    if (!packed || chordStarts.length === 0) {
+      setPackedOffsets({});
+      return;
+    }
+
+    const measure = () => {
+      const font = chordRowFontFromElement(chordRowRef.current);
+      setPackedOffsets(
+        buildPackedAnchorOffsets(chordStarts, displayLabels, font),
+      );
+    };
+
+    measure();
+
+    const element = chordRowRef.current;
+    if (!element) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+    observer.observe(element);
+
+    if (document.fonts) {
+      void document.fonts.ready.then(measure);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [packed, startsKey, labelsKey, chordStarts, displayLabels]);
+
+  const effectiveOffsets = packed
+    ? packedOffsets
+    : chordOffsets;
+
   const usePixelLayout = Boolean(
-    chordOffsets && Object.keys(chordOffsets).length > 0,
+    effectiveOffsets && Object.keys(effectiveOffsets).length > 0,
   );
 
   const { placements, tierCount } = useChordRowLayout(
     chordRowRef,
     chordStarts,
     displayLabels,
-    usePixelLayout ? chordOffsets : undefined,
+    usePixelLayout ? effectiveOffsets : undefined,
   );
 
   const rowMinHeight =
@@ -156,7 +224,7 @@ export function ChordRow({
                   }`
                 : `absolute bottom-0 ${isPreview ? "text-lf-brand/70" : "text-lf-brand"}`
             }
-            style={chordPositionStyle(start, chordOffsets, resolved)}
+            style={chordPositionStyle(start, effectiveOffsets, resolved)}
             onClick={onChordClick ? () => onChordClick(mark) : undefined}
           >
             {displayLabels[index]}

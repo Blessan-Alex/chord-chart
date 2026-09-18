@@ -5,6 +5,10 @@ import {
 } from "./sectionHeaders";
 import type { ChordMark, LyricLine, Section } from "./types";
 
+export function isChordOnlyLine(line: LyricLine): boolean {
+  return line.chords.length > 0 && line.lyrics.trim() === "";
+}
+
 /** Parses "[Am]Amazing [G]grace" into lyrics + chord marks. */
 export function parseChordProLine(input: string): LyricLine {
   const chords: ChordMark[] = [];
@@ -18,8 +22,8 @@ export function parseChordProLine(input: string): LyricLine {
         const atEndOfInput = end + 1 >= input.length;
         let start = lyrics.length;
         let markEnd = lyrics.length + 1;
-        // Trailing `[A]` with no following lyric — anchor to last character.
-        if (atEndOfInput && start > 0) {
+        // Trailing `[A]` after real lyrics — anchor to last character (not chord-only spacers).
+        if (atEndOfInput && start > 0 && lyrics.trim().length > 0) {
           start = lyrics.length - 1;
           markEnd = lyrics.length;
         }
@@ -29,6 +33,10 @@ export function parseChordProLine(input: string): LyricLine {
           end: markEnd,
         });
         i = end + 1;
+        // Back-to-back `[chord][chord]` — insert spacer so anchors do not collapse.
+        if (i < input.length && input[i] === "[") {
+          lyrics += " ";
+        }
         continue;
       }
     }

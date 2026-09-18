@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { createChordMark } from "@/lib/chordMarks";
+import { isChordOnlyLine } from "@/lib/chordProParser";
 import {
   EMPTY_CHORD_INDICES,
   useLyricChordOffsets,
@@ -217,6 +218,7 @@ export function LyricLineEditor({
         targetKey={originalKey}
         viewMode="chords"
         chordOffsets={chordOffsets}
+        packed={isChordOnlyLine(line)}
         previewMark={previewMark}
         onChordClick={onChordClick}
       />

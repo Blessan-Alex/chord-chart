@@ -128,20 +128,52 @@ export async function listArchivedVersions(
     .slice(0, MAX_ARCHIVED_VERSIONS);
 }
 
+/** Align draft version fields with the live song when the song advanced without deleting the draft. */
+export async function reconcileDraftWithSong(
+  editId: string,
+  songVersion: number,
+  db?: Firestore,
+): Promise<SongEdit | null> {
+  const firestore = resolveDb(db);
+  const draft = await getSongEdit(editId, firestore);
+  if (!draft || draft.status !== "draft") {
+    return draft;
+  }
+
+  if (draft.baseVersion === songVersion) {
+    return draft;
+  }
+
+  await updateDoc(doc(firestore, SONG_EDITS_COLLECTION, editId), {
+    baseVersion: songVersion,
+    version: songVersion + 1,
+  });
+
+  return getSongEdit(editId, firestore);
+}
+
 export async function createDraft(
   songId: string,
   editedBy: string,
   db?: Firestore,
 ): Promise<SongEdit> {
   const firestore = resolveDb(db);
-  const existing = await getDraftForSong(songId, firestore);
-  if (existing) {
-    return existing;
-  }
-
   const song = await getSong(songId, firestore);
   if (!song || song.status !== "active") {
     throw new Error(`Song not found: ${songId}`);
+  }
+
+  const existing = await getDraftForSong(songId, firestore);
+  if (existing) {
+    const reconciled = await reconcileDraftWithSong(
+      existing.id,
+      song.version,
+      firestore,
+    );
+    if (!reconciled) {
+      throw new Error("Draft not found");
+    }
+    return reconciled;
   }
 
   const ref = doc(collection(firestore, SONG_EDITS_COLLECTION));

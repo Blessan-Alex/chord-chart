@@ -33,6 +33,23 @@ describe("parseChordProLine", () => {
     ]);
   });
 
+  it("assigns distinct anchors for adjacent chord-only tokens", () => {
+    const line = parseChordProLine("[F#m7][B][A][F#m]");
+    expect(line.chords).toHaveLength(4);
+    const starts = line.chords.map((c) => c.start);
+    expect(new Set(starts).size).toBe(4);
+    expect(starts).toEqual([0, 1, 2, 3]);
+  });
+
+  it("parses spaced chord-only line with distinct anchors", () => {
+    const input = "[F#m7]   [B]    [A]  [F#m]";
+    const line = parseChordProLine(input);
+    expect(line.chords).toHaveLength(4);
+    const starts = line.chords.map((c) => c.start);
+    expect(new Set(starts).size).toBe(4);
+    expect(serializeChordProLine(line)).toBe(input);
+  });
+
   it("parses Way Maker chorus line without out-of-range marks", () => {
     const line = parseChordProLine("[E]My God, [B]that is who You [C#m]are[A]");
     expect(line.lyrics).toBe("My God, that is who You are");

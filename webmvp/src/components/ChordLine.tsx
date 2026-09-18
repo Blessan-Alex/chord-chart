@@ -8,6 +8,7 @@ import {
   useLyricChordOffsets,
 } from "@/lib/hooks/useLyricChordOffsets";
 import { lyricChordStarts, lyricChordsSignature } from "@/lib/lyricChords";
+import { isChordOnlyLine } from "@/lib/chordProParser";
 import { wrapLyricLine } from "@/lib/wrapLyricLine";
 import type { LyricLine } from "@/lib/types";
 
@@ -46,6 +47,7 @@ function MeasuredSegment({
 
   const hasChords = segment.chords.length > 0;
   const hasLyrics = segment.lyrics.trim().length > 0;
+  const packed = isChordOnlyLine(segment);
 
   return (
     <>
@@ -56,6 +58,7 @@ function MeasuredSegment({
           targetKey={targetKey}
           viewMode={viewMode}
           chordOffsets={chordOffsets}
+          packed={packed}
         />
       )}
       {hasLyrics && (
