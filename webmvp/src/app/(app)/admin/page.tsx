@@ -166,7 +166,7 @@ export default function AdminPage() {
               href="/"
               className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
             >
-              ← Home
+              ← Library
             </Link>
             <h1 className="mt-2 text-2xl font-semibold text-lf-text-primary sm:text-3xl">
               Admin
