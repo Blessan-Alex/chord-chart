@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "702566647801",
+    "project_id": "song-db-5e4ed",
+    "storage_bucket": "song-db-5e4ed.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:702566647801:android:cffaff32621eb8ed6e5f28",
+        "android_client_info": {
+          "package_name": "com.lfchords.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdCFMeokPSUpZxnewtb-lgu0VlzkV01Sg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:702566647801:android:0828d016db3ed35e6e5f28",
+        "android_client_info": {
+          "package_name": "com.lfchords.lf_chords"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdCFMeokPSUpZxnewtb-lgu0VlzkV01Sg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -69,8 +69,10 @@ node_modules/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
-pubspec.lock
 **/android/.gradle/
+**/android/local.properties
+**/android/.kotlin/
+**/android/.cxx/
 **/android/app/debug/
 **/android/app/profile/
 **/android/app/release/
