@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:lf_chords/main.dart';
+import 'package:lf_chords/features/auth/widgets/login_form.dart';
 
 void main() {
-  testWidgets('LF Chords shell smoke test', (WidgetTester tester) async {
+  testWidgets('login form shows sign in button', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: HomeShell()),
+      MaterialApp(
+        home: Scaffold(
+          body: LoginForm(
+            onSubmit: (_, __) async {},
+            onNavigateToSignup: () {},
+          ),
+        ),
+      ),
     );
 
-    expect(find.text('LF Chords'), findsOneWidget);
-    expect(find.text('Musician app — setup OK'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
   });
 }

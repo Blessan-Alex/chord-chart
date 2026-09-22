@@ -29,6 +29,13 @@
             {
               "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "702566647801-tmn9l0kvspils8h4smggehtshpb7htg6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.lfchords.lfChords"
+              }
             }
           ]
         }
@@ -42,6 +49,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "702566647801-9rrbm3tdvrt4kk0q7om53r0gr2a9243g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lfchords.lf_chords",
+            "certificate_hash": "63d3ab4ec06189e88c2dadfdc9411dca86f92543"
+          }
+        },
         {
           "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
           "client_type": 3
@@ -58,6 +73,13 @@
             {
               "client_id": "702566647801-opincmkmdljrekh6oevb9smdq893e59e.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "702566647801-tmn9l0kvspils8h4smggehtshpb7htg6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.lfchords.lfChords"
+              }
             }
           ]
         }

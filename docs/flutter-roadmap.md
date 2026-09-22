@@ -1,9 +1,26 @@
 # LF Chords — Flutter mobile roadmap (musician client)
 
-**Status:** Planning (implementation not started)  
+**Status:** Phase 0 complete · Phase 1 implemented (auth + routing shell) — manual device QA pending  
 **Team shape:** 1–2 developers, Windows-first (Android), iOS on Mac later  
 **Backend:** Firebase project `song-db-5e4ed` (`.firebaserc`) — same Auth, Firestore, rules as web  
 **Specs:** [`flutter-web-app-map.md`](flutter-web-app-map.md) · [`flutter-web-app-map-verification.md`](flutter-web-app-map-verification.md) (High/Medium errata override the map where they conflict)
+
+### Implementation progress (tick as shipped)
+
+| Phase | Focus | Status |
+|-------|--------|--------|
+| **0** | `mobile/`, Firebase init, shell UI, widget test | **Done** |
+| **1** | Auth, onboarding, `go_router`, theme shell | **Done** (code + unit tests; Google SHA / device QA per phase doc §4) |
+| **2** | Song index + home search (ported web logic) | Not started |
+| **3** | Chart, transpose, numbers, live song stream | Not started |
+| **4** | Performance mode | Not started |
+| **5** | Playlists + join API | Not started |
+| **6** | Offline prefetch set + connectivity UX | Not started |
+| **7** | Groups (v1.1) + polish | Not started |
+| **8** | Store beta, iOS prep | Not started |
+| **9** | v1.1 launch, iOS ship, production ops | Not started |
+
+**Shipped in repo (`mobile/`):** Flutter app `lf_chords`, Android + iOS targets, Firebase Auth + Firestore (offline persistence), email/Google sign-in flow, username onboarding, `go_router` shell (Home / Playlists / Profile), theme + profile screens, join invite stub, ported domain tests. Phase 0 bootstrap retained as debug line on Profile in debug builds.
 
 ---
 
@@ -12,6 +29,19 @@
 ### Vision
 
 LF Chords on mobile is the **stage- and pew-ready companion** to the church’s shared web library: musicians browse the same Firestore song index, open charts with transpose and Nashville numbers, run set lists with autoscroll and wake lock, and join playlists via invite links—**without any admin authoring** (that remains on the Next.js web app).
+
+### Local-first mobile, same logic as web
+
+The Flutter app is built so **Sunday use works when the network does not**:
+
+| Principle | What it means |
+|-----------|----------------|
+| **Local when needed** | Firestore **offline persistence** (default on mobile), explicit **playlist/song prefetch** (port `cacheSessionOffline`), and **on-device prefs** (`shared_preferences` for zoom, theme, recent songs — same roles as web `localStorage` / `performancePreferences.ts` / `recentSongs.ts`). UI reads **cache first**, then server; charts and search run **entirely on-device** once data is present. |
+| **Dependencies in the app** | Fonts (`google_fonts`), chord/search/chart code in **`lib/domain/`** — no reliance on loading logic from the network at runtime. |
+| **Web logic, not a rewrite** | Transpose, search rank, index merge, session navigation, validation, join API contract, and Firestore query shapes are **ported from** `webmvp/src/lib/**` (see map appendices). Behavior must match web + **verification doc** errata (browse pagination vs 100 search cap, `listPlaylistsForUser`, etc.). |
+| **Web-only stays on web** | Song create/edit, import, admin, `songEdits`, and guest **`localStorage` song library** (`storage.ts`) are **not** replicated on mobile — mobile is **Firebase library + local cache/prefs**, not a second authoring store. |
+
+Offline is not a late add-on: **Phase 2+** designs repositories assuming cached reads; **Phase 6** adds “download set” and connectivity UX on top of that foundation.
 
 ### In scope (Flutter v1 / v1.1)
 
@@ -24,8 +54,8 @@ LF Chords on mobile is the **stage- and pew-ready companion** to the church’s 
 | Performance | Immersive UI, autoscroll, wakelock, playlist prev/next query semantics |
 | Playlists | `listPlaylistsForUser`, create, detail, session songs, publish **display**, reorder, key override, invite share + **join API** |
 | Profile | Display name, username (read/claim) |
-| Offline | Firestore persistence + prefetch set (port `cacheSessionOffline`) |
-| Connectivity | Banner when offline (probe strategy adapted for mobile) |
+| Offline / local | Firestore persistence + in-memory index cache + prefetch set (port `cacheSessionOffline`); prefs on device |
+| Connectivity | Banner when offline (probe strategy adapted for mobile; parity goal with web `useOnlineStatus`) |
 
 ### Out of scope (web-only / never in Flutter)
 
@@ -53,36 +83,34 @@ LF Chords on mobile is the **stage- and pew-ready companion** to the church’s 
 
 ## 1. Phase 0 — Environment & project setup
 
-**New to Flutter?** Follow step-by-step install and first run: [`flutter-day-zero-setup.md`](flutter-day-zero-setup.md).
-
-**Goal:** Runnable Flutter app in monorepo, Firebase wired, team can iterate on Android.
+**Goal:** Runnable Flutter app in monorepo, Firebase wired, team can iterate on Android. (Initial setup and Phase 0 shell are complete in `mobile/`.)
 
 ### Checklist
 
-| Step | Action |
-|------|--------|
-| 1 | Install Flutter SDK (stable channel, 3.24+ recommended). Run `flutter doctor`; fix Android SDK, cmdline-tools, accept licenses. |
-| 2 | IDE: VS Code/Cursor with **Dart** + **Flutter** extensions; enable format on save. |
-| 3 | **Repo layout:** create **`mobile/`** at repo root (monorepo with `webmvp/`). Keeps one PR for API/rules + app; shared docs in `docs/`. Alternative rejected: separate repo (harder to keep join API + rules in sync). |
-| 4 | `cd mobile && flutter create . --org com.lfchords --project-name lf_chords --platforms=android,ios` (if folder empty) or `flutter create lf_chords` then move. |
-| 5 | **Android:** `minSdkVersion` **23** (Firebase common baseline); `compileSdk` latest stable. **iOS:** deployment target **13.0+** (Firebase 11.x). |
-| 6 | **Package IDs:** `com.lfchords.app` (Android applicationId), `com.lfchords.app` (iOS bundle id). Display name: **LF Chords**. |
-| 7 | Install FlutterFire CLI; run `flutterfire configure` from `mobile/`, select project **`song-db-5e4ed`**, register Android + iOS apps. Generates `lib/firebase_options.dart` (gitignored variant optional — see env). |
-| 8 | Add dependencies (see Appendix A); run `flutter pub get`. |
-| 9 | Initialize Firebase in `main.dart`; enable Firestore **offline persistence** (default on mobile). |
-| 10 | **App Check (plan only):** register Android Play Integrity + iOS App Attest in console; do not enforce until web + mobile both send tokens. Env names mirror web: `NEXT_PUBLIC_FIREBASE_APP_CHECK_KEY` (web) — mobile uses platform providers via `firebase_app_check`. |
-| 11 | **Environments:** use `--dart-define` or flavors: `JOIN_API_BASE_URL` (default prod Vercel, e.g. `https://lfchords.vercel.app`), `FLAVOR=dev|prod`. Document in `mobile/README.md`. |
-| 12 | **`.gitignore`:** `google-services.json`, `GoogleService-Info.plist`, `firebase_options.dart` if team policy requires secrets out of repo — OR commit non-secret options (team choice; default: commit `firebase_options.dart`, ignore service JSON if duplicated). Never commit service account JSON. |
-| 13 | Optional **Phase 0 CI:** `.github/workflows/flutter.yml` — `flutter analyze`, `flutter test`, `flutter build apk --debug` on `mobile/`. iOS job on `macos-latest` later. |
-| 14 | **Debug screen:** hidden route or debug banner showing `Firebase.app().options.projectId == song-db-5e4ed`. |
-| 15 | One **widget test:** `MaterialApp` smoke (pump counter or logo). |
+| Done | Step | Action |
+|:----:|------|--------|
+| [x] | 1 | Install Flutter SDK (stable channel, 3.24+ recommended). Run `flutter doctor`; fix Android SDK, cmdline-tools, accept licenses. |
+| [x] | 2 | IDE: VS Code/Cursor with **Dart** + **Flutter** extensions; enable format on save. |
+| [x] | 3 | **Repo layout:** create **`mobile/`** at repo root (monorepo with `webmvp/`). Keeps one PR for API/rules + app; shared docs in `docs/`. Alternative rejected: separate repo (harder to keep join API + rules in sync). |
+| [x] | 4 | `cd mobile && flutter create . --org com.lfchords --project-name lf_chords --platforms=android,ios` (if folder empty) or `flutter create lf_chords` then move. |
+| [x] | 5 | **Android:** `minSdkVersion` **23** (Firebase common baseline); `compileSdk` latest stable. **iOS:** deployment target **13.0+** (Firebase 11.x). |
+| [x] | 6 | **Package IDs:** Android `com.lfchords.lf_chords` (registered in Firebase); iOS `com.lfchords.lfChords`. Display name: **LF Chords**. |
+| [x] | 7 | Install FlutterFire CLI; run `flutterfire configure` from `mobile/`, select project **`song-db-5e4ed`**, register Android + iOS apps. Generates `lib/firebase_options.dart`. |
+| [~] | 8 | Add dependencies (see Appendix A); run `flutter pub get`. **Phase 0:** `firebase_core` only; rest land in Phases 1–6. |
+| [~] | 9 | Initialize Firebase in `main.dart`; enable Firestore **offline persistence** when `cloud_firestore` is added (Phase 1–2). |
+| [ ] | 10 | **App Check (plan only):** register Android Play Integrity + iOS App Attest in console; do not enforce until web + mobile both send tokens. Env names mirror web: `NEXT_PUBLIC_FIREBASE_APP_CHECK_KEY` (web) — mobile uses platform providers via `firebase_app_check`. |
+| [ ] | 11 | **Environments:** use `--dart-define` or flavors: `JOIN_API_BASE_URL` (default prod Vercel, e.g. `https://lfchords.vercel.app`), `FLAVOR=dev|prod`. Document in `mobile/README.md`. |
+| [x] | 12 | **`.gitignore`:** repo tracks `firebase_options.dart` + `google-services.json`; never commit service account JSON. |
+| [ ] | 13 | Optional **Phase 0 CI:** `.github/workflows/flutter.yml` — `flutter analyze`, `flutter test`, `flutter build apk --debug` on `mobile/`. iOS job on `macos-latest` later. |
+| [x] | 14 | **Debug screen:** home shell shows `Firebase.app().options.projectId` (expect `song-db-5e4ed`). |
+| [x] | 15 | One **widget test:** `MaterialApp` smoke (`HomeShell`). |
 
 ### Definition of done (Phase 0)
 
-- [ ] `flutter run` on Android emulator or device shows shell UI  
-- [ ] Firebase initializes without error  
-- [ ] Debug UI shows project id `song-db-5e4ed`  
-- [ ] `flutter test` passes (≥1 test)  
+- [x] `flutter run` on Android emulator or device shows shell UI  
+- [x] Firebase initializes without error  
+- [x] Debug UI shows project id `song-db-5e4ed`  
+- [x] `flutter test` passes (≥1 test)  
 - [ ] `mobile/README.md` documents defines and clone steps  
 
 **Estimate:** 0.5–1 person-week  
@@ -96,8 +124,10 @@ LF Chords on mobile is the **stage- and pew-ready companion** to the church’s 
 | State management | **Riverpod 2.x** (`flutter_riverpod`, `riverpod_annotation` optional) | Async Firestore streams, testable overrides, scales for 1–2 devs | Bloc (more boilerplate); Provider alone (less ergonomic for async) |
 | Navigation | **go_router** | Declarative routes, deep links (`/join/p/:token`, query params on song) | Navigator 2.0 manual; auto_route |
 | Layering | **Feature-first** under `lib/features/*` + **`lib/core/*`** shared | Matches product areas; avoids over-layering early | Strict clean architecture (too heavy for v1) |
-| Data | **Repository classes** per feature; **cloud_firestore** + **firebase_auth** | Same as web modules in `lib/firestore/*` | drift/sqflite primary (add later only for index cache if needed) |
-| Song index | Port **`songIndex.ts`** + **`songIndexCache.ts`** behavior: load chunks 0–4, merge, optional progressive chunk0-first; **in-memory + Riverpod** cache | Public read; 10k cap | Full collection scan of `songs` |
+| Data | **Repository classes** per feature; **cloud_firestore** + **firebase_auth**; reads **cache-first** where web does | Same as web modules in `lib/firestore/*` | drift/sqflite primary (optional later if index memory needs disk) |
+| Local layer | **Firestore persistence** + **Riverpod** in-memory index + **`shared_preferences`** (zoom, theme, recent) + **prefetch** (`cacheSessionOffline`) | Matches web: persistent Firestore cache + localStorage prefs; mobile adds explicit set download | Guest `localStorage` songs (`storage.ts`) |
+| Song index | Port **`songIndex.ts`** + **`songIndexCache.ts`** behavior: load chunks 0–4, merge, optional progressive chunk0-first; **in-memory + Riverpod** cache on device | Public read; 10k cap; search/rank runs locally | Full collection scan of `songs` |
+| Web parity rule | **Port TypeScript modules to Dart** under `lib/domain/` and mirror Firestore calls from `webmvp/src/lib/firestore/*` | Single source of behavior spec is web + verification doc | Reimplementing search/chart rules ad hoc in widgets |
 | Search | Port **`songSearchText.dart`** (build blob) + **`songSearchRank.dart`** (`rankSongIndexResults`, filters) | Verification: 100 cap **only when searching/filtering**; browse-all paginates page size 10 | Algolia / server search (out of scope) |
 | Live song | **`snapshots()`** on `songs/{id}` via repository; expose `Stream<Song?>` to UI — **equivalent to `useSongLive`**, not TanStack | Simple parity with web live updates | Polling |
 | Chord UI | **Custom widgets:** `ChordChartLine`, `ChordRow`, layout from port of **`chordLayout.ts`**, **`wrapLyricLine.ts`**, **`graphemeUtils.dart`** (`characters` package) | Web uses DOM measurement; Flutter uses `TextPainter` / fixed column grid | WebView chart (bad UX offline) |
@@ -119,6 +149,7 @@ flowchart TB
   end
   subgraph data [Data]
     Repo[SongIndexRepository, SongRepository, SessionRepository, AuthRepository, JoinApiClient]
+    Local[Firestore disk cache, prefs, prefetch sets]
   end
   subgraph remote [Remote]
     FS[(Firestore)]
@@ -127,6 +158,7 @@ flowchart TB
   end
   Home --> Providers
   Providers --> Repo
+  Repo --> Local
   Repo --> FS
   Repo --> Auth
   Repo --> API
@@ -199,23 +231,26 @@ mobile/lib/
 
 ## 4. Phased roadmap
 
-### Phase 0 — Setup & skeleton
+### Phase 0 — Setup & skeleton ✅
 
 | | |
 |--|--|
+| **Status** | **Complete** (README defines + optional CI remain) |
 | **Goal** | Tooling, `mobile/` app, Firebase init |
 | **Duration** | 0.5–1 pw |
-| **Epics** | Repo folder, FlutterFire, CI sketch, debug screen |
-| **User stories** | Dev clones repo and runs app on Android; sees Firebase project id |
-| **Technical tasks** | `mobile/`, `pubspec.yaml`, `main.dart`, `core/firebase/firebase_init.dart`, widget test |
+| **Epics** | Repo folder, FlutterFire, debug screen, widget test |
+| **User stories** | Dev clones repo and runs app on Android; sees Firebase project id — **done** |
+| **Technical tasks** | `mobile/`, `pubspec.yaml` (`firebase_core`), `main.dart`, `firebase_options.dart`, `HomeShell`, widget test — **done** |
 | **Domain ports** | None |
 | **Dependencies** | None |
-| **Demo** | Blank themed home + Firebase ok |
+| **Demo** | Themed home + **Firebase: song-db-5e4ed** — **done** |
 | **Risks** | Windows Android emulator performance; FlutterFire misconfigured package name |
 
 ---
 
 ### Phase 1 — Core: Firebase, auth, routing shell, theme
+
+**Implementation plan:** [`flutter-phase-1-auth.md`](flutter-phase-1-auth.md) (sub-phases 1A–1G, manual Google SHA setup, web parity checklist).
 
 | | |
 |--|--|
@@ -233,9 +268,11 @@ mobile/lib/
 
 ### Phase 2 — Song index + home search (no chart yet)
 
+**Implementation plan:** [`flutter-phase-2-library.md`](flutter-phase-2-library.md) (sub-phases 2A–2G, browse vs 100-cap rules, progressive index).
+
 | | |
 |--|--|
-| **Goal** | Library list with search, filters, pagination |
+| **Goal** | Library list with search, filters, pagination — **index cached on device**; same rank/filter rules as web |
 | **Duration** | 2 pw |
 | **Epics** | Index repository, home UI, search providers |
 | **User stories** | (1) When app opens, load index chunks with chunk0-first paint. (2) When typing search, rank results and cap at 100. (3) When no search, paginate 10 per page sorted by `updatedAtMs`. (4) Filter by key/tag/artist. (5) Tap row opens song route placeholder. |
@@ -248,6 +285,8 @@ mobile/lib/
 ---
 
 ### Phase 3 — Song chart + transpose + numbers (read-only)
+
+**Implementation plan:** [`flutter-phase-3-song-chart.md`](flutter-phase-3-song-chart.md) (sub-phases 3A–3H, engine + layout ports, live `songs` stream).
 
 | | |
 |--|--|
@@ -265,6 +304,8 @@ mobile/lib/
 
 ### Phase 4 — Performance mode + playlist navigation
 
+**Implementation plan:** [`flutter-phase-4-performance.md`](flutter-phase-4-performance.md) (autoscroll, wakelock, bottom bar, set navigation).
+
 | | |
 |--|--|
 | **Goal** | Stage-ready UX |
@@ -280,6 +321,8 @@ mobile/lib/
 ---
 
 ### Phase 5 — Playlists CRUD + session songs + share/join API
+
+**Implementation plan:** [`flutter-phase-5-playlists.md`](flutter-phase-5-playlists.md) (sessions repo, join API client, list/detail/share, add-to-playlist).
 
 | | |
 |--|--|
@@ -297,13 +340,15 @@ mobile/lib/
 
 ### Phase 6 — Offline download set + connectivity UX
 
+**Implementation plan:** [`flutter-phase-6-offline.md`](flutter-phase-6-offline.md) (cacheSessionOffline, connectivity probe, offline banner).
+
 | | |
 |--|--|
-| **Goal** | Reliable Sunday use with poor signal |
+| **Goal** | Explicit “download set” + user-visible offline state (builds on Firestore persistence from Phase 2+) |
 | **Duration** | 1.5–2 pw |
 | **Epics** | Prefetch, offline banner, read cache |
-| **User stories** | (1) Tap “Download set” on playlist → server fetch session + songs into cache. (2) When offline, show banner; cached songs still open. (3) Playlist doc readable from cache if prefetched. |
-| **Technical tasks** | Port `cacheSessionOffline` (get from server), `connectivity_plus` + optional lightweight probe (HEAD to known URL or Firestore enableNetwork check), offline banner widget |
+| **User stories** | (1) Tap “Download set” on playlist → server fetch session + songs into cache (port `getDocFromServer` prefetch like web). (2) When offline, show banner; cached songs still open. (3) Playlist doc readable from cache if prefetched. |
+| **Technical tasks** | Port `cacheSessionOffline`, `connectivity_plus` + probe aligned with web `useOnlineStatus` (adapt `/connectivity.txt` or equivalent), offline banner widget |
 | **Domain ports** | `sessions.cacheSessionOffline`, `songs.getSong` cache behavior |
 | **Dependencies** | Phase 5 |
 | **Demo** | Airplane mode after download → set still works |
@@ -312,6 +357,8 @@ mobile/lib/
 ---
 
 ### Phase 7 — Groups (v1.1) + polish buffer
+
+**Implementation plan:** [`flutter-phase-7-groups.md`](flutter-phase-7-groups.md) (groups CRUD, join code, group playlists, home previews, optional polish).
 
 | | |
 |--|--|
@@ -331,6 +378,8 @@ mobile/lib/
 
 ### Phase 8 — Beta hardening, Play Store, iOS prep
 
+**Implementation plan:** [`flutter-phase-8-release.md`](flutter-phase-8-release.md) (QA, signing, deep links, Play internal track, App Check prep, `IOS_BUILD.md`).
+
 | | |
 |--|--|
 | **Goal** | Internal beta + store-ready Android; iOS doc for Mac |
@@ -344,6 +393,23 @@ mobile/lib/
 
 ---
 
+### Phase 9 — v1.1 launch, iOS ship & production ops
+
+**Implementation plan:** [`flutter-phase-9-production.md`](flutter-phase-9-production.md) (store production, TestFlight/App Store, Phase 7 v1.1 ship, Crashlytics, App Check enforce, polish).
+
+| | |
+|--|--|
+| **Goal** | Public musician app on Play + App Store with v1.1 collaboration & monitoring |
+| **Duration** | 2–3 pw (+ Mac week for iOS submission) |
+| **Epics** | Production tracks, iOS GA, Crashlytics, App Check enforcement, v1.1 features |
+| **User stories** | Church installs from stores; bands use groups; crashes visible; Firestore protected |
+| **Technical tasks** | Promote Play tracks; TestFlight → review; `firebase_crashlytics`; enforce App Check with web; Phase 7/ polish if not in v1.0 |
+| **Dependencies** | Phase 8 beta; Phase 7 for default v1.1 scope |
+| **Demo** | Production listing + iOS App Store or external TestFlight |
+| **Risks** | App Check lockout; iOS review; scope creep into admin |
+
+---
+
 ### Timeline summary (1 FTE)
 
 | Milestone | Cumulative (rough) |
@@ -353,7 +419,8 @@ mobile/lib/
 | Phase 4–5 | Week 10–11 |
 | Phase 6 | Week 12 |
 | Phase 8 (v1 Android beta) | **Week 14–16** |
-| Phase 7 groups (v1.1) | +2 weeks |
+| Phase 7 groups (v1.1) | +2 weeks (may overlap Phase 9) |
+| Phase 9 (production + iOS) | **Week 18–21** |
 
 **2 FTE:** compress chart + playlists parallel → **v1 beta ~10–12 weeks**.
 
@@ -575,7 +642,7 @@ lib/
 
 ### C. GitHub issue titles (epics)
 
-1. `[mobile] Phase 0: Flutter project + Firebase init in mobile/`  
+1. ~~`[mobile] Phase 0: Flutter project + Firebase init in mobile/`~~ **Done**  
 2. `[mobile] Auth: email, Google, signup with username`  
 3. `[mobile] Onboarding: username claim + gate`  
 4. `[mobile] Song index repository + chunk loader`  
@@ -593,6 +660,8 @@ lib/
 16. `[mobile] v1.1: Groups + share by username`  
 17. `[mobile] Play Store internal testing`  
 18. `[mobile] iOS build guide + TestFlight`  
+19. `[mobile] v1.1 production: Play + App Store, Crashlytics, App Check enforce`  
+20. `[mobile] Post-launch hotfix playbook`  
 
 ---
 
