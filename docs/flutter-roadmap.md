@@ -268,6 +268,8 @@ mobile/lib/
 
 ### Phase 2 — Song index + home search (no chart yet)
 
+**Status:** Implemented in `mobile/` (Phase 2A–2G per [`flutter-phase-2-library.md`](flutter-phase-2-library.md); manual device QA pending — see [`flutter-phase-2-web-library-report.md`](flutter-phase-2-web-library-report.md)).
+
 **Implementation plan:** [`flutter-phase-2-library.md`](flutter-phase-2-library.md) (sub-phases 2A–2G, browse vs 100-cap rules, progressive index).
 
 | | |

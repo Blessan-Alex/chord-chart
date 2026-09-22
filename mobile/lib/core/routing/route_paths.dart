@@ -13,6 +13,8 @@ abstract final class RoutePaths {
   static String joinPlaylist(String token) =>
       '$joinPlaylistPrefix${Uri.encodeComponent(token)}';
 
+  static String song(String id) => '/song/${Uri.encodeComponent(id)}';
+
   static const shellRoutes = {home, playlists, profile};
 }
 

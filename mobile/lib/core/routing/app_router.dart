@@ -6,10 +6,12 @@ import 'package:lf_chords/domain/safe_redirect.dart';
 import 'package:lf_chords/features/auth/login_screen.dart';
 import 'package:lf_chords/features/auth/signup_screen.dart';
 import 'package:lf_chords/features/join/join_playlist_screen.dart';
+import 'package:lf_chords/features/library/home_screen.dart';
 import 'package:lf_chords/features/onboarding/username_onboarding_screen.dart';
 import 'package:lf_chords/features/profile/profile_screen.dart';
 import 'package:lf_chords/features/shell/app_shell.dart';
 import 'package:lf_chords/features/shell/placeholder_tab_screen.dart';
+import 'package:lf_chords/features/song/song_placeholder_screen.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -127,6 +129,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           token: state.pathParameters['token'] ?? '',
         ),
       ),
+      GoRoute(
+        path: '/song/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => SongPlaceholderScreen(
+          songId: state.pathParameters['id'] ?? '',
+        ),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
@@ -137,10 +146,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: RoutePaths.home,
                 pageBuilder: (context, state) => const NoTransitionPage(
-                  child: PlaceholderTabScreen(
-                    title: 'Home',
-                    message: 'Song library coming in Phase 2.',
-                  ),
+                  child: HomeScreen(),
                 ),
               ),
             ],

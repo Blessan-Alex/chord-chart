@@ -34,11 +34,18 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 
 | Path | Purpose |
 |------|---------|
-| `/home` | Guest-OK shell tab (library in Phase 2) |
+| `/home` | Guest-OK library (search, filters, browse pagination) |
+| `/song/:id` | Chart placeholder (Phase 3); records recent view |
 | `/login`, `/signup` | Email + Google; `?next=` safe redirect |
 | `/onboarding/username` | Username claim |
 | `/join/p/:token` | Invite landing (join API in Phase 5) |
 | `/playlists`, `/profile` | Auth required |
+
+## Phase 2 — song index
+
+- Library reads **`songIndex/chunk0`…`chunk4` only** (no `songs` queries for browse).
+- After first online load, Firestore persistence serves cached chunks offline (read-only list).
+- In-memory merged index (~10k entries max); search/filter runs on-device with zero extra reads per keystroke.
 
 ## Tests
 
@@ -51,4 +58,4 @@ flutter test
 
 - **`JOIN_API_BASE_URL`** — document when Phase 5 wires playlist join (`--dart-define`); not used in Phase 1.
 
-See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md) and [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md).
+See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), and [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md).
