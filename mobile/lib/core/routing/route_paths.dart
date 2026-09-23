@@ -23,6 +23,9 @@ abstract final class RoutePaths {
 
   static String song(String id) => '/song/${Uri.encodeComponent(id)}';
 
+  /// Order must match [StatefulShellRoute] branches in `app_router.dart`.
+  static const shellBranchPaths = [home, playlists, groups, profile];
+
   static const shellRoutes = {home, playlists, groups, profile};
 }
 
