@@ -25,6 +25,15 @@ class SessionSongsRepository {
         );
   }
 
+  Future<List<SessionSongEntry>> listSessionSongsFromServer(String sessionId) async {
+    final snap = await _songsRef(sessionId)
+        .orderBy('order')
+        .get(const GetOptions(source: Source.server));
+    return snap.docs
+        .map((d) => SessionSongEntry.fromMap(d.id, d.data()))
+        .toList();
+  }
+
   Future<List<SessionSongEntry>> listSessionSongs(String sessionId) async {
     final snap = await _songsRef(sessionId).orderBy('order').get();
     return snap.docs

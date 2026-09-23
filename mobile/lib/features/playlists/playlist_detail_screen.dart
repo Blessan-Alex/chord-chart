@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lf_chords/core/connectivity/online_status_provider.dart';
 import 'package:lf_chords/core/routing/route_paths.dart';
 import 'package:lf_chords/domain/engine.dart';
 import 'package:lf_chords/domain/playlist_access.dart';
@@ -140,6 +141,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final uid = ref.watch(authControllerProvider).session.user?.uid ?? '';
+    final online = ref.watch(onlineStatusProvider);
     final sessionAsync = ref.watch(playlistSessionProvider(widget.sessionId));
     final songsAsync = ref.watch(sessionSongsStreamProvider(widget.sessionId));
     final indexEntries = ref.watch(songIndexEntriesProvider);
@@ -270,6 +272,23 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     onPressed: playPath == null ? null : () => context.push(playPath),
                     icon: const Icon(Icons.play_arrow),
                     tooltip: 'Start set',
+                  ),
+                  IconButton(
+                    onPressed: _busy || !online
+                        ? null
+                        : () => _run(
+                              () => ref
+                                  .read(sessionRepositoryProvider)
+                                  .cacheSessionOffline(
+                                    widget.sessionId,
+                                    ref.read(sessionSongsRepositoryProvider),
+                                  ),
+                              success: 'Playlist cached for offline use.',
+                            ),
+                    icon: const Icon(Icons.download),
+                    tooltip: online
+                        ? 'Cache for offline'
+                        : 'Connect to download this set.',
                   ),
                   if (isOwner) ...[
                     IconButton(

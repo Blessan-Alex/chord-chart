@@ -73,7 +73,25 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 - Playlists tab: sections, search, create, detail (add/reorder/key/publish/delete/share).
 - **`/join/p/:token`** — auth-only (no username gate); auto-join when signed in.
 - Song screen **Add to playlist** (owned lists only); home **My playlists** preview (2 cards, 3 song lines).
-- **No** username share form, offline cache, groups, or admin bypass (v1).
+- **No** username share form, groups, or admin bypass (v1). **Offline set download** enabled in Phase 6.
+
+## Phase 6 — offline set download & connectivity
+
+- **Firestore persistence** enabled at startup (`firebase_bootstrap.dart` — `persistenceEnabled: true`). After any online read, documents may be available in airplane mode.
+- **`SessionRepository.cacheSessionOffline`** — server fetch session, **server** ordered `sessionSongs` query, then parallel server fetch each `songs/{id}` (all-or-nothing).
+- Playlist detail **Cache for offline** (`Icons.download`) for any **`canView`** user; success: **“Playlist cached for offline use.”** Disabled while busy or when probe reports offline.
+- **`probeConnectivity`** — `GET {JOIN_API_BASE_URL}/connectivity.txt` with `Cache-Control: no-cache`, 5s timeout; same `--dart-define` as join API.
+- **`onlineStatusProvider`** — 2s offline debounce, 30s poll, `connectivity_plus` + app resume re-probe (banner follows probe, not radio alone).
+- **`OfflineBanner`** at app root (login/join included): *You're offline. Cached songs and sessions may still be available.*
+- **`SongRepository.getSongRaw`** — default `get`, cache fallback on error (web `getSong` parity).
+- **Not in v1:** bulk library download, offline playlist list merge, offline join/writes, service worker.
+
+### Manual offline QA
+
+1. Online: open playlist → **Cache for offline** → success message.
+2. Airplane mode → banner within ~2s.
+3. Re-open playlist + **Start set** → charts load from cache.
+4. Home search works if index loaded once online (Phase 2).
 
 ## Tests
 
@@ -92,4 +110,4 @@ Use a staging URL for internal join smoke tests.
 
 ## Docs
 
-See [`docs/flutter-phase-5-playlists.md`](../docs/flutter-phase-5-playlists.md), [`docs/flutter-phase-5-web-playlists-report.md`](../docs/flutter-phase-5-web-playlists-report.md), [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md), [`docs/flutter-phase-4-performance.md`](../docs/flutter-phase-4-performance.md), and [`docs/flutter-phase-4-web-performance-report.md`](../docs/flutter-phase-4-web-performance-report.md).
+See [`docs/flutter-phase-6-offline.md`](../docs/flutter-phase-6-offline.md), [`docs/flutter-phase-6-web-offline-report.md`](../docs/flutter-phase-6-web-offline-report.md), [`docs/flutter-phase-5-playlists.md`](../docs/flutter-phase-5-playlists.md), [`docs/flutter-phase-5-web-playlists-report.md`](../docs/flutter-phase-5-web-playlists-report.md), [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md), [`docs/flutter-phase-4-performance.md`](../docs/flutter-phase-4-performance.md), and [`docs/flutter-phase-4-web-performance-report.md`](../docs/flutter-phase-4-web-performance-report.md).

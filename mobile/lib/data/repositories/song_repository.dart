@@ -37,17 +37,19 @@ class SongRepository {
   Future<Map<String, dynamic>?> getSongRaw(String songId) async {
     final ref = _firestore.collection('songs').doc(songId);
     try {
-      final snap = await ref.get(const GetOptions(source: Source.cache));
+      final snap = await ref.get();
       if (snap.exists) {
         return snap.data();
       }
-    } catch (_) {}
-    try {
-      final snap = await ref.get(const GetOptions(source: Source.server));
-      if (snap.exists) {
-        return snap.data();
-      }
-    } catch (_) {}
-    return null;
+      return null;
+    } catch (_) {
+      try {
+        final snap = await ref.get(const GetOptions(source: Source.cache));
+        if (snap.exists) {
+          return snap.data();
+        }
+      } catch (_) {}
+      return null;
+    }
   }
 }

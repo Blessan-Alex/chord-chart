@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:lf_chords/data/repositories/session_songs_repository.dart';
 import 'package:lf_chords/domain/constants.dart';
 import 'package:lf_chords/domain/playlist_invite_token.dart';
 import 'package:lf_chords/domain/session_navigation.dart';
@@ -71,6 +72,25 @@ class SessionRepository {
       return null;
     }
     return PlaylistSession.fromMap(snap.id, snap.data()!);
+  }
+
+  /// Prefetch session + ordered sessionSongs query + song bodies for offline use.
+  /// All-or-nothing — any server read failure throws (web `Promise.all`).
+  Future<void> cacheSessionOffline(
+    String sessionId,
+    SessionSongsRepository sessionSongs,
+  ) async {
+    await _sessions
+        .doc(sessionId)
+        .get(const GetOptions(source: Source.server));
+    final entries = await sessionSongs.listSessionSongsFromServer(sessionId);
+    await Future.wait(
+      entries.map(
+        (entry) => _firestore.collection('songs').doc(entry.songId).get(
+              const GetOptions(source: Source.server),
+            ),
+      ),
+    );
   }
 
   Future<PlaylistSession> createSession({

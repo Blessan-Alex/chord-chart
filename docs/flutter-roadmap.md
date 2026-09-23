@@ -15,7 +15,7 @@
 | **3** | Chart, transpose, numbers, live song stream | Not started |
 | **4** | Performance mode | Not started |
 | **5** | Playlists + join API | **Done** (code + unit tests; two-account join QA manual) |
-| **6** | Offline prefetch set + connectivity UX | Not started |
+| **6** | Offline prefetch set + connectivity UX | **Done** (code + unit tests; airplane QA manual) |
 | **7** | Groups (v1.1) + polish | Not started |
 | **8** | Store beta, iOS prep | Not started |
 | **9** | v1.1 launch, iOS ship, production ops | Not started |
