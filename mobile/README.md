@@ -38,8 +38,9 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 | `/song/:id` | Read-only chart (transpose, numbers, zoom, live Firestore); playlist query params |
 | `/login`, `/signup` | Email + Google; `?next=` safe redirect |
 | `/onboarding/username` | Username claim |
-| `/join/p/:token` | Invite landing (join API in Phase 5) |
-| `/playlists`, `/profile` | Auth required |
+| `/join/p/:token` | Invite link → HTTPS join API → playlist detail |
+| `/playlists`, `/playlists/new`, `/playlists/:id` | List, create, detail (auth + username) |
+| `/profile` | Auth required |
 
 ## Phase 2 — song index
 
@@ -64,6 +65,16 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 - **Swipe** 72px horizontal for set navigation; **`startSetPath`** for Phase 5.
 - Chart theme **`lf-chart-theme`** (system / dark / stage).
 
+## Phase 5 — playlists & join
+
+- **`SessionRepository`** / **`SessionSongsRepository`** — four-query list merge, CRUD, live `sessionSongs` stream.
+- **`JoinApiClient`** — `POST {JOIN_API_BASE_URL}/api/playlists/join` with Firebase ID token.
+- **`--dart-define=JOIN_API_BASE_URL`** (default `https://lfchords.vercel.app`) for join API and invite link URLs.
+- Playlists tab: sections, search, create, detail (add/reorder/key/publish/delete/share).
+- **`/join/p/:token`** — auth-only (no username gate); auto-join when signed in.
+- Song screen **Add to playlist** (owned lists only); home **My playlists** preview (2 cards, 3 song lines).
+- **No** username share form, offline cache, groups, or admin bypass (v1).
+
 ## Tests
 
 ```bash
@@ -71,8 +82,14 @@ flutter analyze
 flutter test
 ```
 
-## Later phases
+## Configuration
 
-- **`JOIN_API_BASE_URL`** — document when Phase 5 wires playlist join (`--dart-define`); not used in Phase 1.
+```bash
+flutter run --dart-define=JOIN_API_BASE_URL=https://lfchords.vercel.app
+```
 
-See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md), [`docs/flutter-phase-4-performance.md`](../docs/flutter-phase-4-performance.md), and [`docs/flutter-phase-4-web-performance-report.md`](../docs/flutter-phase-4-web-performance-report.md).
+Use a staging URL for internal join smoke tests.
+
+## Docs
+
+See [`docs/flutter-phase-5-playlists.md`](../docs/flutter-phase-5-playlists.md), [`docs/flutter-phase-5-web-playlists-report.md`](../docs/flutter-phase-5-web-playlists-report.md), [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md), [`docs/flutter-phase-4-performance.md`](../docs/flutter-phase-4-performance.md), and [`docs/flutter-phase-4-web-performance-report.md`](../docs/flutter-phase-4-web-performance-report.md).

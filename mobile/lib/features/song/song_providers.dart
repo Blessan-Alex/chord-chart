@@ -4,6 +4,7 @@ import 'package:lf_chords/data/repositories/song_repository.dart';
 import 'package:lf_chords/domain/performance_preferences.dart';
 import 'package:lf_chords/domain/session_navigation.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
+import 'package:lf_chords/providers/playlist_providers.dart';
 import 'package:lf_chords/providers/song_index_providers.dart';
 
 final songRepositoryProvider = Provider<SongRepository>((ref) {
@@ -33,10 +34,11 @@ final playlistContextProvider = FutureProvider.autoDispose
   if (params.sessionId == null) {
     return const PlaylistContext();
   }
-  final repo = ref.watch(songRepositoryProvider);
+  final repo = ref.watch(sessionRepositoryProvider);
+  final songsRepo = ref.watch(sessionSongsRepositoryProvider);
   try {
     final session = await repo.getSession(params.sessionId!);
-    final songs = await repo.listSessionSongs(params.sessionId!);
+    final songs = await songsRepo.listSessionSongs(params.sessionId!);
     if (params.index != null) {
       final prefs = ref.read(sharedPreferencesProvider);
       await writeLastSessionIndex(prefs, params.sessionId!, params.index!);

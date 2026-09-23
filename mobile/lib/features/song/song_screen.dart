@@ -14,6 +14,7 @@ import 'package:lf_chords/domain/session_navigation.dart';
 import 'package:lf_chords/domain/wrap_lyric_line.dart';
 import 'package:lf_chords/features/performance/autoscroll_engine.dart';
 import 'package:lf_chords/features/performance/performance_mode.dart';
+import 'package:lf_chords/features/playlists/widgets/add_to_playlist_sheet.dart';
 import 'package:lf_chords/features/song/song_providers.dart';
 import 'package:lf_chords/features/song/widgets/autoscroll_bar.dart';
 import 'package:lf_chords/features/song/widgets/chart_theme_scope.dart';
@@ -210,6 +211,17 @@ class _SongScreenState extends ConsumerState<SongScreen>
     if (mounted) {
       ref.invalidate(recentSongsProvider);
     }
+  }
+
+  Future<void> _openAddToPlaylist(Song song) async {
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => AddToPlaylistSheet(
+        songId: song.id,
+        songTitle: song.title,
+      ),
+    );
   }
 
   Future<void> _shareSong(Song song) async {
@@ -519,6 +531,9 @@ class _SongScreenState extends ConsumerState<SongScreen>
                                   onZoomOut: () => _setScale(_scale - 0.1),
                                   onZoomIn: () => _setScale(_scale + 0.1),
                                   onShare: () => _shareSong(song),
+                                  onAddToPlaylist: auth.user != null
+                                      ? () => _openAddToPlaylist(song)
+                                      : null,
                                   onToggleAutoscroll: isMobile
                                       ? null
                                       : _toggleAutoscroll,

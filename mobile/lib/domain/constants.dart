@@ -1,3 +1,6 @@
+/// Max published band playlists loaded on the Playlists page (most recent first).
+const int publishedPlaylistCap = 100;
+
 /// Max songs shown on Home when not browsing all (search/filter mode).
 const int libraryBrowseCap = 100;
 

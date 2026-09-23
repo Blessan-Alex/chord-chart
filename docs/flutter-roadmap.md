@@ -14,7 +14,7 @@
 | **2** | Song index + home search (ported web logic) | Not started |
 | **3** | Chart, transpose, numbers, live song stream | Not started |
 | **4** | Performance mode | Not started |
-| **5** | Playlists + join API | Not started |
+| **5** | Playlists + join API | **Done** (code + unit tests; two-account join QA manual) |
 | **6** | Offline prefetch set + connectivity UX | Not started |
 | **7** | Groups (v1.1) + polish | Not started |
 | **8** | Store beta, iOS prep | Not started |

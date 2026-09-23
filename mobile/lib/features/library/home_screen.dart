@@ -10,6 +10,8 @@ import 'package:lf_chords/features/library/widgets/library_filter_sheet.dart';
 import 'package:lf_chords/features/library/widgets/library_pagination_bar.dart';
 import 'package:lf_chords/features/library/widgets/recent_songs_section.dart';
 import 'package:lf_chords/features/library/widgets/song_row.dart';
+import 'package:lf_chords/features/playlists/widgets/playlist_card.dart';
+import 'package:lf_chords/providers/playlist_providers.dart';
 import 'package:lf_chords/features/library/widgets/song_row_skeleton.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
 import 'package:lf_chords/providers/song_index_providers.dart';
@@ -176,6 +178,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onSongTap: (entry) => _openSong(entry.id),
               ),
             ],
+            if (session.user != null) ...[
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'MY PLAYLISTS',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
+                        ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go(RoutePaths.playlists),
+                    child: const Text('See all'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _HomePlaylistsStrip(),
+            ],
             const SizedBox(height: 8),
             Text(
               'ALL SONGS',
@@ -243,6 +266,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HomePlaylistsStrip extends ConsumerWidget {
+  const _HomePlaylistsStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playlists = ref.watch(homeOwnedPlaylistsPreviewProvider);
+    final previews = ref.watch(homePlaylistPreviewsProvider);
+
+    return playlists.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (sessions) {
+        if (sessions.isEmpty) {
+          return TextButton(
+            onPressed: () => context.push(RoutePaths.playlistsNew),
+            child: const Text('Create your first playlist'),
+          );
+        }
+        return Column(
+          children: [
+            for (final session in sessions) ...[
+              PlaylistCard(session: session, showStatus: true),
+              const SizedBox(height: 8),
+              if (previews.value?[session.id]?.isNotEmpty == true)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 12),
+                  child: Text(
+                    previews.value![session.id]!.join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

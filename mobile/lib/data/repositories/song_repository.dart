@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lf_chords/data/mappers/firestore_song_mapper.dart';
 import 'package:lf_chords/data/models/song.dart';
-import 'package:lf_chords/domain/session_navigation.dart';
 
 class SongRepository {
   SongRepository(this._firestore);
@@ -50,25 +49,5 @@ class SongRepository {
       }
     } catch (_) {}
     return null;
-  }
-
-  Future<PlaylistSession?> getSession(String sessionId) async {
-    final snap = await _firestore.collection('sessions').doc(sessionId).get();
-    if (!snap.exists) {
-      return null;
-    }
-    return PlaylistSession.fromMap(snap.id, snap.data()!);
-  }
-
-  Future<List<SessionSongEntry>> listSessionSongs(String sessionId) async {
-    final snap = await _firestore
-        .collection('sessions')
-        .doc(sessionId)
-        .collection('sessionSongs')
-        .orderBy('order')
-        .get();
-    return snap.docs
-        .map((d) => SessionSongEntry.fromMap(d.id, d.data()))
-        .toList();
   }
 }

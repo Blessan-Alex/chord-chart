@@ -7,6 +7,7 @@ abstract final class RoutePaths {
   static const usernameOnboarding = '/onboarding/username';
   static const home = '/home';
   static const playlists = '/playlists';
+  static const playlistsNew = '/playlists/new';
   static const profile = '/profile';
   static const joinPlaylistPrefix = '/join/p/';
 

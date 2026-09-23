@@ -16,6 +16,7 @@ class SongControlBar extends StatelessWidget {
     required this.onZoomOut,
     required this.onZoomIn,
     this.onShare,
+    this.onAddToPlaylist,
     this.onToggleAutoscroll,
     this.autoscrollActive = false,
     this.onToggleFullscreen,
@@ -34,6 +35,7 @@ class SongControlBar extends StatelessWidget {
   final VoidCallback onZoomOut;
   final VoidCallback onZoomIn;
   final VoidCallback? onShare;
+  final VoidCallback? onAddToPlaylist;
   final VoidCallback? onToggleAutoscroll;
   final bool autoscrollActive;
   final VoidCallback? onToggleFullscreen;
@@ -59,6 +61,12 @@ class SongControlBar extends StatelessWidget {
             IconButton(
               onPressed: onShare,
               icon: const Icon(Icons.share_outlined),
+            ),
+          if (onAddToPlaylist != null)
+            IconButton(
+              onPressed: onAddToPlaylist,
+              icon: const Icon(Icons.playlist_add),
+              tooltip: 'Add to playlist',
             ),
         ],
       );
@@ -117,6 +125,12 @@ class SongControlBar extends StatelessWidget {
                   fullscreenActive ? Icons.fullscreen_exit : Icons.fullscreen,
                 ),
                 tooltip: 'Fullscreen',
+              ),
+            if (onAddToPlaylist != null)
+              IconButton(
+                onPressed: onAddToPlaylist,
+                icon: const Icon(Icons.playlist_add),
+                tooltip: 'Add to playlist',
               ),
             if (onShare != null)
               IconButton(
