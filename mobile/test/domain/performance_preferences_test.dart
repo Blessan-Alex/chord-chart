@@ -12,4 +12,11 @@ void main() {
     expect(snapChartScale(1.12), 1.1);
     expect(snapChartScale(1.13), 1.15);
   });
+
+  test('chart theme cycle and storage', () {
+    expect(cycleChartTheme(ChartTheme.system), ChartTheme.dark);
+    expect(parseChartTheme('stage'), ChartTheme.stage);
+    expect(chartThemeToStorage(ChartTheme.dark), 'dark');
+    expect(chartThemeLabel(ChartTheme.stage), 'Stage');
+  });
 }

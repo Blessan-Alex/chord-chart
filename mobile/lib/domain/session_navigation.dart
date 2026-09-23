@@ -104,6 +104,13 @@ String? buildAdjacentSongPath(
   return sessionSongPath(sessionId, songs[nextIndex], nextIndex);
 }
 
+String? startSetPath(String sessionId, List<SessionSongEntry> songs) {
+  if (songs.isEmpty) {
+    return null;
+  }
+  return sessionSongPath(sessionId, songs.first, 0);
+}
+
 Map<String, String>? canonicalPlaylistQuery(Map<String, String> query) {
   final legacy = query[legacySessionQueryParam];
   if (legacy == null || query.containsKey(playlistQueryParam)) {

@@ -1,23 +1,32 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lf_chords/core/routing/route_paths.dart';
 import 'package:lf_chords/data/models/song.dart';
+import 'package:lf_chords/domain/autoscroll_speed.dart';
 import 'package:lf_chords/domain/chart_display.dart';
 import 'package:lf_chords/domain/key_utils.dart';
 import 'package:lf_chords/domain/performance_preferences.dart';
 import 'package:lf_chords/domain/session_navigation.dart';
 import 'package:lf_chords/domain/wrap_lyric_line.dart';
+import 'package:lf_chords/features/performance/autoscroll_engine.dart';
+import 'package:lf_chords/features/performance/performance_mode.dart';
 import 'package:lf_chords/features/song/song_providers.dart';
+import 'package:lf_chords/features/song/widgets/autoscroll_bar.dart';
+import 'package:lf_chords/features/song/widgets/chart_theme_scope.dart';
 import 'package:lf_chords/features/song/widgets/chord_chart_viewport.dart';
 import 'package:lf_chords/features/song/widgets/chord_line.dart';
+import 'package:lf_chords/features/song/widgets/performance_bottom_bar.dart';
+import 'package:lf_chords/features/song/widgets/performance_fullscreen_overlay.dart';
 import 'package:lf_chords/features/song/widgets/song_control_bar.dart';
 import 'package:lf_chords/features/song/widgets/song_header.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
 import 'package:lf_chords/providers/song_index_providers.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class SongScreen extends ConsumerStatefulWidget {
   const SongScreen({
@@ -33,7 +42,8 @@ class SongScreen extends ConsumerStatefulWidget {
   ConsumerState<SongScreen> createState() => _SongScreenState();
 }
 
-class _SongScreenState extends ConsumerState<SongScreen> {
+class _SongScreenState extends ConsumerState<SongScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   String _targetKey = 'C';
   SongViewMode _viewMode = SongViewMode.chords;
   String? _transposeFlash;
@@ -46,17 +56,67 @@ class _SongScreenState extends ConsumerState<SongScreen> {
   String? _keySyncOriginalKey;
   String? _keySyncKeyParam;
 
+  ChartTheme _chartTheme = ChartTheme.system;
+  bool _fullscreenActive = false;
+  late final ScrollController _scrollController;
+  late final AutoscrollEngine _autoscroll;
+  double? _swipeStartX;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scrollController = ScrollController();
+    _autoscroll = AutoscrollEngine(
+      vsync: this,
+      scrollController: _scrollController,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _canonicalRedirect());
     _loadZoom();
+    _loadChartTheme();
+  }
+
+  @override
+  void didUpdateWidget(SongScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.songId != widget.songId) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _zoomTimer?.cancel();
+    _autoscroll.dispose();
+    _scrollController.dispose();
+    WakelockPlus.disable();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncWakeLockAndSystemUi();
+    }
+  }
+
+  void _syncWakeLockAndSystemUi() {
+    final immersive = _autoscroll.active || _fullscreenActive;
+    if (_fullscreenActive) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+    if (immersive) {
+      unawaited(WakelockPlus.enable());
+    } else {
+      unawaited(WakelockPlus.disable());
+    }
+    setState(() {});
   }
 
   void _canonicalRedirect() {
@@ -65,7 +125,8 @@ class _SongScreenState extends ConsumerState<SongScreen> {
       return;
     }
     final query = canonical.entries
-        .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .map((e) =>
+            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
         .join('&');
     context.replace('${RoutePaths.song(widget.songId)}?$query');
   }
@@ -79,6 +140,14 @@ class _SongScreenState extends ConsumerState<SongScreen> {
     final initial = sessionZoom ?? await readGlobalZoom(prefs);
     if (mounted) {
       setState(() => _scale = initial);
+    }
+  }
+
+  Future<void> _loadChartTheme() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final theme = await readChartTheme(prefs);
+    if (mounted) {
+      setState(() => _chartTheme = theme);
     }
   }
 
@@ -172,10 +241,67 @@ class _SongScreenState extends ConsumerState<SongScreen> {
     }
   }
 
+  void _toggleAutoscroll() {
+    if (_autoscroll.active) {
+      _autoscroll.stop();
+    } else {
+      _autoscroll.isTouchDevice = detectTouchAutoscrollDevice(context);
+      _autoscroll.start();
+    }
+    _syncWakeLockAndSystemUi();
+  }
+
+  void _toggleFullscreen() {
+    setState(() => _fullscreenActive = !_fullscreenActive);
+    _syncWakeLockAndSystemUi();
+  }
+
+  Future<void> _cycleChartTheme() async {
+    final next = cycleChartTheme(_chartTheme);
+    setState(() => _chartTheme = next);
+    await writeChartTheme(ref.read(sharedPreferencesProvider), next);
+  }
+
+  Future<void> _navigateAdjacent(
+    SessionNavParams nav,
+    List<SessionSongEntry> songs,
+    int direction,
+  ) async {
+    if (nav.sessionId == null || nav.index == null) {
+      return;
+    }
+    final path = buildAdjacentSongPath(
+      nav.sessionId!,
+      songs,
+      nav.index!,
+      direction,
+    );
+    if (path == null) {
+      return;
+    }
+    final newIndex = nav.index! + direction;
+    await writeLastSessionIndex(
+      ref.read(sharedPreferencesProvider),
+      nav.sessionId!,
+      newIndex,
+    );
+    if (_autoscroll.active) {
+      _autoscroll.stop();
+    }
+    if (_fullscreenActive) {
+      _fullscreenActive = false;
+    }
+    _syncWakeLockAndSystemUi();
+    if (mounted) {
+      context.push(path);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final nav = parseSessionNavParams(widget.queryParameters);
-    ref.watch(playlistContextProvider(nav));
+    final playlistCtx = ref.watch(playlistContextProvider(nav)).value;
+    final sessionSongs = playlistCtx?.songs ?? const <SessionSongEntry>[];
     final liveAsync = ref.watch(songLiveProvider(widget.songId));
     final auth = ref.watch(authControllerProvider).session;
 
@@ -248,103 +374,318 @@ class _SongScreenState extends ConsumerState<SongScreen> {
         final backLabel =
             nav.sessionId != null ? 'Back to playlist' : 'Back to home';
 
+        final prevPath = nav.sessionId != null && nav.index != null
+            ? buildAdjacentSongPath(
+                nav.sessionId!,
+                sessionSongs,
+                nav.index!,
+                -1,
+              )
+            : null;
+        final nextPath = nav.sessionId != null && nav.index != null
+            ? buildAdjacentSongPath(
+                nav.sessionId!,
+                sessionSongs,
+                nav.index!,
+                1,
+              )
+            : null;
+        final sessionPosition = nav.index != null && sessionSongs.isNotEmpty
+            ? '${nav.index! + 1}/${sessionSongs.length}'
+            : null;
+
         return LayoutBuilder(
           builder: (context, constraints) {
-            final wrapEnabled = computeWrapEnabled(
-              viewportWidth: constraints.maxWidth,
+            final width = constraints.maxWidth;
+            final isMobile = isMobileLayout(width);
+            final performanceMode = isPerformanceMode(
+              viewportWidth: width,
               hasPlaylist: nav.sessionId != null,
             );
-            final chartWidth = constraints.maxWidth - 32;
+            final immersive = _autoscroll.active || _fullscreenActive;
+            final showHeader = !_fullscreenActive;
+            final showControlBar =
+                !(isMobile && _autoscroll.active) && !_fullscreenActive;
+            final showBottomBar =
+                isMobile && !_autoscroll.active && !_fullscreenActive;
+
+            final wrapEnabled = computeWrapEnabled(
+              viewportWidth: width,
+              hasPlaylist: nav.sessionId != null,
+            );
+            final chartWidth = width - 32;
             final layoutScale = clampChartScale(_scale);
             final scaledFontSize = chartBaseFontSize * layoutScale;
             final maxChars = wrapEnabled
                 ? charsPerLine(chartWidth, scaledFontSize)
                 : 9999;
 
+            final themeColors = ChartThemeColors.resolve(
+              _chartTheme,
+              Theme.of(context).brightness,
+            );
+
             return Scaffold(
-              body: SafeArea(
-                child: Column(
+              body: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart: (details) {
+                  _swipeStartX = details.globalPosition.dx;
+                },
+                onHorizontalDragEnd: (details) {
+                  if (_swipeStartX == null ||
+                      nav.sessionId == null ||
+                      nav.index == null) {
+                    return;
+                  }
+                  final delta =
+                      details.globalPosition.dx - _swipeStartX!;
+                  _swipeStartX = null;
+                  if (delta.abs() < 72) {
+                    return;
+                  }
+                  unawaited(_navigateAdjacent(
+                    nav,
+                    sessionSongs,
+                    delta > 0 ? -1 : 1,
+                  ));
+                },
+                child: Stack(
                   children: [
-                    SongHeader(
-                      title: song.title,
-                      artist: payload.artist,
-                      backHref: backHref,
-                      backLabel: backLabel,
-                      compact: constraints.maxWidth < performanceBreakpointPx,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SongControlBar(
-                        displayKey: currentKey,
-                        originalKey: originalKey,
-                        viewMode: _viewMode,
-                        transposeFlash: _transposeFlash,
-                        onTransposeDown: () {
-                          setState(() {
-                            _targetKey = transposeKeyBy(currentKey, -1);
-                            _transposeFlash = _targetKey;
-                          });
-                          Future.delayed(const Duration(milliseconds: 900), () {
-                            if (mounted) {
-                              setState(() => _transposeFlash = null);
-                            }
-                          });
-                        },
-                        onTransposeUp: () {
-                          setState(() {
-                            _targetKey = transposeKeyBy(currentKey, 1);
-                            _transposeFlash = _targetKey;
-                          });
-                          Future.delayed(const Duration(milliseconds: 900), () {
-                            if (mounted) {
-                              setState(() => _transposeFlash = null);
-                            }
-                          });
-                        },
-                        onOpenKeyModal: () => _openKeyModal(originalKey),
-                        onViewModeChange: (mode) =>
-                            setState(() => _viewMode = mode),
-                        onZoomOut: () => _setScale(_scale - 0.1),
-                        onZoomIn: () => _setScale(_scale + 0.1),
-                        onShare: () => _shareSong(song),
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: ChordChartViewport(
-                          scale: _scale,
-                          scalePercent: (_scale * 100).round(),
-                          showIndicator: _showZoomIndicator,
-                          onPinchUpdate: (next) {
-                            setState(() => _scale = clampChartScale(next));
-                            _flashZoomIndicator();
-                          },
-                          onPinchEnd: () async {
-                            await _setScale(_scale);
-                          },
-                          onDoubleTap: () => _setScale(_scale >= 1.4 ? 1 : 1.5),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (final section in song.sections)
-                                SectionBlock(
-                                  label: section.label,
-                                  lines: section.lines,
-                                  originalKey: originalKey,
-                                  targetKey: currentKey,
-                                  viewMode: _viewMode,
-                                  wrapEnabled: wrapEnabled,
-                                  maxChars: maxChars,
-                                  maxWidth: chartWidth,
-                                  fontSize: scaledFontSize,
-                                  languageTags: payload.tags,
+                    Positioned.fill(
+                      child: SafeArea(
+                        bottom: showBottomBar || _autoscroll.active
+                            ? false
+                            : true,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (showHeader)
+                              SongHeader(
+                                title: song.title,
+                                artist: payload.artist,
+                                backHref: backHref,
+                                backLabel: backLabel,
+                                compact: isMobile || performanceMode,
+                              ),
+                            if (showControlBar)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
                                 ),
-                            ],
-                          ),
+                                child: SongControlBar(
+                                  displayKey: currentKey,
+                                  originalKey: originalKey,
+                                  viewMode: _viewMode,
+                                  transposeFlash: _transposeFlash,
+                                  showMobileControls: isMobile,
+                                  onTransposeDown: () {
+                                    setState(() {
+                                      _targetKey =
+                                          transposeKeyBy(currentKey, -1);
+                                      _transposeFlash = _targetKey;
+                                    });
+                                    Future.delayed(
+                                      const Duration(milliseconds: 900),
+                                      () {
+                                        if (mounted) {
+                                          setState(
+                                            () => _transposeFlash = null,
+                                          );
+                                        }
+                                      },
+                                    );
+                                  },
+                                  onTransposeUp: () {
+                                    setState(() {
+                                      _targetKey =
+                                          transposeKeyBy(currentKey, 1);
+                                      _transposeFlash = _targetKey;
+                                    });
+                                    Future.delayed(
+                                      const Duration(milliseconds: 900),
+                                      () {
+                                        if (mounted) {
+                                          setState(
+                                            () => _transposeFlash = null,
+                                          );
+                                        }
+                                      },
+                                    );
+                                  },
+                                  onOpenKeyModal: () =>
+                                      _openKeyModal(originalKey),
+                                  onViewModeChange: (mode) =>
+                                      setState(() => _viewMode = mode),
+                                  onZoomOut: () => _setScale(_scale - 0.1),
+                                  onZoomIn: () => _setScale(_scale + 0.1),
+                                  onShare: () => _shareSong(song),
+                                  onToggleAutoscroll: isMobile
+                                      ? null
+                                      : _toggleAutoscroll,
+                                  autoscrollActive: _autoscroll.active,
+                                  onToggleFullscreen:
+                                      isMobile ? null : _toggleFullscreen,
+                                  fullscreenActive: _fullscreenActive,
+                                ),
+                              ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                controller: _scrollController,
+                                padding: EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  immersive
+                                      ? 96
+                                      : showBottomBar
+                                          ? 112
+                                          : 16,
+                                ),
+                                child: ChartThemeScope(
+                                  colors: themeColors,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: themeColors.chartBackground,
+                                      borderRadius: themeColors
+                                                  .chartBackground !=
+                                              null
+                                          ? BorderRadius.circular(12)
+                                          : null,
+                                    ),
+                                    child: Padding(
+                                      padding: themeColors.chartPadding,
+                                      child: ChordChartViewport(
+                                        scale: _scale,
+                                        scalePercent:
+                                            (_scale * 100).round(),
+                                        showIndicator: _showZoomIndicator,
+                                        gesturesEnabled:
+                                            !_autoscroll.active,
+                                        onPinchUpdate: (next) {
+                                          setState(() =>
+                                              _scale = clampChartScale(next));
+                                          _flashZoomIndicator();
+                                        },
+                                        onPinchEnd: () async {
+                                          await _setScale(_scale);
+                                        },
+                                        onDoubleTap: () => _setScale(
+                                          _scale >= 1.4 ? 1 : 1.5,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            for (final section
+                                                in song.sections)
+                                              SectionBlock(
+                                                label: section.label,
+                                                lines: section.lines,
+                                                originalKey: originalKey,
+                                                targetKey: currentKey,
+                                                viewMode: _viewMode,
+                                                wrapEnabled: wrapEnabled,
+                                                maxChars: maxChars,
+                                                maxWidth: chartWidth,
+                                                fontSize: scaledFontSize,
+                                                languageTags: payload.tags,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                    if (_autoscroll.active)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: AutoscrollBar(
+                          speed: _autoscroll.speed,
+                          paused: _autoscroll.paused,
+                          onDecrease: () {
+                            setState(() => _autoscroll.decreaseSpeed());
+                          },
+                          onIncrease: () {
+                            setState(() => _autoscroll.increaseSpeed());
+                          },
+                          onTogglePause: () {
+                            setState(() {
+                              if (_autoscroll.paused) {
+                                _autoscroll.resume();
+                              } else {
+                                _autoscroll.pause();
+                              }
+                            });
+                          },
+                          onClose: () {
+                            _autoscroll.stop();
+                            _syncWakeLockAndSystemUi();
+                          },
+                        ),
+                      ),
+                    if (showBottomBar)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: PerformanceBottomBar(
+                          displayKey: currentKey,
+                          transposeFlash: _transposeFlash,
+                          onOpenKeyModal: () => _openKeyModal(originalKey),
+                          onZoomOut: () => _setScale(_scale - 0.1),
+                          onZoomIn: () => _setScale(_scale + 0.1),
+                          chartTheme: _chartTheme,
+                          onToggleTheme: () => unawaited(_cycleChartTheme()),
+                          onToggleAutoscroll: _toggleAutoscroll,
+                          autoscrollActive: _autoscroll.active,
+                          onToggleFullscreen: _toggleFullscreen,
+                          fullscreenActive: _fullscreenActive,
+                          sessionLabel: playlistCtx?.session?.title,
+                          sessionPosition: sessionPosition,
+                          prevPath: prevPath,
+                          nextPath: nextPath,
+                          sessionBackPath: nav.sessionId != null
+                              ? RoutePaths.playlistDetail(nav.sessionId!)
+                              : null,
+                          onNavigatePrev: prevPath != null
+                              ? () => unawaited(_navigateAdjacent(
+                                    nav,
+                                    sessionSongs,
+                                    -1,
+                                  ))
+                              : null,
+                          onNavigateNext: nextPath != null
+                              ? () => unawaited(_navigateAdjacent(
+                                    nav,
+                                    sessionSongs,
+                                    1,
+                                  ))
+                              : null,
+                        ),
+                      ),
+                    if (_fullscreenActive)
+                      PerformanceFullscreenOverlay(
+                        onExit: _toggleFullscreen,
+                        onZoomIn: () => _setScale(_scale + 0.1),
+                        onZoomOut: () => _setScale(_scale - 0.1),
+                        nextPath: nextPath,
+                        sessionPosition: sessionPosition,
+                        onNavigateNext: nextPath != null
+                            ? () => unawaited(_navigateAdjacent(
+                                  nav,
+                                  sessionSongs,
+                                  1,
+                                ))
+                            : null,
+                      ),
                   ],
                 ),
               ),

@@ -308,6 +308,8 @@ mobile/lib/
 
 ### Phase 4 — Performance mode + playlist navigation
 
+**Status:** Implemented on `SongScreen` (autoscroll, wakelock, fullscreen, bottom bar, chart theme, set prev/next + swipe). Report: [`flutter-phase-4-web-performance-report.md`](flutter-phase-4-web-performance-report.md).
+
 **Implementation plan:** [`flutter-phase-4-performance.md`](flutter-phase-4-performance.md) (autoscroll, wakelock, bottom bar, set navigation).
 
 | | |

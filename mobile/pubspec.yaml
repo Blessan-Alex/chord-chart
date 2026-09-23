@@ -44,6 +44,7 @@ dependencies:
   google_fonts: ^8.2.1
   characters: ^1.4.1
   share_plus: ^13.3.0
+  wakelock_plus: ^1.8.0
 
 dev_dependencies:
   flutter_test:

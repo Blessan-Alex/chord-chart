@@ -11,6 +11,7 @@ class ChordChartViewport extends StatefulWidget {
     required this.onPinchEnd,
     required this.onDoubleTap,
     required this.child,
+    this.gesturesEnabled = true,
   });
 
   final double scale;
@@ -20,6 +21,7 @@ class ChordChartViewport extends StatefulWidget {
   final VoidCallback onPinchEnd;
   final VoidCallback onDoubleTap;
   final Widget child;
+  final bool gesturesEnabled;
 
   @override
   State<ChordChartViewport> createState() => _ChordChartViewportState();
@@ -30,6 +32,33 @@ class _ChordChartViewportState extends State<ChordChartViewport> {
 
   @override
   Widget build(BuildContext context) {
+    final child = Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        widget.child,
+        if (widget.showIndicator)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Material(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Text(
+                  '${widget.scalePercent}%',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    if (!widget.gesturesEnabled) {
+      return child;
+    }
+
     return GestureDetector(
       onScaleStart: (_) => _pinchStartScale = widget.scale,
       onScaleUpdate: (details) {
@@ -41,28 +70,7 @@ class _ChordChartViewportState extends State<ChordChartViewport> {
         widget.onPinchEnd();
       },
       onDoubleTap: widget.onDoubleTap,
-      child: Stack(
-        alignment: Alignment.topCenter,
-        children: [
-          widget.child,
-          if (widget.showIndicator)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Material(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  child: Text(
-                    '${widget.scalePercent}%',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      child: child,
     );
   }
 }

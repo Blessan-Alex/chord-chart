@@ -54,6 +54,16 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 - **`?playlist=` / `?session=` / `?index=` / `?key=`** — session context; back navigates to `/playlists/{sessionId}` (Phase 5 detail placeholder until CRUD ships).
 - Share uses `share_plus` with `https://lfchords.app/song/{id}` (configurable later).
 
+## Phase 4 — performance mode
+
+- **Autoscroll** with web speed curve; **AutoscrollBar** (pause/speed/close).
+- **Wake lock** during autoscroll or fullscreen (`wakelock_plus`).
+- **Fullscreen** immersive UI + overlay (next song, zoom, exit).
+- **Performance bottom bar** on phone (&lt;768): prev/next, key, zoom, theme cycle, autoscroll, fullscreen.
+- **Tablet/desktop:** autoscroll/fullscreen on control bar; theme toggle on bottom bar only (web parity).
+- **Swipe** 72px horizontal for set navigation; **`startSetPath`** for Phase 5.
+- Chart theme **`lf-chart-theme`** (system / dark / stage).
+
 ## Tests
 
 ```bash
@@ -65,4 +75,4 @@ flutter test
 
 - **`JOIN_API_BASE_URL`** — document when Phase 5 wires playlist join (`--dart-define`); not used in Phase 1.
 
-See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), and [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md).
+See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md), [`docs/flutter-phase-4-performance.md`](../docs/flutter-phase-4-performance.md), and [`docs/flutter-phase-4-web-performance-report.md`](../docs/flutter-phase-4-web-performance-report.md).

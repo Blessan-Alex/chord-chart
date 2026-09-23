@@ -61,4 +61,12 @@ void main() {
     );
     expect(buildAdjacentSongPath('s1', songs, 0, -1), isNull);
   });
+
+  test('startSetPath', () {
+    expect(
+      startSetPath('s1', songs),
+      '/song/song-1?playlist=s1&index=0&key=G',
+    );
+    expect(startSetPath('s1', []), isNull);
+  });
 }

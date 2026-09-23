@@ -19,6 +19,7 @@ import 'package:lf_chords/domain/wrap_lyric_line.dart';
 import 'package:lf_chords/features/song/layout/chord_label_measure.dart';
 
 import 'package:lf_chords/features/song/widgets/chord_row.dart';
+import 'package:lf_chords/features/song/widgets/chart_theme_scope.dart';
 
 class ChordLineWidget extends StatefulWidget {
   const ChordLineWidget({
@@ -117,20 +118,16 @@ class _ChordLineWidgetState extends State<ChordLineWidget> {
             ),
           ];
 
+    final colors = ChartThemeScope.of(context);
     final lyricStyle = chartLyricTextStyle(
       fontSize: widget.fontSize,
-
       tags: widget.languageTags,
-    );
-
+    ).copyWith(color: colors.lyricColor);
     final chordStyle = TextStyle(
       fontFamily: 'monospace',
-
       fontSize: widget.fontSize,
-
       fontWeight: FontWeight.w700,
-
-      color: Theme.of(context).colorScheme.primary,
+      color: colors.chordColor,
     );
 
     return Column(
@@ -302,8 +299,11 @@ class SectionBlock extends StatelessWidget {
           Text(
             label,
 
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.1),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
+                  color: ChartThemeScope.of(context).sectionLabelColor,
+                ),
           ),
 
           const SizedBox(height: 8),
