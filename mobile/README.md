@@ -35,7 +35,7 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 | Path | Purpose |
 |------|---------|
 | `/home` | Guest-OK library (search, filters, browse pagination) |
-| `/song/:id` | Chart placeholder (Phase 3); records recent view |
+| `/song/:id` | Read-only chart (transpose, numbers, zoom, live Firestore); playlist query params |
 | `/login`, `/signup` | Email + Google; `?next=` safe redirect |
 | `/onboarding/username` | Username claim |
 | `/join/p/:token` | Invite landing (join API in Phase 5) |
@@ -46,6 +46,13 @@ Common failures: `10:` / `12500` / `developer_error` → SHA mismatch or wrong p
 - Library reads **`songIndex/chunk0`…`chunk4` only** (no `songs` queries for browse).
 - After first online load, Firestore persistence serves cached chunks offline (read-only list).
 - In-memory merged index (~10k entries max); search/filter runs on-device with zero extra reads per keystroke.
+
+## Phase 3 — song chart
+
+- **`SongRepository.watchSong`** — active-only live stream; not found for archived/missing.
+- Transpose, Nashville numbers (degrees from **original key**, same as web), pinch/button zoom + persisted scale.
+- **`?playlist=` / `?session=` / `?index=` / `?key=`** — session context; back navigates to `/playlists/{sessionId}` (Phase 5 detail placeholder until CRUD ships).
+- Share uses `share_plus` with `https://lfchords.app/song/{id}` (configurable later).
 
 ## Tests
 
@@ -58,4 +65,4 @@ flutter test
 
 - **`JOIN_API_BASE_URL`** — document when Phase 5 wires playlist join (`--dart-define`); not used in Phase 1.
 
-See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), and [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md).
+See [`docs/flutter-phase-1-auth.md`](../docs/flutter-phase-1-auth.md), [`docs/flutter-phase-1-web-auth-report.md`](../docs/flutter-phase-1-web-auth-report.md), [`docs/flutter-phase-2-library.md`](../docs/flutter-phase-2-library.md), [`docs/flutter-phase-2-web-library-report.md`](../docs/flutter-phase-2-web-library-report.md), [`docs/flutter-phase-3-song-chart.md`](../docs/flutter-phase-3-song-chart.md), and [`docs/flutter-phase-3-web-song-chart-report.md`](../docs/flutter-phase-3-web-song-chart-report.md).

@@ -11,7 +11,7 @@ import 'package:lf_chords/features/onboarding/username_onboarding_screen.dart';
 import 'package:lf_chords/features/profile/profile_screen.dart';
 import 'package:lf_chords/features/shell/app_shell.dart';
 import 'package:lf_chords/features/shell/placeholder_tab_screen.dart';
-import 'package:lf_chords/features/song/song_placeholder_screen.dart';
+import 'package:lf_chords/features/song/song_screen.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -62,7 +62,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     }
 
     if (session.user == null) {
-      if (location == RoutePaths.playlists || location == RoutePaths.profile) {
+      if (location == RoutePaths.playlists ||
+          location.startsWith('${RoutePaths.playlists}/') ||
+          location == RoutePaths.profile) {
         return '${RoutePaths.login}?next=${Uri.encodeComponent(location)}';
       }
     }
@@ -132,8 +134,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/song/:id',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => SongPlaceholderScreen(
+        builder: (context, state) => SongScreen(
           songId: state.pathParameters['id'] ?? '',
+          queryParameters: state.uri.queryParameters,
         ),
       ),
       StatefulShellRoute.indexedStack(
@@ -161,6 +164,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     message: 'Playlists coming in Phase 5.',
                   ),
                 ),
+                routes: [
+                  GoRoute(
+                    path: ':sessionId',
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      child: PlaceholderTabScreen(
+                        title: 'Playlist',
+                        message:
+                            'Session ${state.pathParameters['sessionId'] ?? ''} — detail in Phase 5.',
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

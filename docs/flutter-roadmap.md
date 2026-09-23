@@ -288,6 +288,8 @@ mobile/lib/
 
 ### Phase 3 — Song chart + transpose + numbers (read-only)
 
+**Status:** Implemented in `mobile/` (read-only chart, live stream, zoom, playlist query context). Goldens / full manual QA per [`flutter-phase-3-song-chart.md`](flutter-phase-3-song-chart.md) §3H optional. Parity report: [`flutter-phase-3-web-song-chart-report.md`](flutter-phase-3-web-song-chart-report.md) Phase B appendix.
+
 **Implementation plan:** [`flutter-phase-3-song-chart.md`](flutter-phase-3-song-chart.md) (sub-phases 3A–3H, engine + layout ports, live `songs` stream).
 
 | | |

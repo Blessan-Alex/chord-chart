@@ -1,0 +1,121 @@
+class SessionSongEntry {
+  const SessionSongEntry({
+    required this.id,
+    required this.songId,
+    required this.songTitle,
+    required this.order,
+    this.keyOverride,
+  });
+
+  final String id;
+  final String songId;
+  final String songTitle;
+  final double order;
+  final String? keyOverride;
+
+  factory SessionSongEntry.fromMap(String id, Map<String, dynamic> data) {
+    return SessionSongEntry(
+      id: id,
+      songId: data['songId'] as String? ?? '',
+      songTitle: data['songTitle'] as String? ?? '',
+      order: (data['order'] as num?)?.toDouble() ?? 0,
+      keyOverride: data['keyOverride'] as String?,
+    );
+  }
+}
+
+class PlaylistSession {
+  const PlaylistSession({required this.id, required this.title});
+
+  final String id;
+  final String title;
+
+  factory PlaylistSession.fromMap(String id, Map<String, dynamic> data) {
+    return PlaylistSession(
+      id: id,
+      title: data['title'] as String? ?? '',
+    );
+  }
+}
+
+const String playlistQueryParam = 'playlist';
+const String legacySessionQueryParam = 'session';
+
+class SessionNavParams {
+  const SessionNavParams({this.sessionId, this.index});
+
+  final String? sessionId;
+  final int? index;
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is SessionNavParams &&
+            sessionId == other.sessionId &&
+            index == other.index;
+  }
+
+  @override
+  int get hashCode => Object.hash(sessionId, index);
+}
+
+SessionNavParams parseSessionNavParams(Map<String, String> query) {
+  final sessionId =
+      query[playlistQueryParam] ?? query[legacySessionQueryParam];
+  final indexRaw = query['index'];
+  if (sessionId == null || indexRaw == null) {
+    return SessionNavParams(sessionId: sessionId, index: null);
+  }
+  final index = int.tryParse(indexRaw);
+  if (index == null || index < 0) {
+    return SessionNavParams(sessionId: sessionId, index: null);
+  }
+  return SessionNavParams(sessionId: sessionId, index: index);
+}
+
+String sessionSongPath(
+  String sessionId,
+  SessionSongEntry entry,
+  int index,
+) {
+  final params = <String, String>{
+    playlistQueryParam: sessionId,
+    'index': index.toString(),
+  };
+  if (entry.keyOverride != null && entry.keyOverride!.isNotEmpty) {
+    params['key'] = entry.keyOverride!;
+  }
+  final query = params.entries
+      .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+      .join('&');
+  return '/song/${Uri.encodeComponent(entry.songId)}?$query';
+}
+
+String? buildAdjacentSongPath(
+  String sessionId,
+  List<SessionSongEntry> songs,
+  int currentIndex,
+  int direction,
+) {
+  final nextIndex = currentIndex + direction;
+  if (nextIndex < 0 || nextIndex >= songs.length) {
+    return null;
+  }
+  return sessionSongPath(sessionId, songs[nextIndex], nextIndex);
+}
+
+Map<String, String>? canonicalPlaylistQuery(Map<String, String> query) {
+  final legacy = query[legacySessionQueryParam];
+  if (legacy == null || query.containsKey(playlistQueryParam)) {
+    return null;
+  }
+  final next = Map<String, String>.from(query);
+  next.remove(legacySessionQueryParam);
+  next[playlistQueryParam] = legacy;
+  return next;
+}
+
+String songSharePath(String songId) => '/song/${Uri.encodeComponent(songId)}';
+
+String songShareMessage(String title, String url) =>
+    'Check out "$title" from the LF Chords app $url';

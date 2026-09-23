@@ -10,6 +10,9 @@ abstract final class RoutePaths {
   static const profile = '/profile';
   static const joinPlaylistPrefix = '/join/p/';
 
+  static String playlistDetail(String sessionId) =>
+      '/playlists/${Uri.encodeComponent(sessionId)}';
+
   static String joinPlaylist(String token) =>
       '$joinPlaylistPrefix${Uri.encodeComponent(token)}';
 
