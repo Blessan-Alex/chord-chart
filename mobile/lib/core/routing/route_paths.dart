@@ -9,6 +9,7 @@ abstract final class RoutePaths {
   static const playlists = '/playlists';
   static const playlistsNew = '/playlists/new';
   static const profile = '/profile';
+  static const groups = '/groups';
   static const joinPlaylistPrefix = '/join/p/';
 
   static String playlistDetail(String sessionId) =>
@@ -17,9 +18,12 @@ abstract final class RoutePaths {
   static String joinPlaylist(String token) =>
       '$joinPlaylistPrefix${Uri.encodeComponent(token)}';
 
+  static String groupDetail(String groupId) =>
+      '/groups/${Uri.encodeComponent(groupId)}';
+
   static String song(String id) => '/song/${Uri.encodeComponent(id)}';
 
-  static const shellRoutes = {home, playlists, profile};
+  static const shellRoutes = {home, playlists, groups, profile};
 }
 
 /// Web `/` equivalent for post-auth landing on mobile.

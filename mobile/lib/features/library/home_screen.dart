@@ -6,11 +6,13 @@ import 'package:lf_chords/domain/auth_errors.dart';
 import 'package:lf_chords/domain/constants.dart';
 import 'package:lf_chords/domain/language_tags.dart';
 import 'package:lf_chords/domain/library_browse.dart';
+import 'package:lf_chords/domain/session_navigation.dart';
 import 'package:lf_chords/features/library/widgets/library_filter_sheet.dart';
 import 'package:lf_chords/features/library/widgets/library_pagination_bar.dart';
 import 'package:lf_chords/features/library/widgets/recent_songs_section.dart';
 import 'package:lf_chords/features/library/widgets/song_row.dart';
 import 'package:lf_chords/features/playlists/widgets/playlist_card.dart';
+import 'package:lf_chords/providers/group_providers.dart';
 import 'package:lf_chords/providers/playlist_providers.dart';
 import 'package:lf_chords/features/library/widgets/song_row_skeleton.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
@@ -52,6 +54,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final showRecent = ref.watch(showRecentSongsProvider);
     final recent = ref.watch(recentSongsProvider);
     final artists = ref.watch(libraryArtistsProvider);
+    final showSocialSections =
+        session.user != null && isBrowsingAll && !indexState.loading;
 
     final filterButtonLabel = libraryFilterLabel(
       keyFilter: filters.keyFilter,
@@ -178,7 +182,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onSongTap: (entry) => _openSong(entry.id),
               ),
             ],
-            if (session.user != null) ...[
+            if (session.user != null && showSocialSections) ...[
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -198,6 +202,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 8),
               _HomePlaylistsStrip(),
+            ],
+            if (session.user != null && showSocialSections) ...[
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'GROUP PLAYLISTS',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
+                        ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go(RoutePaths.groups),
+                    child: const Text('See all'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const _HomeGroupPlaylistsStrip(),
             ],
             const SizedBox(height: 8),
             Text(
@@ -267,6 +292,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+  }
+}
+
+class _HomeGroupPlaylistsStrip extends ConsumerWidget {
+  const _HomeGroupPlaylistsStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preview = ref.watch(homeGroupPlaylistsPreviewProvider);
+    final songPreviews = ref.watch(homeGroupPlaylistSongPreviewsProvider);
+
+    return preview.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (data) {
+        if (data.sessions.isEmpty) {
+          return TextButton(
+            onPressed: () => context.go(RoutePaths.groups),
+            child: const Text('No group playlists yet. Join or create a group'),
+          );
+        }
+
+        String? groupNameFor(String? groupId) {
+          if (groupId == null) {
+            return null;
+          }
+          for (final group in data.groups) {
+            if (group.id == groupId) {
+              return group.name;
+            }
+          }
+          return null;
+        }
+
+        return Column(
+          children: [
+            for (final session in data.sessions) ...[
+              PlaylistCard(session: session, showStatus: true),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.only(left: 16, bottom: 8),
+                child: Text(
+                  _groupPlaylistSubtitle(session, groupNameFor(session.groupId)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              if (songPreviews.value?[session.id]?.isNotEmpty == true)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 12),
+                  child: Text(
+                    songPreviews.value![session.id]!.join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  String _groupPlaylistSubtitle(PlaylistSession session, String? groupName) {
+    final songLabel =
+        session.songCount == 1 ? '1 song' : '${session.songCount} songs';
+    if (groupName != null && groupName.isNotEmpty) {
+      return '$groupName · $songLabel';
+    }
+    return songLabel;
   }
 }
 

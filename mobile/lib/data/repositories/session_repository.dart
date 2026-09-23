@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:lf_chords/data/repositories/session_songs_repository.dart';
 import 'package:lf_chords/domain/constants.dart';
 import 'package:lf_chords/domain/playlist_invite_token.dart';
+import 'package:lf_chords/domain/playlist_access.dart';
 import 'package:lf_chords/domain/session_navigation.dart';
+import 'package:lf_chords/domain/validation.dart';
 
 const _sessionsCollection = 'sessions';
 const _inviteTokensCollection = 'playlistInviteTokens';
@@ -20,7 +22,7 @@ class SessionRepository {
     String uid, {
     int publishedLimit = publishedPlaylistCap,
   }) async {
-    return _mergeSessionQueries([
+    final merged = await _mergeSessionQueries([
       _QuerySpec(
         label: 'owned-by-ownerId',
         query: _sessions
@@ -47,10 +49,39 @@ class SessionRepository {
             .limit(publishedLimit),
       ),
     ]);
+    return merged
+        .where((s) => s.groupId == null || s.groupId!.isEmpty)
+        .toList();
   }
 
-  Future<List<PlaylistSession>> listOwnedPlaylists(String uid) {
-    return _mergeSessionQueries([
+  Future<List<PlaylistSession>> listPlaylistsForGroup(
+    String groupId, {
+    int? limit,
+    bool strict = false,
+  }) async {
+    var q = _sessions
+        .where('groupId', isEqualTo: groupId)
+        .orderBy('date', descending: true);
+    if (limit != null) {
+      q = q.limit(limit);
+    }
+    try {
+      final snap = await q.get();
+      return snap.docs
+          .map((d) => PlaylistSession.fromMap(d.id, d.data()))
+          .toList();
+    } catch (error, stack) {
+      if (strict) {
+        debugPrint('[sessions] group $groupId query failed: $error\n$stack');
+        rethrow;
+      }
+      debugPrint('[sessions] group $groupId query failed: $error\n$stack');
+      return [];
+    }
+  }
+
+  Future<List<PlaylistSession>> listOwnedPlaylists(String uid) async {
+    final merged = await _mergeSessionQueries([
       _QuerySpec(
         label: 'owned-by-ownerId',
         query: _sessions
@@ -64,6 +95,9 @@ class SessionRepository {
             .orderBy('date', descending: true),
       ),
     ]);
+    return merged
+        .where((s) => s.groupId == null || s.groupId!.isEmpty)
+        .toList();
   }
 
   Future<PlaylistSession?> getSession(String sessionId) async {
@@ -99,6 +133,7 @@ class SessionRepository {
     required String createdBy,
     String? ownerUsername,
     String serviceType = 'sunday_morning',
+    String? groupId,
   }) async {
     final ref = _sessions.doc();
     final data = <String, dynamic>{
@@ -113,6 +148,9 @@ class SessionRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    if (groupId != null && groupId.isNotEmpty) {
+      data['groupId'] = groupId;
+    }
     final owner = ownerUsername?.trim();
     if (owner != null && owner.isNotEmpty) {
       data['ownerUsername'] = owner;
@@ -147,7 +185,17 @@ class SessionRepository {
     });
   }
 
-  Future<void> deleteSession(PlaylistSession session) async {
+  Future<void> deleteSession(
+    PlaylistSession session,
+    String actorUid, {
+    bool asGroupOwner = false,
+    bool skipGroupCountUpdate = false,
+  }) async {
+    if (!isPlaylistOwner(session, actorUid) &&
+        !(asGroupOwner && session.groupId != null && session.groupId!.isNotEmpty)) {
+      throw StateError('Only the playlist owner can delete this playlist');
+    }
+
     final batch = _firestore.batch();
     final songsSnap = await _sessions
         .doc(session.id)
@@ -163,6 +211,94 @@ class SessionRepository {
     }
     batch.delete(_sessions.doc(session.id));
     await batch.commit();
+
+    if (session.groupId != null &&
+        session.groupId!.isNotEmpty &&
+        !skipGroupCountUpdate) {
+      try {
+        await _decrementGroupPlaylistCount(session.groupId!);
+      } on FirebaseException catch (error) {
+        if (error.code != 'permission-denied') {
+          rethrow;
+        }
+        debugPrint(
+          '[sessions] group playlistCount decrement skipped (non-owner): '
+          '${error.message}',
+        );
+      }
+    }
+  }
+
+  Future<void> sharePlaylistByUsername({
+    required PlaylistSession session,
+    required String usernameRaw,
+    required String inviterUid,
+  }) async {
+    if (!isPlaylistOwner(session, inviterUid)) {
+      throw StateError('Only the playlist owner can share');
+    }
+
+    final validated = validateUsername(usernameRaw);
+    if (validated is! UsernameValid) {
+      throw StateError((validated as UsernameInvalid).error);
+    }
+
+    final inviteeUid = await _resolveUsernameToUid(validated.normalized);
+    if (inviteeUid == null) {
+      throw StateError(
+        'No user @${validated.normalized}. They need an account with that username in Profile.',
+      );
+    }
+
+    if (inviteeUid == inviterUid) {
+      throw StateError('You cannot share with yourself');
+    }
+
+    if (session.sharedWith.contains(inviteeUid)) {
+      throw StateError('That user already has access');
+    }
+
+    final member = PlaylistMemberRecord(
+      uid: inviteeUid,
+      username: validated.normalized,
+      displayName: validated.normalized,
+    );
+
+    await _sessions.doc(session.id).update({
+      'sharedWith': FieldValue.arrayUnion([inviteeUid]),
+      'sharedMembers': FieldValue.arrayUnion([
+        {
+          'uid': member.uid,
+          'username': member.username,
+          'displayName': member.displayName,
+        },
+      ]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<String?> _resolveUsernameToUid(String usernameLower) async {
+    final snap = await _firestore
+        .collection('usernames')
+        .doc(usernameLower)
+        .get();
+    if (!snap.exists) {
+      return null;
+    }
+    return snap.data()?['uid'] as String?;
+  }
+
+  Future<void> _decrementGroupPlaylistCount(String groupId) async {
+    final ref = _firestore.collection('groups').doc(groupId);
+    final snap = await ref.get();
+    if (!snap.exists) {
+      return;
+    }
+    final current = (snap.data()?['playlistCount'] as num?)?.toInt() ?? 0;
+    await ref.update({
+      'playlistCount': current > 0 ? current - 1 : 0,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<String> _attachPlaylistInviteToken(

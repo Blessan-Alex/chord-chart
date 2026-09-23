@@ -1,6 +1,6 @@
 # LF Chords — Flutter mobile roadmap (musician client)
 
-**Status:** Phase 0 complete · Phase 1 implemented (auth + routing shell) — manual device QA pending  
+**Status:** Phase 0 complete · Phase 1 implemented (auth + routing shell) — manual device QA pending · **Phase 7 groups implemented in `mobile/`** (device QA pending)
 **Team shape:** 1–2 developers, Windows-first (Android), iOS on Mac later  
 **Backend:** Firebase project `song-db-5e4ed` (`.firebaserc`) — same Auth, Firestore, rules as web  
 **Specs:** [`flutter-web-app-map.md`](flutter-web-app-map.md) · [`flutter-web-app-map-verification.md`](flutter-web-app-map-verification.md) (High/Medium errata override the map where they conflict)
@@ -362,9 +362,9 @@ mobile/lib/
 
 ---
 
-### Phase 7 — Groups (v1.1) + polish buffer
+### Phase 7 — Groups (v1.1) + polish buffer ✅ (mobile code)
 
-**Implementation plan:** [`flutter-phase-7-groups.md`](flutter-phase-7-groups.md) (groups CRUD, join code, group playlists, home previews, optional polish).
+**Implementation plan:** [`flutter-phase-7-groups.md`](flutter-phase-7-groups.md) (groups CRUD, join code, group playlists, home previews, optional polish). **Web parity report:** [`flutter-phase-7-web-groups-report.md`](flutter-phase-7-web-groups-report.md).
 
 | | |
 |--|--|

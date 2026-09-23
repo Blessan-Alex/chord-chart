@@ -5,6 +5,8 @@ import 'package:lf_chords/core/routing/route_paths.dart';
 import 'package:lf_chords/domain/safe_redirect.dart';
 import 'package:lf_chords/features/auth/login_screen.dart';
 import 'package:lf_chords/features/auth/signup_screen.dart';
+import 'package:lf_chords/features/groups/group_detail_screen.dart';
+import 'package:lf_chords/features/groups/groups_screen.dart';
 import 'package:lf_chords/features/join/join_playlist_screen.dart';
 import 'package:lf_chords/features/library/home_screen.dart';
 import 'package:lf_chords/features/onboarding/username_onboarding_screen.dart';
@@ -66,6 +68,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     if (session.user == null) {
       if (location == RoutePaths.playlists ||
           location.startsWith('${RoutePaths.playlists}/') ||
+          location == RoutePaths.groups ||
+          location.startsWith('${RoutePaths.groups}/') ||
           location == RoutePaths.profile) {
         return '${RoutePaths.login}?next=${Uri.encodeComponent(location)}';
       }
@@ -174,6 +178,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => PlaylistDetailScreen(
                       sessionId: state.pathParameters['sessionId'] ?? '',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.groups,
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  child: GroupsScreen(),
+                ),
+                routes: [
+                  GoRoute(
+                    path: ':groupId',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => GroupDetailScreen(
+                      groupId: state.pathParameters['groupId'] ?? '',
                     ),
                   ),
                 ],

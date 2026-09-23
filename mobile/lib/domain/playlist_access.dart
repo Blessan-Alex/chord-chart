@@ -1,3 +1,4 @@
+import 'package:lf_chords/domain/group.dart';
 import 'package:lf_chords/domain/session_navigation.dart';
 
 String getPlaylistOwnerId(PlaylistSession session) =>
@@ -9,10 +10,30 @@ bool isPlaylistOwner(PlaylistSession session, String uid) =>
 bool canViewPlaylist(
   PlaylistSession session,
   String uid, {
-  bool isAdmin = false,
+  Set<String>? memberGroupIds,
 }) {
+  if (session.groupId != null &&
+      memberGroupIds != null &&
+      memberGroupIds.contains(session.groupId)) {
+    return true;
+  }
   return session.status == 'published' ||
       isPlaylistOwner(session, uid) ||
-      session.sharedWith.contains(uid) ||
-      isAdmin;
+      session.sharedWith.contains(uid);
+}
+
+bool canDeletePlaylist(
+  PlaylistSession session,
+  String uid, {
+  Group? group,
+}) {
+  if (isPlaylistOwner(session, uid)) {
+    return true;
+  }
+  if (session.groupId != null &&
+      group != null &&
+      isGroupOwner(group, uid)) {
+    return true;
+  }
+  return false;
 }

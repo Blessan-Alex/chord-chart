@@ -10,6 +10,7 @@ class AppShell extends StatelessWidget {
   static const _destinations = [
     (RoutePaths.home, Icons.home_outlined, Icons.home, 'Home'),
     (RoutePaths.playlists, Icons.queue_music_outlined, Icons.queue_music, 'Playlists'),
+    (RoutePaths.groups, Icons.groups_outlined, Icons.groups, 'Groups'),
     (RoutePaths.profile, Icons.person_outline, Icons.person, 'Profile'),
   ];
 

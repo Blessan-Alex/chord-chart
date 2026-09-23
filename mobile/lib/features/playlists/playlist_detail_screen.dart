@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lf_chords/core/connectivity/online_status_provider.dart';
 import 'package:lf_chords/core/routing/route_paths.dart';
 import 'package:lf_chords/domain/engine.dart';
+import 'package:lf_chords/domain/group.dart';
 import 'package:lf_chords/domain/playlist_access.dart';
 import 'package:lf_chords/domain/playlist_labels.dart';
 import 'package:lf_chords/domain/playlist_members.dart';
@@ -13,8 +14,10 @@ import 'package:lf_chords/domain/session_display.dart';
 import 'package:lf_chords/domain/session_navigation.dart';
 import 'package:lf_chords/domain/share_playlist.dart';
 import 'package:lf_chords/domain/song_search_rank.dart';
+import 'package:lf_chords/domain/validation.dart';
 import 'package:lf_chords/features/playlists/widgets/share_playlist_sheet.dart';
 import 'package:lf_chords/providers/auth_providers.dart';
+import 'package:lf_chords/providers/group_providers.dart';
 import 'package:lf_chords/providers/playlist_providers.dart';
 import 'package:lf_chords/providers/song_index_providers.dart';
 import 'package:share_plus/share_plus.dart';
@@ -111,6 +114,25 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
   }
 
+  Future<void> _shareByUsername(
+    PlaylistSession session,
+    String uid,
+    String usernameRaw,
+  ) async {
+    final validated = validateUsername(usernameRaw);
+    final normalized = validated is UsernameValid
+        ? validated.normalized
+        : usernameRaw.trim().toLowerCase();
+    await _run(
+      () => ref.read(sessionRepositoryProvider).sharePlaylistByUsername(
+            session: session,
+            usernameRaw: usernameRaw,
+            inviterUid: uid,
+          ),
+      success: 'Added @$normalized',
+    );
+  }
+
   Future<void> _pickKey(SessionSongEntry entry, String originalKey) async {
     final picked = await showDialog<String>(
       context: context,
@@ -142,7 +164,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   Widget build(BuildContext context) {
     final uid = ref.watch(authControllerProvider).session.user?.uid ?? '';
     final online = ref.watch(onlineStatusProvider);
+    final memberGroupIdsAsync = ref.watch(userMemberGroupIdsProvider);
+    final memberGroupIds = memberGroupIdsAsync.value ?? const {};
     final sessionAsync = ref.watch(playlistSessionProvider(widget.sessionId));
+    final session = sessionAsync.asData?.value;
+    final groupForSession = session?.groupId;
+    final groupAsync = groupForSession != null && groupForSession.isNotEmpty
+        ? ref.watch(groupProvider(groupForSession))
+        : null;
+    final group = groupAsync?.asData?.value;
     final songsAsync = ref.watch(sessionSongsStreamProvider(widget.sessionId));
     final indexEntries = ref.watch(songIndexEntriesProvider);
 
@@ -178,10 +208,31 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           );
         }
 
-        final canView = canViewPlaylist(session, uid);
+        final isMemberViaGroupDoc = group != null &&
+            session.groupId == group.id &&
+            isGroupMember(group, uid);
+        final canView = canViewPlaylist(
+              session,
+              uid,
+              memberGroupIds: memberGroupIds,
+            ) ||
+            isMemberViaGroupDoc;
         final isOwner = isPlaylistOwner(session, uid);
         final canEdit = isOwner;
-        final showRowEdit = isOwner && _editMode;
+        final canDelete = canDeletePlaylist(session, uid, group: group);
+
+        final membershipStillLoading = session.groupId != null &&
+            uid.isNotEmpty &&
+            !canView &&
+            !isOwner &&
+            (memberGroupIdsAsync.isLoading || (groupAsync?.isLoading ?? false));
+
+        if (membershipStillLoading) {
+          return Scaffold(
+            appBar: AppBar(title: Text(session.title)),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
         if (!canView) {
           return Scaffold(
@@ -195,6 +246,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           );
         }
 
+        final showRowEdit = isOwner && _editMode;
         final songs = songsAsync.value ?? [];
         final playPath = startSetPath(widget.sessionId, songs);
         final addResults = rankSongIndexResults(indexEntries, _addSearch)
@@ -310,6 +362,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   title: session.title,
                                   inviteToken: token,
                                   busy: _busy,
+                                  showUsernameShare: true,
+                                  onShareUsername: (username) async {
+                                    await _shareByUsername(session, uid, username);
+                                  },
                                   onShareLink: () async {
                                     await _quickShare(session.title);
                                   },
@@ -330,11 +386,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       tooltip: 'Invite link',
                     ),
                   ],
-                  if (canEdit)
+                  if (canDelete)
                     IconButton(
                       onPressed: _busy
                           ? null
-                          : () => _confirmDelete(session),
+                          : () => _confirmDelete(session, uid, group),
                       icon: const Icon(Icons.delete_outline),
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -503,7 +559,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     );
   }
 
-  Future<void> _confirmDelete(PlaylistSession session) async {
+  Future<void> _confirmDelete(
+    PlaylistSession session,
+    String uid,
+    Group? group,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -529,8 +589,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
     setState(() => _busy = true);
     try {
-      await ref.read(sessionRepositoryProvider).deleteSession(session);
+      await ref.read(sessionRepositoryProvider).deleteSession(
+            session,
+            uid,
+            asGroupOwner: group != null && isGroupOwner(group, uid),
+          );
       _refreshPlaylistCaches();
+      invalidateUserGroupCaches(ref);
       ref.invalidate(playlistSessionProvider(widget.sessionId));
       if (mounted) {
         context.go(RoutePaths.playlists);
