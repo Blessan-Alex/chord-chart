@@ -39,6 +39,11 @@ class AuthRepository {
     }
   }
 
+  Future<bool> readIsAdmin(User user) async {
+    final token = await user.getIdTokenResult(true);
+    return token.claims?['admin'] == true;
+  }
+
   Future<void> signOut() async {
     await Future.wait([
       _auth.signOut(),

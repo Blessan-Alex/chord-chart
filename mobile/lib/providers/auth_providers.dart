@@ -35,6 +35,7 @@ class AuthSession {
     this.loading = true,
     this.profileResolved = false,
     this.needsUsernameOnboarding = false,
+    this.isAdmin = false,
     this.authError,
     this.isGoogleSigningIn = false,
     this.signUpInProgress = false,
@@ -45,6 +46,7 @@ class AuthSession {
   final bool loading;
   final bool profileResolved;
   final bool needsUsernameOnboarding;
+  final bool isAdmin;
   final String? authError;
   final bool isGoogleSigningIn;
   final bool signUpInProgress;
@@ -57,6 +59,7 @@ class AuthSession {
     bool? loading,
     bool? profileResolved,
     bool? needsUsernameOnboarding,
+    bool? isAdmin,
     String? authError,
     bool clearAuthError = false,
     bool? isGoogleSigningIn,
@@ -69,6 +72,7 @@ class AuthSession {
       profileResolved: profileResolved ?? this.profileResolved,
       needsUsernameOnboarding:
           needsUsernameOnboarding ?? this.needsUsernameOnboarding,
+      isAdmin: isAdmin ?? this.isAdmin,
       authError: clearAuthError ? null : authError ?? this.authError,
       isGoogleSigningIn: isGoogleSigningIn ?? this.isGoogleSigningIn,
       signUpInProgress: signUpInProgress ?? this.signUpInProgress,
@@ -106,6 +110,7 @@ class AuthController extends ChangeNotifier {
 
     if (nextUser != null) {
       try {
+        final isAdmin = await _authRepository.readIsAdmin(nextUser);
         await _authRepository.runSignedInLifecycle(
           nextUser,
           skipLegacyEnsure: _signUpInProgress,
@@ -113,6 +118,7 @@ class AuthController extends ChangeNotifier {
         final loadedProfile = await _authRepository.loadProfile(nextUser.uid);
         _session = _session.copyWith(
           profile: loadedProfile,
+          isAdmin: isAdmin,
           needsUsernameOnboarding: loadedProfile != null &&
               (loadedProfile.username == null ||
                   loadedProfile.username!.isEmpty),
@@ -120,6 +126,7 @@ class AuthController extends ChangeNotifier {
       } catch (_) {
         _session = _session.copyWith(
           profile: null,
+          isAdmin: false,
           needsUsernameOnboarding: false,
         );
       }
@@ -127,6 +134,7 @@ class AuthController extends ChangeNotifier {
       _session = _session.copyWith(
         user: null,
         profile: null,
+        isAdmin: false,
         needsUsernameOnboarding: false,
       );
     }

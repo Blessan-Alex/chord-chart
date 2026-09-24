@@ -183,6 +183,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             },
           ),
           if (session.user != null) ...[
+            if (session.isAdmin) ...[
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings_outlined),
+                title: const Text('Admin'),
+                subtitle: const Text('Library dashboard & song editor'),
+                onTap: () => context.push(RoutePaths.admin),
+              ),
+              const Divider(),
+            ],
             const SizedBox(height: 24),
             OutlinedButton(onPressed: _signOut, child: const Text('Sign out')),
           ],

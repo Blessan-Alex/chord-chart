@@ -309,24 +309,26 @@ class SectionBlock extends StatelessWidget {
           const SizedBox(height: 8),
 
           for (final line in lines)
-            ChordLineWidget(
-              line: line,
+            RepaintBoundary(
+              child: ChordLineWidget(
+                line: line,
 
-              originalKey: originalKey,
+                originalKey: originalKey,
 
-              targetKey: targetKey,
+                targetKey: targetKey,
 
-              viewMode: viewMode,
+                viewMode: viewMode,
 
-              wrapEnabled: wrapEnabled,
+                wrapEnabled: wrapEnabled,
 
-              maxChars: maxChars,
+                maxChars: maxChars,
 
-              maxWidth: maxWidth,
+                maxWidth: maxWidth,
 
-              fontSize: fontSize,
+                fontSize: fontSize,
 
-              languageTags: languageTags,
+                languageTags: languageTags,
+              ),
             ),
         ],
       ),

@@ -84,3 +84,42 @@ String markKey(ChordMark mark) {
   final normalized = normalizeChordMark(mark);
   return '${normalized.start}:${normalized.end}:${normalized.chord}';
 }
+
+ChordMark serializeChordMarkForPublish(ChordMark mark) {
+  final normalized = normalizeChordMark(mark);
+  return ChordMark(
+    chord: normalized.chord,
+    start: normalized.start,
+    end: normalized.end,
+  );
+}
+
+List<Section> serializeSectionsForPublish(List<Section> sections) {
+  return sections
+      .map(
+        (section) => Section(
+          label: section.label,
+          lines: section.lines
+              .map(
+                (line) => LyricLine(
+                  lyrics: line.lyrics,
+                  chords: line.chords
+                      .map(serializeChordMarkForPublish)
+                      .toList(),
+                ),
+              )
+              .toList(),
+        ),
+      )
+      .toList();
+}
+
+ChordMark createChordMark(String chord, int start, int end) {
+  return normalizeChordMark(
+    ChordMark(
+      chord: chord,
+      start: start,
+      end: end < start + 1 ? start + 1 : end,
+    ),
+  );
+}

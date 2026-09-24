@@ -13,12 +13,14 @@
 | **1** | Auth, onboarding, `go_router`, theme shell | **Done** (code + unit tests; Google SHA / device QA per phase doc §4) |
 | **2** | Song index + home search (ported web logic) | Not started |
 | **3** | Chart, transpose, numbers, live song stream | Not started |
+| **3.5** | Chart pinch UX & layout performance | **Done** (see [`flutter-phase-3.5-chart-ux.md`](flutter-phase-3.5-chart-ux.md)) |
 | **4** | Performance mode | Not started |
 | **5** | Playlists + join API | **Done** (code + unit tests; two-account join QA manual) |
 | **6** | Offline prefetch set + connectivity UX | **Done** (code + unit tests; airplane QA manual) |
 | **7** | Groups (v1.1) + polish | Not started |
 | **8** | Store beta, iOS prep | Not started |
 | **9** | v1.1 launch, iOS ship, production ops | Not started |
+| **10** | Admin dashboard & authoring (v2 / optional) | Not started — [`flutter-phase-10-admin.md`](flutter-phase-10-admin.md) (`songEdits` drafts + `createSong` / `publishDraft`) |
 
 **Shipped in repo (`mobile/`):** Flutter app `lf_chords`, Android + iOS targets, Firebase Auth + Firestore (offline persistence), email/Google sign-in flow, username onboarding, `go_router` shell (Home / Playlists / Profile), theme + profile screens, join invite stub, ported domain tests. Phase 0 bootstrap retained as debug line on Profile in debug builds.
 
@@ -39,7 +41,7 @@ The Flutter app is built so **Sunday use works when the network does not**:
 | **Local when needed** | Firestore **offline persistence** (default on mobile), explicit **playlist/song prefetch** (port `cacheSessionOffline`), and **on-device prefs** (`shared_preferences` for zoom, theme, recent songs — same roles as web `localStorage` / `performancePreferences.ts` / `recentSongs.ts`). UI reads **cache first**, then server; charts and search run **entirely on-device** once data is present. |
 | **Dependencies in the app** | Fonts (`google_fonts`), chord/search/chart code in **`lib/domain/`** — no reliance on loading logic from the network at runtime. |
 | **Web logic, not a rewrite** | Transpose, search rank, index merge, session navigation, validation, join API contract, and Firestore query shapes are **ported from** `webmvp/src/lib/**` (see map appendices). Behavior must match web + **verification doc** errata (browse pagination vs 100 search cap, `listPlaylistsForUser`, etc.). |
-| **Web-only stays on web** | Song create/edit, import, admin, `songEdits`, and guest **`localStorage` song library** (`storage.ts`) are **not** replicated on mobile — mobile is **Firebase library + local cache/prefs**, not a second authoring store. |
+| **Web-only stays on web (musician v1)** | Song create/edit, import, admin, `songEdits`, and guest **`localStorage` song library** (`storage.ts`) are **not** in musician v1 — mobile is **Firebase library + local cache/prefs**. **Phase 10** (optional) adds admin/authoring on mobile for `admin` claim holders — see [`flutter-phase-10-admin.md`](flutter-phase-10-admin.md). |
 
 Offline is not a late add-on: **Phase 2+** designs repositories assuming cached reads; **Phase 6** adds “download set” and connectivity UX on top of that foundation.
 
@@ -412,7 +414,36 @@ mobile/lib/
 | **Technical tasks** | Promote Play tracks; TestFlight → review; `firebase_crashlytics`; enforce App Check with web; Phase 7/ polish if not in v1.0 |
 | **Dependencies** | Phase 8 beta; Phase 7 for default v1.1 scope |
 | **Demo** | Production listing + iOS App Store or external TestFlight |
-| **Risks** | App Check lockout; iOS review; scope creep into admin |
+| **Risks** | App Check lockout; iOS review; scope creep into admin (defer to **Phase 10**) |
+
+---
+
+### Phase 3.5 — Chart UX, pinch zoom & layout performance
+
+**Implementation plan:** [`flutter-phase-3.5-chart-ux.md`](flutter-phase-3.5-chart-ux.md) (transform live pinch, commit reflow, measurement cache, repaint boundaries).
+
+| | |
+|--|--|
+| **Goal** | Seamless pinch zoom and smooth long-chart scrolling on all device sizes |
+| **Duration** | 0.5–1 pw |
+| **Depends on** | Phase 3 chart |
+| **Status** | **Shipped in repo** — QA per phase doc §5 |
+
+---
+
+### Phase 10 — Admin dashboard & song authoring (optional / v2)
+
+**Implementation plan:** [`flutter-phase-10-admin.md`](flutter-phase-10-admin.md) (dashboard, archive, import, composer, touch placement editor).
+
+| | |
+|--|--|
+| **Goal** | Parity with web `/admin`, `/import`, `/song/.../edit` for Firebase **`admin` claim** users |
+| **Duration** | 8–12 pw |
+| **Epics** | 10A gate → 10B dashboard → **10D draft edit + 10J publish** → 10E–10G placement → **10I createSong import** |
+| **User stories** | Worship leader edits charts on tablet; archive bad entries; import ChordPro on the go |
+| **Dependencies** | Phases 1–3 (+ 3.5 layout engine); Phase 9 production hardening recommended |
+| **Demo** | Admin saves song on phone; musician opens same chart on web with identical chord positions |
+| **Risks** | Editor scope; duplicate layout logic — mitigated by reusing Phase 3 measurement code |
 
 ---
 
@@ -427,6 +458,7 @@ mobile/lib/
 | Phase 8 (v1 Android beta) | **Week 14–16** |
 | Phase 7 groups (v1.1) | +2 weeks (may overlap Phase 9) |
 | Phase 9 (production + iOS) | **Week 18–21** |
+| Phase 10 admin (optional) | +8–12 pw after v1.1 or parallel admin track |
 
 **2 FTE:** compress chart + playlists parallel → **v1 beta ~10–12 weeks**.
 
@@ -434,7 +466,9 @@ mobile/lib/
 
 ## 5. Screen & route map (Flutter-only)
 
-**No admin routes** (`/admin`, `/import`, `/song/.../edit` are web-only).
+**Musician v1 routes** — no admin (Phase 1–9).
+
+**Phase 10 (optional)** adds `/admin`, `/import`, `/song/:id/edit` for **`admin` claim** only — see [`flutter-phase-10-admin.md`](flutter-phase-10-admin.md).
 
 | Screen | Route | Auth | Params | Web equivalent |
 |--------|-------|------|--------|----------------|

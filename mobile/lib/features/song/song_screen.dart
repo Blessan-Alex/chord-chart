@@ -570,30 +570,26 @@ class _SongScreenState extends ConsumerState<SongScreen>
                                     child: Padding(
                                       padding: themeColors.chartPadding,
                                       child: ChordChartViewport(
-                                        scale: _scale,
-                                        scalePercent:
-                                            (_scale * 100).round(),
+                                        scale: layoutScale,
                                         showIndicator: _showZoomIndicator,
                                         gesturesEnabled:
                                             !_autoscroll.active,
-                                        onPinchUpdate: (next) {
-                                          setState(() =>
-                                              _scale = clampChartScale(next));
-                                          _flashZoomIndicator();
-                                        },
-                                        onPinchEnd: () async {
-                                          await _setScale(_scale);
+                                        onPinchCommit: (next) async {
+                                          await _setScale(next);
                                         },
                                         onDoubleTap: () => _setScale(
                                           _scale >= 1.4 ? 1 : 1.5,
                                         ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            for (final section
-                                                in song.sections)
-                                              SectionBlock(
+                                        child: ListView.builder(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          itemCount: song.sections.length,
+                                          itemBuilder: (context, index) {
+                                            final section =
+                                                song.sections[index];
+                                            return RepaintBoundary(
+                                              child: SectionBlock(
                                                 label: section.label,
                                                 lines: section.lines,
                                                 originalKey: originalKey,
@@ -605,7 +601,8 @@ class _SongScreenState extends ConsumerState<SongScreen>
                                                 fontSize: scaledFontSize,
                                                 languageTags: payload.tags,
                                               ),
-                                          ],
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),

@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lf_chords/core/routing/route_paths.dart';
 import 'package:lf_chords/domain/safe_redirect.dart';
+import 'package:lf_chords/features/admin/admin_dashboard_screen.dart';
+import 'package:lf_chords/features/admin/admin_import_screen.dart';
+import 'package:lf_chords/features/admin/admin_route_gate.dart';
+import 'package:lf_chords/features/admin/song_edit_screen.dart';
 import 'package:lf_chords/features/auth/login_screen.dart';
 import 'package:lf_chords/features/auth/signup_screen.dart';
 import 'package:lf_chords/features/groups/group_detail_screen.dart';
@@ -75,6 +79,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
     }
 
+    final adminRedirect = redirectNonAdminRoute(location, session);
+    if (adminRedirect != null) {
+      return adminRedirect;
+    }
+
     if (isAuthRoute &&
         session.user != null &&
         session.profileResolved &&
@@ -135,6 +144,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '${RoutePaths.joinPlaylistPrefix}:token',
         builder: (context, state) => JoinPlaylistScreen(
           token: state.pathParameters['token'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: RoutePaths.admin,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.import,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AdminImportScreen(),
+      ),
+      GoRoute(
+        path: '/song/:id/edit',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => SongEditScreen(
+          songId: state.pathParameters['id'] ?? '',
         ),
       ),
       GoRoute(

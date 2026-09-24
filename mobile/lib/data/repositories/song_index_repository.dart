@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lf_chords/data/models/song_index_entry.dart';
 import 'package:lf_chords/domain/constants.dart';
+import 'package:lf_chords/domain/song_index_admin.dart';
 import 'package:lf_chords/domain/song_search_rank.dart';
 
 List<SongIndexEntry> _dedupeIndexEntries(List<SongIndexEntry> entries) {
@@ -191,6 +192,62 @@ class SongIndexRepository {
     for (final listener in _indexListeners) {
       listener(entries);
     }
+  }
+
+  Future<void> writeSongIndexEntries(List<SongIndexEntry> entries) async {
+    if (entries.length > songIndexCapacity) {
+      throw Exception(
+        'Song index is full: ${entries.length} exceeds capacity of $songIndexCapacity.',
+      );
+    }
+    final chunks = buildIndexChunks(entries);
+    final batch = _firestore.batch();
+    final updatedAt = FieldValue.serverTimestamp();
+
+    for (final entry in chunks.entries) {
+      batch.set(_firestore.collection('songIndex').doc(entry.key), {
+        'entries': entry.value
+            .map(
+              (e) => {
+                'id': e.id,
+                'title': e.title,
+                'artist': e.artist,
+                'key': e.key,
+                'tags': e.tags,
+                'searchText': e.searchText,
+                'updatedAtMs': e.updatedAtMs,
+              },
+            )
+            .toList(),
+        'updatedAt': updatedAt,
+      });
+    }
+
+    for (final chunkId in songIndexChunkIds) {
+      if (!chunks.containsKey(chunkId)) {
+        final ref = _firestore.collection('songIndex').doc(chunkId);
+        final snap = await ref.get();
+        if (snap.exists) {
+          batch.delete(ref);
+        }
+      }
+    }
+
+    await batch.commit();
+  }
+
+  Future<void> upsertSongIndexEntry(SongIndexEntry entry) async {
+    final existing = await loadSongIndex(preferServer: true);
+    await writeSongIndexEntries(mergeIndexEntry(existing, entry));
+    await invalidateSongIndexCache();
+  }
+
+  Future<void> removeSongIndexEntry(String songId) async {
+    final existing = await loadSongIndex(preferServer: true);
+    await writeSongIndexEntries(
+      existing.where((e) => e.id != songId).toList(),
+    );
+    await invalidateSongIndexCache();
   }
 
   Future<List<SongIndexEntry>> invalidateSongIndexCache() async {

@@ -26,7 +26,7 @@
 | Nashville numbers | `engine.chordToDegree`, `SongViewMode` | Toggle chords ↔ numbers |
 | Sections UI | `ChordLine`, section labels | `SectionHeader` + list of lines |
 | Chord-over-lyric layout | `chordLayout`, `ChordRow`, `wrapLyricLine`, `graphemeUtils` | Custom `TextPainter` / skyline layout |
-| Chart zoom | `useChartZoom`, `performancePreferences` | Pinch + buttons; `lf-zoom-level`, session zoom keys |
+| Chart zoom | `useChartZoom`, `performancePreferences` | Pinch + buttons; `lf-zoom-level`, session zoom keys — **Phase 3.5:** transform live pinch, commit reflow ([`flutter-phase-3.5-chart-ux.md`](flutter-phase-3.5-chart-ux.md)) |
 | Chart layout width | `useChartLayout`, `charsPerLine` | `LayoutBuilder` + `maxChars` wrap |
 | Control bar (musician) | `SongControlBar` (subset) | Transpose, view mode, zoom — **no** autoscroll/fullscreen yet |
 | Header | `SongHeader` | Back, title, artist (`compact` on phone) |

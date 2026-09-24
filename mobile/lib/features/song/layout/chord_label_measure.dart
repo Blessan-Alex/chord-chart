@@ -47,6 +47,23 @@ Map<int, double> measureChordOffsets(
   TextStyle style,
   double maxWidth,
 ) {
+  if (indices.isEmpty) {
+    return {};
+  }
+  final cacheKey = Object.hash(
+    lyrics,
+    Object.hashAll(indices),
+    style.fontSize,
+    style.fontFamily,
+    style.fontWeight,
+    style.letterSpacing,
+    maxWidth,
+  );
+  final cached = _chordOffsetCache[cacheKey];
+  if (cached != null) {
+    return Map<int, double>.from(cached);
+  }
+
   final offsets = <int, double>{};
   for (final index in indices) {
     final measured = measureLyricCharOffset(lyrics, index, style, maxWidth);
@@ -54,5 +71,12 @@ Map<int, double> measureChordOffsets(
       offsets[index] = measured;
     }
   }
+  if (_chordOffsetCache.length >= _chordOffsetCacheMaxEntries) {
+    _chordOffsetCache.clear();
+  }
+  _chordOffsetCache[cacheKey] = Map<int, double>.from(offsets);
   return offsets;
 }
+
+const int _chordOffsetCacheMaxEntries = 512;
+final Map<int, Map<int, double>> _chordOffsetCache = {};
