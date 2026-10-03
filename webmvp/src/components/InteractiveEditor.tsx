@@ -14,8 +14,10 @@ import {
   describeSlot,
   findChordAtSlot,
   nextSlot,
+  prepareGapPlacement,
   prevSlot,
   removePlacementAt,
+  rewindPreparedGapSpacer,
   slotFromCaret,
   slotFromSelection,
   type PlacementSlot,
@@ -40,7 +42,7 @@ import {
   getFocusOffsetInElement,
   getSelectionRangeInElement,
 } from "@/lib/hooks/useTextSelection";
-import type { LyricLine, Section } from "@/lib/types";
+import type { ChordMark, LyricLine, Section } from "@/lib/types";
 
 type EditorMode = "visual" | "source";
 
@@ -80,6 +82,21 @@ function replaceLine(
   );
 }
 
+/** Remap a chord mark when a preview spacer before it is removed. */
+function slotAfterPreviewSpacerRewind(
+  mark: ChordMark,
+  spacerIndex: number,
+): { start: number; end: number } {
+  const normalized = normalizeChordMark(mark);
+  if (normalized.start <= spacerIndex) {
+    return { start: normalized.start, end: normalized.end };
+  }
+  return {
+    start: normalized.start - 1,
+    end: normalized.end - 1,
+  };
+}
+
 function lyricElementIndices(
   element: HTMLElement,
 ): { sIndex: number; lIndex: number } | null {
@@ -116,23 +133,43 @@ export function InteractiveEditor({
   const [tabSourceError, setTabSourceError] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const touchEditor = useTouchEditor();
+  /** Spacer inserted when opening a full gap; removed on cancel if still empty. */
+  const pendingGapSpacer = useRef<{
+    sIndex: number;
+    lIndex: number;
+    /** Spacer char index inserted for preview. */
+    index: number;
+    /** Original gap click index (for slot navigation after rewind). */
+    gapIndex: number;
+  } | null>(null);
 
   /** Signature we last handed upward, so the parent echoing it back is not a reset. */
   const emittedSig = useRef(initialSectionsSig);
 
   const emit = useCallback(
-    (next: Section[]) => {
+    (
+      next: Section[],
+      { notifyParent = true }: { notifyParent?: boolean } = {},
+    ) => {
       emittedSig.current = sectionsSignature(next);
       setSections(next);
-      onSectionsChange?.(next);
+      if (notifyParent) {
+        onSectionsChange?.(next);
+      }
     },
     [onSectionsChange],
   );
 
   const commitSections = useCallback(
-    (next: Section[], { record = true }: { record?: boolean } = {}) => {
+    (
+      next: Section[],
+      {
+        record = true,
+        recordFrom,
+      }: { record?: boolean; recordFrom?: Section[] } = {},
+    ) => {
       if (record) {
-        setHistory((prev) => [...prev, sections].slice(-MAX_HISTORY));
+        setHistory((prev) => [...prev, recordFrom ?? sections].slice(-MAX_HISTORY));
       }
       emit(next);
     },
@@ -145,6 +182,7 @@ export function InteractiveEditor({
     }
 
     emittedSig.current = initialSectionsSig;
+    pendingGapSpacer.current = null;
     setSections(initialSections);
     setHistory([]);
     setActive(null);
@@ -186,22 +224,96 @@ export function InteractiveEditor({
   const existingChordAtSlot =
     active && activeLine ? findChordAtSlot(activeLine, active.slot) : undefined;
 
+  const rewindPendingGapSpacerInto = useCallback((current: Section[]) => {
+    const pending = pendingGapSpacer.current;
+    if (!pending) {
+      return { sections: current, changed: false };
+    }
+
+    const line = current[pending.sIndex]?.lines[pending.lIndex];
+    pendingGapSpacer.current = null;
+    if (!line) {
+      return { sections: current, changed: false };
+    }
+
+    const rewound = rewindPreparedGapSpacer(line, pending.index);
+    if (rewound.lyrics === line.lyrics) {
+      return { sections: current, changed: false };
+    }
+
+    return {
+      sections: replaceLine(current, pending.sIndex, pending.lIndex, rewound),
+      changed: true,
+    };
+  }, []);
+
+  const persistSectionsWithoutGapPreview = useCallback(
+    (current: Section[]): Section[] => {
+      const { sections: next, changed } = rewindPendingGapSpacerInto(current);
+      if (changed) {
+        emit(next, { notifyParent: false });
+      }
+      return next;
+    },
+    [emit, rewindPendingGapSpacerInto],
+  );
+
+  useEffect(() => {
+    return () => {
+      pendingGapSpacer.current = null;
+    };
+  }, []);
+
   const clearPlacement = useCallback(() => {
+    const { sections: next, changed } = rewindPendingGapSpacerInto(sections);
+    if (changed) {
+      emit(next, { notifyParent: false });
+    }
     setChordError(null);
     setActive(null);
     window.getSelection()?.removeAllRanges();
-  }, []);
-
+  }, [sections, emit, rewindPendingGapSpacerInto]);
 
   /** Place a chord without opening the picker (quick place). */
   const stampChord = useCallback(
-    (sIndex: number, lIndex: number, slot: PlacementSlot, chord: string) => {
-      const line = sections[sIndex]?.lines[lIndex];
+    (
+      sIndex: number,
+      lIndex: number,
+      slot: PlacementSlot,
+      chord: string,
+      lineOverride?: LyricLine,
+    ) => {
+      const line = lineOverride ?? sections[sIndex]?.lines[lIndex];
       if (!line) {
         return;
       }
+
+      const pending = pendingGapSpacer.current;
+      let recordFrom: Section[] | undefined;
+      if (
+        pending &&
+        pending.sIndex === sIndex &&
+        pending.lIndex === lIndex &&
+        lineOverride
+      ) {
+        const snapshotLine = sections[sIndex]?.lines[lIndex];
+        if (snapshotLine) {
+          const rewound = rewindPreparedGapSpacer(snapshotLine, pending.index);
+          if (rewound.lyrics !== snapshotLine.lyrics) {
+            recordFrom = replaceLine(sections, sIndex, lIndex, rewound);
+          }
+        }
+      }
+
       const applied = applyPlacement(line, slot, chord);
-      commitSections(replaceLine(sections, sIndex, lIndex, applied.line));
+      const base =
+        lineOverride !== undefined
+          ? replaceLine(sections, sIndex, lIndex, lineOverride)
+          : sections;
+      commitSections(replaceLine(base, sIndex, lIndex, applied.line), {
+        recordFrom,
+      });
+      pendingGapSpacer.current = null;
       setLastChord(chord);
     },
     [sections, commitSections],
@@ -209,26 +321,50 @@ export function InteractiveEditor({
 
   const openSlot = useCallback(
     (sIndex: number, lIndex: number, slot: PlacementSlot) => {
-      const line = sections[sIndex]?.lines[lIndex];
+      const { sections: baseSections, changed: rewound } =
+        rewindPendingGapSpacerInto(sections);
+      if (rewound) {
+        emit(baseSections, { notifyParent: false });
+      }
+
+      let line = baseSections[sIndex]?.lines[lIndex];
       if (!line) {
         return;
       }
 
+      let resolvedSlot = slot;
+      if (slot.kind === "gap") {
+        const prepared = prepareGapPlacement(line, slot.index);
+        line = prepared.line;
+        resolvedSlot = prepared.slot;
+        if (prepared.preparedSpacerAt !== null) {
+          pendingGapSpacer.current = {
+            sIndex,
+            lIndex,
+            index: prepared.preparedSpacerAt,
+            gapIndex: slot.index,
+          };
+          emit(replaceLine(baseSections, sIndex, lIndex, line), {
+            notifyParent: false,
+          });
+        }
+      }
+
       if (quickChord) {
-        stampChord(sIndex, lIndex, slot, quickChord);
+        stampChord(sIndex, lIndex, resolvedSlot, quickChord, line);
         return;
       }
 
-      const existing = findChordAtSlot(line, slot);
+      const existing = findChordAtSlot(line, resolvedSlot);
       setChordError(null);
       setActive({
         sIndex,
         lIndex,
-        slot,
+        slot: resolvedSlot,
         currentVal: existing ? normalizeChordMark(existing).chord : "",
       });
     },
-    [sections, quickChord, stampChord],
+    [sections, quickChord, stampChord, emit, rewindPendingGapSpacerInto],
   );
 
   const removeChord = useCallback(() => {
@@ -275,12 +411,32 @@ export function InteractiveEditor({
         return;
       }
 
+      const pending = pendingGapSpacer.current;
+      let recordFrom: Section[] | undefined;
+      if (
+        pending &&
+        pending.sIndex === active.sIndex &&
+        pending.lIndex === active.lIndex
+      ) {
+        const rewound = rewindPreparedGapSpacer(line, pending.index);
+        if (rewound.lyrics !== line.lyrics) {
+          recordFrom = replaceLine(
+            sections,
+            pending.sIndex,
+            pending.lIndex,
+            rewound,
+          );
+        }
+      }
+
       const applied = applyPlacement(line, active.slot, chord);
       commitSections(
         replaceLine(sections, active.sIndex, active.lIndex, applied.line),
+        { recordFrom },
       );
       setLastChord(chord);
       setChordError(null);
+      pendingGapSpacer.current = null;
 
       if (advance) {
         setActive({
@@ -296,21 +452,84 @@ export function InteractiveEditor({
     [active, sections, commitSections, clearPlacement, removeChord],
   );
 
+  const beginChordEdit = useCallback(
+    (sIndex: number, lIndex: number, mark: ChordMark) => {
+      const pendingBefore = pendingGapSpacer.current;
+      const { sections: baseSections, changed } =
+        rewindPendingGapSpacerInto(sections);
+      if (changed) {
+        emit(baseSections, { notifyParent: false });
+      }
+
+      const line = baseSections[sIndex]?.lines[lIndex];
+      const normalized = normalizeChordMark(mark);
+      let { start, end } = normalized;
+      if (
+        changed &&
+        pendingBefore &&
+        pendingBefore.sIndex === sIndex &&
+        pendingBefore.lIndex === lIndex
+      ) {
+        ({ start, end } = slotAfterPreviewSpacerRewind(
+          mark,
+          pendingBefore.index,
+        ));
+      }
+
+      const onLine = line?.chords.find((candidate) => {
+        const candidateMark = normalizeChordMark(candidate);
+        return candidateMark.start === start && candidateMark.chord === normalized.chord;
+      });
+      if (onLine) {
+        const candidateMark = normalizeChordMark(onLine);
+        start = candidateMark.start;
+        end = candidateMark.end;
+      }
+
+      setChordError(null);
+      setActive({
+        sIndex,
+        lIndex,
+        slot: { kind: "char", start, end },
+        currentVal: normalized.chord,
+      });
+    },
+    [sections, emit, rewindPendingGapSpacerInto],
+  );
+
   const moveSlot = useCallback(
     (direction: 1 | -1) => {
       if (!active) {
         return;
       }
-      const line = sections[active.sIndex]?.lines[active.lIndex];
+
+      const pendingBefore = pendingGapSpacer.current;
+      const { sections: baseSections, changed } =
+        rewindPendingGapSpacerInto(sections);
+      if (changed) {
+        emit(baseSections, { notifyParent: false });
+      }
+
+      const line = baseSections[active.sIndex]?.lines[active.lIndex];
       if (!line) {
         return;
       }
 
+      let fromSlot = active.slot;
+      if (
+        changed &&
+        pendingBefore &&
+        pendingBefore.sIndex === active.sIndex &&
+        pendingBefore.lIndex === active.lIndex
+      ) {
+        fromSlot = { kind: "gap", index: pendingBefore.gapIndex };
+      }
+
       const slot =
-        direction === 1 ? nextSlot(line, active.slot) : prevSlot(line, active.slot);
+        direction === 1 ? nextSlot(line, fromSlot) : prevSlot(line, fromSlot);
       setActive({ ...active, slot });
     },
-    [active, sections],
+    [active, sections, emit, rewindPendingGapSpacerInto],
   );
 
   const undo = useCallback(() => {
@@ -435,7 +654,8 @@ export function InteractiveEditor({
                 role="tab"
                 aria-selected={editorMode === "source"}
                 onClick={() => {
-                  setTabSourceText(syncSourceTextFromSections(sections));
+                  const persisted = persistSectionsWithoutGapPreview(sections);
+                  setTabSourceText(syncSourceTextFromSections(persisted));
                   setTabSourceError(null);
                   clearPlacement();
                   setEditorMode("source");
@@ -491,7 +711,7 @@ export function InteractiveEditor({
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={() => onSave(sections)}
+              onClick={() => onSave(persistSectionsWithoutGapPreview(sections))}
               className="shrink-0 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2.5 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
             >
               Finish &amp; save
@@ -545,20 +765,7 @@ export function InteractiveEditor({
                       : ""
                   }
                   onPlaceSlot={(slot) => openSlot(sIndex, lIndex, slot)}
-                  onChordClick={(mark) => {
-                    const normalized = normalizeChordMark(mark);
-                    setChordError(null);
-                    setActive({
-                      sIndex,
-                      lIndex,
-                      slot: {
-                        kind: "char",
-                        start: normalized.start,
-                        end: normalized.end,
-                      },
-                      currentVal: normalized.chord,
-                    });
-                  }}
+                  onChordClick={(mark) => beginChordEdit(sIndex, lIndex, mark)}
                 />
               ))}
             </div>
@@ -610,7 +817,7 @@ export function InteractiveEditor({
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-lf-border bg-lf-bg-sidebar/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md">
           <button
             type="button"
-            onClick={() => onSave(sections)}
+            onClick={() => onSave(persistSectionsWithoutGapPreview(sections))}
             className="min-h-12 w-full rounded-[var(--lf-radius-md)] bg-lf-action-primary text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover"
           >
             Finish &amp; save

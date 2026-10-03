@@ -4,8 +4,11 @@ import {
   applyPlacement,
   describeSlot,
   findChordAtSlot,
+  gapPreviewAnchor,
   gapZonesForLine,
   isRemovableSpacer,
+  prepareGapPlacement,
+  rewindPreparedGapSpacer,
   nextSlot,
   prevSlot,
   removePlacementAt,
@@ -117,6 +120,35 @@ describe("applyPlacement — char slots", () => {
     const start = line("little", [{ chord: "C", start: 0, end: 1 }]);
     const result = applyPlacement(start, { kind: "char", start: 0, end: 1 }, "G");
     expect(result.line.chords).toEqual([{ chord: "G", start: 0, end: 1 }]);
+  });
+});
+
+describe("prepareGapPlacement", () => {
+  it("maps a free space in the gap to a char slot without changing lyrics", () => {
+    const result = prepareGapPlacement(line("Twinkle Twinkle"), 7);
+    expect(result.line.lyrics).toBe("Twinkle Twinkle");
+    expect(result.slot).toEqual({ kind: "char", start: 7, end: 8 });
+    expect(result.preparedSpacerAt).toBeNull();
+  });
+
+  it("inserts a spacer when the gap already has a chord", () => {
+    const withC = applyPlacement(line("Twinkle Twinkle"), gap(7), "C").line;
+    const result = prepareGapPlacement(withC, 7);
+
+    expect(result.line.lyrics).toBe("Twinkle  Twinkle");
+    expect(result.slot).toEqual({ kind: "char", start: 8, end: 9 });
+    expect(result.preparedSpacerAt).toBe(8);
+    expect(gapPreviewAnchor(withC, 7)).toBe(8);
+  });
+
+  it("rewinds a preview spacer when placement is cancelled", () => {
+    const prepared = prepareGapPlacement(
+      applyPlacement(line("Twinkle Twinkle"), gap(7), "C").line,
+      7,
+    );
+    const rewound = rewindPreparedGapSpacer(prepared.line, prepared.preparedSpacerAt!);
+    expect(rewound.lyrics).toBe("Twinkle Twinkle");
+    expect(rewound.chords).toEqual([{ chord: "C", start: 7, end: 8 }]);
   });
 });
 

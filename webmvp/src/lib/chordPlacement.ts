@@ -256,6 +256,64 @@ function resolveGapAnchor(
   return { anchorIndex: run.end, insertAt: run.end };
 }
 
+/** Pixel anchor for a gap target before commit (next free space, or run end if a spacer is needed). */
+export function gapPreviewAnchor(line: LyricLine, gapIndex: number): number {
+  return resolveGapAnchor(line, gapIndex).anchorIndex;
+}
+
+export type PreparedGapPlacement = {
+  line: LyricLine;
+  slot: PlacementSlot;
+  /** Spacer inserted only to preview the next anchor; rewind on cancel if still empty. */
+  preparedSpacerAt: number | null;
+};
+
+/**
+ * Turn a gap click into the concrete char slot the next chord will use.
+ * Inserts a spacer when the whitespace run is already full of chords.
+ */
+export function prepareGapPlacement(
+  line: LyricLine,
+  gapIndex: number,
+): PreparedGapPlacement {
+  const { anchorIndex, insertAt } = resolveGapAnchor(line, gapIndex);
+  if (insertAt !== null) {
+    const nextLine = insertSpacer(line, insertAt);
+    return {
+      line: nextLine,
+      slot: { kind: "char", start: anchorIndex, end: anchorIndex + 1 },
+      preparedSpacerAt: anchorIndex,
+    };
+  }
+
+  return {
+    line,
+    slot: { kind: "char", start: anchorIndex, end: anchorIndex + 1 },
+    preparedSpacerAt: null,
+  };
+}
+
+/** Undo a spacer opened for placement preview when the user cancels without placing. */
+export function rewindPreparedGapSpacer(
+  line: LyricLine,
+  spacerIndex: number,
+): LyricLine {
+  if (spacerIndex < 0 || spacerIndex >= line.lyrics.length) {
+    return line;
+  }
+  if (!isRemovableSpacer(line.lyrics, spacerIndex)) {
+    return line;
+  }
+  if (occupiedStarts(line.chords).has(spacerIndex)) {
+    return line;
+  }
+
+  return {
+    lyrics: `${line.lyrics.slice(0, spacerIndex)}${line.lyrics.slice(spacerIndex + 1)}`,
+    chords: shiftMarksForDelete(line.chords, spacerIndex),
+  };
+}
+
 export type AppliedPlacement = {
   line: LyricLine;
   /** Slot the chord actually landed on, after any spacer insertion. */

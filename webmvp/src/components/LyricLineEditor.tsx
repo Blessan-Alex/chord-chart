@@ -6,6 +6,7 @@ import { ChordRow } from "@/components/ChordRow";
 import { createChordMark } from "@/lib/chordMarks";
 import {
   describeSlot,
+  gapPreviewAnchor,
   gapZonesForLine,
   gapMeasurementIndices,
   slotFromCaret,
@@ -33,6 +34,20 @@ import type { ChordMark, LyricLine } from "@/lib/types";
 
 const LINE_START_ZONE_PX = 14;
 const LINE_END_ZONE_PX = 48;
+
+function isWhitespaceChar(char: string | undefined): boolean {
+  return char !== undefined && /\s/u.test(char);
+}
+
+function gapCaretIndex(line: LyricLine, slot: PlacementSlot): number | undefined {
+  if (slot.kind === "gap") {
+    return gapPreviewAnchor(line, slot.index);
+  }
+  if (slot.kind === "char" && isWhitespaceChar(line.lyrics[slot.start])) {
+    return slot.start;
+  }
+  return undefined;
+}
 
 type LyricLineEditorProps = {
   line: LyricLine;
@@ -106,7 +121,8 @@ export function LyricLineEditor({
   const extraIndices = useMemo(() => {
     const indices = gapMeasurementIndices(line);
     if (activeSlot) {
-      indices.push(slotPosition(activeSlot));
+      const caret = gapCaretIndex(line, activeSlot);
+      indices.push(caret ?? slotPosition(activeSlot));
     }
     return indices.length > 0 ? indices : EMPTY_CHORD_INDICES;
   }, [line, activeSlot]);
@@ -130,15 +146,19 @@ export function LyricLineEditor({
   }, [pendingChord, charStart, charEnd]);
 
   const ghost = useMemo(() => {
-    if (!activeSlot || activeSlot.kind !== "gap") {
+    if (!activeSlot) {
       return null;
     }
-    const left = chordOffsets[activeSlot.index];
+    const anchor = gapCaretIndex(line, activeSlot);
+    if (anchor === undefined) {
+      return null;
+    }
+    const left = chordOffsets[anchor];
     if (left === undefined) {
       return null;
     }
     return { left, label: pendingChord.trim() || "+" };
-  }, [activeSlot, chordOffsets, pendingChord]);
+  }, [activeSlot, chordOffsets, line, pendingChord]);
 
   useEffect(() => {
     onPlaceSlotRef.current = onPlaceSlot;
@@ -246,8 +266,16 @@ export function LyricLineEditor({
     };
   }, [touchEditor, line.lyrics]);
 
-  const activeGapLeft =
-    activeSlot?.kind === "gap" ? chordOffsets[activeSlot.index] : undefined;
+  const activeGapLeft = useMemo(() => {
+    if (!activeSlot) {
+      return undefined;
+    }
+    const anchor = gapCaretIndex(line, activeSlot);
+    if (anchor === undefined) {
+      return undefined;
+    }
+    return chordOffsets[anchor];
+  }, [activeSlot, chordOffsets, line]);
 
   return (
     <div className="chord-line relative mb-3">
@@ -298,7 +326,11 @@ export function LyricLineEditor({
             }
 
             const isActive =
-              activeSlot?.kind === "gap" && activeSlot.index === zone.index;
+              activeSlot?.kind === "gap"
+                ? activeSlot.index === zone.index
+                : activeSlot?.kind === "char" &&
+                  activeSlot.start >= zone.index &&
+                  activeSlot.start < zone.endIndex;
 
             return (
               <button
