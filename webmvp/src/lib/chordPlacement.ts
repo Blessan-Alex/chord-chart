@@ -25,6 +25,8 @@ export type GapZone = {
 
 const SPACER = " ";
 const MAX_QUICK_PICKS = 8;
+/** Extra spaces inserted when stacking another chord in a full gap run. */
+const GAP_STACK_SPACES = 2;
 
 function isSpace(char: string | undefined): boolean {
   return char !== undefined && /\s/u.test(char);
@@ -230,6 +232,14 @@ function insertSpacer(line: LyricLine, at: number): LyricLine {
   };
 }
 
+function insertSpacers(line: LyricLine, at: number, count: number): LyricLine {
+  let current = line;
+  for (let i = 0; i < count; i += 1) {
+    current = insertSpacer(current, at);
+  }
+  return current;
+}
+
 /**
  * Resolve a gap to a concrete anchor: reuse a free space in the run when there
  * is one, otherwise insert a spacer so the new chord lands after the chords
@@ -256,6 +266,15 @@ function resolveGapAnchor(
   return { anchorIndex: run.end, insertAt: run.end };
 }
 
+/** Spacers to insert when extending a gap run; line start/end stay single. */
+function spacersToInsert(line: LyricLine, insertAt: number): number {
+  const run = whitespaceRunAt(line.lyrics, insertAt);
+  if (!run) {
+    return 1;
+  }
+  return GAP_STACK_SPACES;
+}
+
 /** Pixel anchor for a gap target before commit (next free space, or run end if a spacer is needed). */
 export function gapPreviewAnchor(line: LyricLine, gapIndex: number): number {
   return resolveGapAnchor(line, gapIndex).anchorIndex;
@@ -266,6 +285,8 @@ export type PreparedGapPlacement = {
   slot: PlacementSlot;
   /** Spacer inserted only to preview the next anchor; rewind on cancel if still empty. */
   preparedSpacerAt: number | null;
+  /** How many spacers were added at `preparedSpacerAt` when previewing a full gap. */
+  preparedSpacerCount: number;
 };
 
 /**
@@ -278,11 +299,13 @@ export function prepareGapPlacement(
 ): PreparedGapPlacement {
   const { anchorIndex, insertAt } = resolveGapAnchor(line, gapIndex);
   if (insertAt !== null) {
-    const nextLine = insertSpacer(line, insertAt);
+    const count = spacersToInsert(line, insertAt);
+    const nextLine = insertSpacers(line, insertAt, count);
     return {
       line: nextLine,
       slot: { kind: "char", start: anchorIndex, end: anchorIndex + 1 },
       preparedSpacerAt: anchorIndex,
+      preparedSpacerCount: count,
     };
   }
 
@@ -290,28 +313,34 @@ export function prepareGapPlacement(
     line,
     slot: { kind: "char", start: anchorIndex, end: anchorIndex + 1 },
     preparedSpacerAt: null,
+    preparedSpacerCount: 0,
   };
 }
 
-/** Undo a spacer opened for placement preview when the user cancels without placing. */
+/** Undo preview spacers opened for placement when the user cancels without placing. */
 export function rewindPreparedGapSpacer(
   line: LyricLine,
   spacerIndex: number,
+  count = 1,
 ): LyricLine {
-  if (spacerIndex < 0 || spacerIndex >= line.lyrics.length) {
-    return line;
-  }
-  if (!isRemovableSpacer(line.lyrics, spacerIndex)) {
-    return line;
-  }
-  if (occupiedStarts(line.chords).has(spacerIndex)) {
-    return line;
-  }
+  let current = line;
+  for (let n = 0; n < count; n += 1) {
+    if (spacerIndex < 0 || spacerIndex >= current.lyrics.length) {
+      break;
+    }
+    if (!isRemovableSpacer(current.lyrics, spacerIndex)) {
+      break;
+    }
+    if (occupiedStarts(current.chords).has(spacerIndex)) {
+      break;
+    }
 
-  return {
-    lyrics: `${line.lyrics.slice(0, spacerIndex)}${line.lyrics.slice(spacerIndex + 1)}`,
-    chords: shiftMarksForDelete(line.chords, spacerIndex),
-  };
+    current = {
+      lyrics: `${current.lyrics.slice(0, spacerIndex)}${current.lyrics.slice(spacerIndex + 1)}`,
+      chords: shiftMarksForDelete(current.chords, spacerIndex),
+    };
+  }
+  return current;
 }
 
 export type AppliedPlacement = {
@@ -341,7 +370,8 @@ export function applyPlacement(
   }
 
   const { anchorIndex, insertAt } = resolveGapAnchor(line, slot.index);
-  const base = insertAt === null ? line : insertSpacer(line, insertAt);
+  const base =
+    insertAt === null ? line : insertSpacers(line, insertAt, spacersToInsert(line, insertAt));
   const chords = base.chords.map(normalizeChordMark);
   const existingIdx = chords.findIndex((mark) => getMarkStart(mark) === anchorIndex);
   const mark = createChordMark(chord, anchorIndex, anchorIndex + 1);

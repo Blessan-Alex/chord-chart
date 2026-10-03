@@ -107,18 +107,23 @@ class ParsedChord {
     required this.rootNum,
     required this.suffix,
     this.bassNum,
+    this.alternate,
   });
 
   final int rootNum;
   final String suffix;
   final int? bassNum;
+  final String? alternate;
 }
 
-final RegExp _chordRe = RegExp(r'^([A-Ga-g][#b]?)(.*?)(?:\/([A-Ga-g][#b]?))?$');
+final RegExp _rootSuffixRe = RegExp(r'^([A-Ga-g][#b]?)(.*)$');
 
-ParsedChord parseChord(String input) {
-  final trimmed = input.trim();
-  final m = _chordRe.firstMatch(trimmed);
+bool _isBassNoteToken(String token) {
+  return RegExp(r'^[A-Ga-g][#b]?$').hasMatch(token.trim());
+}
+
+ParsedChord _parseRootAndSuffix(String input) {
+  final m = _rootSuffixRe.firstMatch(input.trim());
   if (m == null) {
     throw FormatException('Invalid chord: $input');
   }
@@ -130,19 +135,47 @@ ParsedChord parseChord(String input) {
     throw FormatException('Unknown root: $root');
   }
 
-  final suffix = m.group(2) ?? '';
+  return ParsedChord(rootNum: rootNum, suffix: m.group(2) ?? '');
+}
 
-  int? bassNum;
-  final bassRaw = m.group(3);
-  if (bassRaw != null) {
-    final bass = bassRaw[0].toUpperCase() + bassRaw.substring(1);
-    bassNum = _noteToNum[bass];
-    if (bassNum == null) {
-      throw FormatException('Unknown bass: $bass');
-    }
+ParsedChord parseChord(String input) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) {
+    throw FormatException('Invalid chord: $input');
   }
 
-  return ParsedChord(rootNum: rootNum, suffix: suffix, bassNum: bassNum);
+  final slashAt = trimmed.indexOf('/');
+  if (slashAt == -1) {
+    return _parseRootAndSuffix(trimmed);
+  }
+
+  final head = trimmed.substring(0, slashAt);
+  final tail = trimmed.substring(slashAt + 1);
+  if (tail.isEmpty) {
+    throw FormatException('Invalid chord: $input');
+  }
+
+  final parsed = _parseRootAndSuffix(head);
+
+  if (_isBassNoteToken(tail)) {
+    final bass = tail[0].toUpperCase() + tail.substring(1);
+    final bassNum = _noteToNum[bass];
+    if (bassNum == null) {
+      throw FormatException('Unknown bass: $tail');
+    }
+    return ParsedChord(
+      rootNum: parsed.rootNum,
+      suffix: parsed.suffix,
+      bassNum: bassNum,
+    );
+  }
+
+  _parseRootAndSuffix(tail);
+  return ParsedChord(
+    rootNum: parsed.rootNum,
+    suffix: parsed.suffix,
+    alternate: tail,
+  );
 }
 
 bool isValidChord(String input) {
@@ -167,6 +200,9 @@ String transposeChord(String chord, String fromKey, String toKey) {
   final parsed = parseChord(trimmed);
 
   var result = spellNote(parsed.rootNum + interval, toKey) + parsed.suffix;
+  if (parsed.alternate != null) {
+    return '$result/${transposeChord(parsed.alternate!, fromKey, toKey)}';
+  }
   if (parsed.bassNum != null) {
     result += '/${spellNote(parsed.bassNum! + interval, toKey)}';
   }
@@ -217,6 +253,9 @@ String chordToDegree(String chord, String key) {
   }
   final parsed = parseChord(trimmed);
   var degree = _noteToDegree(parsed.rootNum, key) + _suffixToNashville(parsed.suffix);
+  if (parsed.alternate != null) {
+    return '$degree/${chordToDegree(parsed.alternate!, key)}';
+  }
   if (parsed.bassNum != null) {
     degree += '/${_noteToDegree(parsed.bassNum!, key)}';
   }

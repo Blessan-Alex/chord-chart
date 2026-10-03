@@ -135,9 +135,10 @@ describe("prepareGapPlacement", () => {
     const withC = applyPlacement(line("Twinkle Twinkle"), gap(7), "C").line;
     const result = prepareGapPlacement(withC, 7);
 
-    expect(result.line.lyrics).toBe("Twinkle  Twinkle");
+    expect(result.line.lyrics).toBe("Twinkle   Twinkle");
     expect(result.slot).toEqual({ kind: "char", start: 8, end: 9 });
     expect(result.preparedSpacerAt).toBe(8);
+    expect(result.preparedSpacerCount).toBe(2);
     expect(gapPreviewAnchor(withC, 7)).toBe(8);
   });
 
@@ -146,7 +147,11 @@ describe("prepareGapPlacement", () => {
       applyPlacement(line("Twinkle Twinkle"), gap(7), "C").line,
       7,
     );
-    const rewound = rewindPreparedGapSpacer(prepared.line, prepared.preparedSpacerAt!);
+    const rewound = rewindPreparedGapSpacer(
+      prepared.line,
+      prepared.preparedSpacerAt!,
+      prepared.preparedSpacerCount,
+    );
     expect(rewound.lyrics).toBe("Twinkle Twinkle");
     expect(rewound.chords).toEqual([{ chord: "C", start: 7, end: 8 }]);
   });
@@ -165,7 +170,7 @@ describe("applyPlacement — gaps between words", () => {
       { slot: gap(6), chord: "G" },
     ]);
 
-    expect(result.lyrics).toBe("little  star");
+    expect(result.lyrics).toBe("little   star");
     expect(result.chords).toEqual([
       { chord: "C", start: 6, end: 7 },
       { chord: "G", start: 7, end: 8 },
@@ -204,7 +209,7 @@ describe("applyPlacement — end of line", () => {
       { slot: gap(27), chord: "G" },
     ]);
 
-    expect(result.lyrics).toBe("Twinkle twinkle little star  ");
+    expect(result.lyrics).toBe("Twinkle twinkle little star   ");
     expect(result.chords.map((mark) => mark.start)).toEqual([27, 28]);
   });
 });
@@ -216,7 +221,7 @@ describe("applyPlacement — before the first word", () => {
       { slot: gap(0), chord: "G" },
     ]);
 
-    expect(result.lyrics).toBe("  How i wonder");
+    expect(result.lyrics).toBe("   How i wonder");
     expect(result.chords).toEqual([
       { chord: "C", start: 0, end: 1 },
       { chord: "G", start: 1, end: 2 },
@@ -315,7 +320,7 @@ describe("removePlacementAt", () => {
     ]);
 
     const result = removePlacementAt(placed, 7);
-    expect(result.lyrics).toBe("little star");
+    expect(result.lyrics).toBe("little  star");
     expect(result.chords).toEqual([{ chord: "C", start: 6, end: 7 }]);
   });
 

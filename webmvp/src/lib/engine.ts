@@ -54,28 +54,68 @@ export type ParsedChord = {
   rootNum: number;
   suffix: string; // "m7", "maj7", "sus4", "dim", "" etc.
   bassNum?: number; // slash bass, e.g. C/E → bassNum = 4
+  /** Second full chord after `/` when slash means “either” (e.g. E/Am). */
+  alternate?: string;
 };
 
-const CHORD_RE = /^([A-Ga-g][#b]?)(.*?)(?:\/([A-Ga-g][#b]?))?$/;
+const ROOT_SUFFIX_RE = /^([A-Ga-g][#b]?)(.*)$/;
 
-export function parseChord(input: string): ParsedChord {
-  const m = input.trim().match(CHORD_RE);
-  if (!m) throw new Error(`Invalid chord: ${input}`);
+function parseNoteToken(note: string): number {
+  const spelled = note[0].toUpperCase() + note.slice(1);
+  const num = NOTE_TO_NUM[spelled];
+  if (num === undefined) {
+    throw new Error(`Unknown note: ${note}`);
+  }
+  return num;
+}
+
+function parseRootAndSuffix(input: string): ParsedChord {
+  const m = input.trim().match(ROOT_SUFFIX_RE);
+  if (!m) {
+    throw new Error(`Invalid chord: ${input}`);
+  }
 
   const root = m[1][0].toUpperCase() + m[1].slice(1);
   const rootNum = NOTE_TO_NUM[root];
-  if (rootNum === undefined) throw new Error(`Unknown root: ${root}`);
-
-  const suffix = m[2] || "";
-
-  let bassNum: number | undefined;
-  if (m[3]) {
-    const bass = m[3][0].toUpperCase() + m[3].slice(1);
-    bassNum = NOTE_TO_NUM[bass];
-    if (bassNum === undefined) throw new Error(`Unknown bass: ${bass}`);
+  if (rootNum === undefined) {
+    throw new Error(`Unknown root: ${root}`);
   }
 
-  return { rootNum, suffix, bassNum };
+  return { rootNum, suffix: m[2] || "" };
+}
+
+/** True when the token after `/` is a bass note, not a chord (e.g. E in C/E). */
+function isBassNoteToken(token: string): boolean {
+  return /^[A-Ga-g][#b]?$/u.test(token.trim());
+}
+
+export function parseChord(input: string): ParsedChord {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    throw new Error(`Invalid chord: ${input}`);
+  }
+
+  const slashAt = trimmed.indexOf("/");
+  if (slashAt === -1) {
+    return parseRootAndSuffix(trimmed);
+  }
+
+  const head = trimmed.slice(0, slashAt);
+  const tail = trimmed.slice(slashAt + 1);
+  if (!tail) {
+    throw new Error(`Invalid chord: ${input}`);
+  }
+
+  const parsed = parseRootAndSuffix(head);
+
+  if (isBassNoteToken(tail)) {
+    parsed.bassNum = parseNoteToken(tail);
+    return parsed;
+  }
+
+  parseRootAndSuffix(tail);
+  parsed.alternate = tail;
+  return parsed;
 }
 
 export function isValidChord(input: string): boolean {
@@ -101,12 +141,16 @@ export function transposeChord(
   if (fromKey === toKey) return trimmed;
 
   const interval = (noteToNum(toKey) - noteToNum(fromKey) + 12) % 12;
-  const { rootNum, suffix, bassNum } = parseChord(trimmed);
+  const parsed = parseChord(trimmed);
 
-  let result = spellNote(rootNum + interval, toKey) + suffix;
+  let result = spellNote(parsed.rootNum + interval, toKey) + parsed.suffix;
 
-  if (bassNum !== undefined) {
-    result += "/" + spellNote(bassNum + interval, toKey);
+  if (parsed.alternate) {
+    return `${result}/${transposeChord(parsed.alternate, fromKey, toKey)}`;
+  }
+
+  if (parsed.bassNum !== undefined) {
+    result += "/" + spellNote(parsed.bassNum + interval, toKey);
   }
 
   return result;
@@ -154,11 +198,16 @@ export function chordToDegree(chord: string, key: string): string {
   const trimmed = chord.trim();
   if (!trimmed) return "";
 
-  const { rootNum, suffix, bassNum } = parseChord(trimmed);
-  let degree = noteToDegree(rootNum, key) + suffixToNashville(suffix);
+  const parsed = parseChord(trimmed);
+  let degree =
+    noteToDegree(parsed.rootNum, key) + suffixToNashville(parsed.suffix);
 
-  if (bassNum !== undefined) {
-    degree += `/${noteToDegree(bassNum, key)}`;
+  if (parsed.alternate) {
+    return `${degree}/${chordToDegree(parsed.alternate, key)}`;
+  }
+
+  if (parsed.bassNum !== undefined) {
+    degree += `/${noteToDegree(parsed.bassNum, key)}`;
   }
 
   return degree;

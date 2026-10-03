@@ -28,6 +28,13 @@ describe("parseChord", () => {
     expect(result.bassNum).toBe(1);
   });
 
+  it("parses slash as alternate chord when the tail is not a lone note", () => {
+    const result = parseChord("E/Am");
+    expect(result.rootNum).toBe(4);
+    expect(result.alternate).toBe("Am");
+    expect(result.bassNum).toBeUndefined();
+  });
+
   it("parses Bbmaj7", () => {
     const result = parseChord("Bbmaj7");
     expect(result).toEqual({ rootNum: 10, suffix: "maj7" });
@@ -96,6 +103,10 @@ describe("transposeChord", () => {
   it("transposes F#m → Am (A → C)", () => {
     expect(transposeChord("F#m", "A", "C")).toBe("Am");
   });
+
+  it("transposes either-or chords on both sides (C → D)", () => {
+    expect(transposeChord("E/Am", "C", "D")).toBe("F#/Bm");
+  });
 });
 
 describe("line transpose", () => {
@@ -137,6 +148,11 @@ describe("chordToDegree", () => {
     expect(chordToDegree("Cm/G", "C")).toBe("1m/5");
     expect(chordToDegree("Cmaj7/E", "C")).toBe("1maj7/3");
   });
+
+  it("maps either-or slash chords to numbers on both sides", () => {
+    expect(chordToDegree("A/Em", "C")).toBe("6/3m");
+    expect(chordToDegree("E/Am", "C")).toBe("3/6m");
+  });
 });
 
 describe("isValidChord", () => {
@@ -148,6 +164,8 @@ describe("isValidChord", () => {
   it("accepts valid chords", () => {
     expect(isValidChord("Am7")).toBe(true);
     expect(isValidChord("G/B")).toBe(true);
+    expect(isValidChord("E/Am")).toBe(true);
+    expect(isValidChord("A/Em")).toBe(true);
   });
 });
 

@@ -64,6 +64,26 @@ type InteractiveEditorProps = {
   layout?: "tabs" | "stacked";
 };
 
+function insertLineAfter(
+  sections: Section[],
+  sIndex: number,
+  afterLIndex: number,
+  line: LyricLine,
+): Section[] {
+  return sections.map((section, si) =>
+    si === sIndex
+      ? {
+          ...section,
+          lines: [
+            ...section.lines.slice(0, afterLIndex + 1),
+            line,
+            ...section.lines.slice(afterLIndex + 1),
+          ],
+        }
+      : section,
+  );
+}
+
 function replaceLine(
   sections: Section[],
   sIndex: number,
@@ -82,18 +102,20 @@ function replaceLine(
   );
 }
 
-/** Remap a chord mark when a preview spacer before it is removed. */
+/** Remap a chord mark when preview spacer(s) before it are removed. */
 function slotAfterPreviewSpacerRewind(
   mark: ChordMark,
   spacerIndex: number,
+  count: number,
 ): { start: number; end: number } {
   const normalized = normalizeChordMark(mark);
-  if (normalized.start <= spacerIndex) {
+  const lastRemoved = spacerIndex + count - 1;
+  if (normalized.start <= lastRemoved) {
     return { start: normalized.start, end: normalized.end };
   }
   return {
-    start: normalized.start - 1,
-    end: normalized.end - 1,
+    start: normalized.start - count,
+    end: normalized.end - count,
   };
 }
 
@@ -139,6 +161,8 @@ export function InteractiveEditor({
     lIndex: number;
     /** Spacer char index inserted for preview. */
     index: number;
+    /** How many spacers to rewind at `index`. */
+    count: number;
     /** Original gap click index (for slot navigation after rewind). */
     gapIndex: number;
   } | null>(null);
@@ -236,7 +260,7 @@ export function InteractiveEditor({
       return { sections: current, changed: false };
     }
 
-    const rewound = rewindPreparedGapSpacer(line, pending.index);
+    const rewound = rewindPreparedGapSpacer(line, pending.index, pending.count);
     if (rewound.lyrics === line.lyrics) {
       return { sections: current, changed: false };
     }
@@ -298,7 +322,11 @@ export function InteractiveEditor({
       ) {
         const snapshotLine = sections[sIndex]?.lines[lIndex];
         if (snapshotLine) {
-          const rewound = rewindPreparedGapSpacer(snapshotLine, pending.index);
+          const rewound = rewindPreparedGapSpacer(
+            snapshotLine,
+            pending.index,
+            pending.count,
+          );
           if (rewound.lyrics !== snapshotLine.lyrics) {
             recordFrom = replaceLine(sections, sIndex, lIndex, rewound);
           }
@@ -342,6 +370,7 @@ export function InteractiveEditor({
             sIndex,
             lIndex,
             index: prepared.preparedSpacerAt,
+            count: prepared.preparedSpacerCount,
             gapIndex: slot.index,
           };
           emit(replaceLine(baseSections, sIndex, lIndex, line), {
@@ -418,7 +447,7 @@ export function InteractiveEditor({
         pending.sIndex === active.sIndex &&
         pending.lIndex === active.lIndex
       ) {
-        const rewound = rewindPreparedGapSpacer(line, pending.index);
+        const rewound = rewindPreparedGapSpacer(line, pending.index, pending.count);
         if (rewound.lyrics !== line.lyrics) {
           recordFrom = replaceLine(
             sections,
@@ -473,6 +502,7 @@ export function InteractiveEditor({
         ({ start, end } = slotAfterPreviewSpacerRewind(
           mark,
           pendingBefore.index,
+          pendingBefore.count,
         ));
       }
 
@@ -530,6 +560,42 @@ export function InteractiveEditor({
       setActive({ ...active, slot });
     },
     [active, sections, emit, rewindPendingGapSpacerInto],
+  );
+
+  const insertChordLine = useCallback(
+    (sIndex: number, afterLIndex: number) => {
+      const pendingBefore = pendingGapSpacer.current;
+      const { sections: baseSections, changed } =
+        rewindPendingGapSpacerInto(sections);
+      if (changed) {
+        emit(baseSections, { notifyParent: false });
+      }
+      commitSections(
+        insertLineAfter(baseSections, sIndex, afterLIndex, {
+          lyrics: "",
+          chords: [],
+        }),
+        { recordFrom: baseSections },
+      );
+      setChordError(null);
+      setActive((prev) => {
+        if (!prev) {
+          return null;
+        }
+        if (
+          pendingBefore &&
+          prev.sIndex === pendingBefore.sIndex &&
+          prev.lIndex === pendingBefore.lIndex
+        ) {
+          return null;
+        }
+        if (prev.sIndex === sIndex && prev.lIndex > afterLIndex) {
+          return { ...prev, lIndex: prev.lIndex + 1 };
+        }
+        return prev;
+      });
+    },
+    [sections, commitSections, emit, rewindPendingGapSpacerInto],
   );
 
   const undo = useCallback(() => {
@@ -748,25 +814,33 @@ export function InteractiveEditor({
               <div className="section-label">{`{${section.label}}`}</div>
 
               {section.lines.map((line, lIndex) => (
-                <LyricLineEditor
-                  key={`l-${lIndex}`}
-                  line={line}
-                  originalKey={originalKey}
-                  sectionIndex={sIndex}
-                  lineIndex={lIndex}
-                  activeSlot={
-                    active?.sIndex === sIndex && active.lIndex === lIndex
-                      ? active.slot
-                      : null
-                  }
-                  pendingChord={
-                    active?.sIndex === sIndex && active.lIndex === lIndex
-                      ? active.currentVal
-                      : ""
-                  }
-                  onPlaceSlot={(slot) => openSlot(sIndex, lIndex, slot)}
-                  onChordClick={(mark) => beginChordEdit(sIndex, lIndex, mark)}
-                />
+                <div key={`l-${lIndex}`} className="mb-1">
+                  <LyricLineEditor
+                    line={line}
+                    originalKey={originalKey}
+                    sectionIndex={sIndex}
+                    lineIndex={lIndex}
+                    activeSlot={
+                      active?.sIndex === sIndex && active.lIndex === lIndex
+                        ? active.slot
+                        : null
+                    }
+                    pendingChord={
+                      active?.sIndex === sIndex && active.lIndex === lIndex
+                        ? active.currentVal
+                        : ""
+                    }
+                    onPlaceSlot={(slot) => openSlot(sIndex, lIndex, slot)}
+                    onChordClick={(mark) => beginChordEdit(sIndex, lIndex, mark)}
+                  />
+                  <button
+                    type="button"
+                    className="mb-3 min-h-10 w-full rounded-[var(--lf-radius-sm)] border border-dashed border-lf-border px-2 text-sm text-lf-text-secondary hover:bg-lf-bg-muted/50"
+                    onClick={() => insertChordLine(sIndex, lIndex)}
+                  >
+                    + Chord line below
+                  </button>
+                </div>
               ))}
             </div>
           ))}
