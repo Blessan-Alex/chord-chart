@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 
-import { graphemeRangeAt, snapRangeToGraphemes } from "@/lib/graphemeUtils";
+import { snapRangeToGraphemes } from "@/lib/graphemeUtils";
 import { createLyricRange } from "@/lib/lyricMeasurement";
 
 export type TextSelectionRange = {
@@ -50,39 +50,6 @@ export function getSelectionRangeInElement(
     start: snapped.start,
     end: snapped.end,
     text: referenceText.slice(snapped.start, snapped.end),
-  };
-}
-
-/** Collapsed caret / tap position as a single grapheme range. */
-export function getCaretGraphemeRangeInElement(
-  element: HTMLElement,
-  lyricsText: string,
-): TextSelectionRange | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) {
-    return null;
-  }
-
-  if (!selection.isCollapsed) {
-    return null;
-  }
-
-  const focusNode = selection.focusNode;
-  if (!focusNode || !element.contains(focusNode)) {
-    return null;
-  }
-
-  const index = measureRangeOffset(element, focusNode, selection.focusOffset);
-  const { start, end } = graphemeRangeAt(lyricsText, index);
-
-  if (end <= start) {
-    return null;
-  }
-
-  return {
-    start,
-    end,
-    text: lyricsText.slice(start, end),
   };
 }
 

@@ -1,16 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChordInputPopover } from "@/components/ChordInputPopover";
 import { ChordProSourcePanel } from "@/components/ChordProSourcePanel";
 import { InlineChordToolbar } from "@/components/InlineChordToolbar";
 import { LyricLineEditor } from "@/components/LyricLineEditor";
+import { PlacementToolbar } from "@/components/PlacementToolbar";
+import { normalizeChordMark } from "@/lib/chordMarks";
 import {
-  createChordMark,
-  getMarkStart,
-  normalizeChordMark,
-} from "@/lib/chordMarks";
+  applyPlacement,
+  chordsUsedIn,
+  describeSlot,
+  findChordAtSlot,
+  nextSlot,
+  prevSlot,
+  removePlacementAt,
+  slotFromCaret,
+  slotFromSelection,
+  type PlacementSlot,
+} from "@/lib/chordPlacement";
 import {
   sectionsSignature,
   syncSourceTextFromSections,
@@ -22,20 +31,25 @@ import {
   EDITOR_TAB_VISUAL,
   EDITOR_VISUAL_HEADING,
   EDITOR_VISUAL_HINT,
+  EDITOR_VISUAL_HINT_TOUCH,
 } from "@/lib/editorLabels";
 import { getDiatonicChords, isValidChord, type Key } from "@/lib/engine";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useTouchEditor } from "@/lib/hooks/useTouchEditor";
-import { getSelectionRangeInElement } from "@/lib/hooks/useTextSelection";
-import type { ChordMark, Section } from "@/lib/types";
+import {
+  getFocusOffsetInElement,
+  getSelectionRangeInElement,
+} from "@/lib/hooks/useTextSelection";
+import type { LyricLine, Section } from "@/lib/types";
 
 type EditorMode = "visual" | "source";
 
-type ActiveSelection = {
+const MAX_HISTORY = 40;
+
+type ActivePlacement = {
   sIndex: number;
   lIndex: number;
-  start: number;
-  end: number;
+  slot: PlacementSlot;
   currentVal: string;
 };
 
@@ -48,22 +62,33 @@ type InteractiveEditorProps = {
   layout?: "tabs" | "stacked";
 };
 
-function findChordAtStart(chords: ChordMark[], start: number): ChordMark | undefined {
-  return chords.find((mark) => getMarkStart(normalizeChordMark(mark)) === start);
+function replaceLine(
+  sections: Section[],
+  sIndex: number,
+  lIndex: number,
+  line: LyricLine,
+): Section[] {
+  return sections.map((section, si) =>
+    si === sIndex
+      ? {
+          ...section,
+          lines: section.lines.map((existing, li) =>
+            li === lIndex ? line : existing,
+          ),
+        }
+      : section,
+  );
 }
 
-function formatTargetSnippet(line: string, start: number, end: number): string {
-  if (!line || end <= start) {
-    return "";
+function lyricElementIndices(
+  element: HTMLElement,
+): { sIndex: number; lIndex: number } | null {
+  const sIndex = Number(element.dataset.sectionIndex);
+  const lIndex = Number(element.dataset.lineIndex);
+  if (!Number.isInteger(sIndex) || !Number.isInteger(lIndex)) {
+    return null;
   }
-
-  const selected = line.slice(start, end);
-  const contextStart = Math.max(0, start - 6);
-  const contextEnd = Math.min(line.length, end + 6);
-  const prefix = contextStart > 0 ? "…" : "";
-  const suffix = contextEnd < line.length ? "…" : "";
-
-  return `${prefix}${line.slice(contextStart, contextEnd)}${suffix} → “${selected}”`;
+  return { sIndex, lIndex };
 }
 
 export function InteractiveEditor({
@@ -74,18 +99,17 @@ export function InteractiveEditor({
   layout = "tabs",
 }: InteractiveEditorProps) {
   const [sections, setSections] = useState<Section[]>(initialSections);
-  const [editorMode, setEditorMode] = useState<EditorMode>(
-    layout === "stacked" ? "visual" : "visual",
-  );
+  const [editorMode, setEditorMode] = useState<EditorMode>("visual");
   const isStacked = layout === "stacked";
   const initialSectionsSig = useMemo(
     () => sectionsSignature(initialSections),
     [initialSections],
   );
-  const [activeSelection, setActiveSelection] = useState<ActiveSelection | null>(
-    null,
-  );
+  const [active, setActive] = useState<ActivePlacement | null>(null);
   const [chordError, setChordError] = useState<string | null>(null);
+  const [history, setHistory] = useState<Section[][]>([]);
+  const [lastChord, setLastChord] = useState<string | null>(null);
+  const [quickChord, setQuickChord] = useState<string | null>(null);
   const [tabSourceText, setTabSourceText] = useState(() =>
     syncSourceTextFromSections(initialSections),
   );
@@ -93,16 +117,37 @@ export function InteractiveEditor({
   const isMobile = useIsMobile();
   const touchEditor = useTouchEditor();
 
-  const updateSections = (next: Section[] | ((prev: Section[]) => Section[])) => {
-    setSections((prev) => {
-      const resolved = typeof next === "function" ? next(prev) : next;
-      onSectionsChange?.(resolved);
-      return resolved;
-    });
-  };
+  /** Signature we last handed upward, so the parent echoing it back is not a reset. */
+  const emittedSig = useRef(initialSectionsSig);
+
+  const emit = useCallback(
+    (next: Section[]) => {
+      emittedSig.current = sectionsSignature(next);
+      setSections(next);
+      onSectionsChange?.(next);
+    },
+    [onSectionsChange],
+  );
+
+  const commitSections = useCallback(
+    (next: Section[], { record = true }: { record?: boolean } = {}) => {
+      if (record) {
+        setHistory((prev) => [...prev, sections].slice(-MAX_HISTORY));
+      }
+      emit(next);
+    },
+    [sections, emit],
+  );
 
   useEffect(() => {
+    if (initialSectionsSig === emittedSig.current) {
+      return;
+    }
+
+    emittedSig.current = initialSectionsSig;
     setSections(initialSections);
+    setHistory([]);
+    setActive(null);
     if (!isStacked) {
       setTabSourceText(syncSourceTextFromSections(initialSections));
     }
@@ -121,146 +166,250 @@ export function InteractiveEditor({
     };
   }, [sections]);
 
-  const targetText = useMemo(() => {
-    if (!activeSelection) {
-      return null;
-    }
-    const line = sections[activeSelection.sIndex]?.lines[activeSelection.lIndex];
-    if (!line) {
-      return null;
-    }
-    return formatTargetSnippet(
-      line.lyrics,
-      activeSelection.start,
-      activeSelection.end,
-    );
-  }, [activeSelection, sections]);
-
-  const openSelection = useCallback(
-    (sIndex: number, lIndex: number, start: number, end: number) => {
-      const line = sections[sIndex]?.lines[lIndex];
-      const existing = line ? findChordAtStart(line.chords, start) : undefined;
-
-      setChordError(null);
-      setActiveSelection({
-        sIndex,
-        lIndex,
-        start,
-        end,
-        currentVal: existing?.chord ?? "",
-      });
-    },
+  const allLines = useMemo(
+    () => sections.flatMap((section) => section.lines),
     [sections],
   );
+  const recents = useMemo(() => chordsUsedIn(allLines), [allLines]);
 
-  const clearPlacement = () => {
+  const activeLine = active
+    ? (sections[active.sIndex]?.lines[active.lIndex] ?? null)
+    : null;
+
+  const targetLabel = useMemo(() => {
+    if (!active || !activeLine) {
+      return null;
+    }
+    return describeSlot(activeLine, active.slot);
+  }, [active, activeLine]);
+
+  const existingChordAtSlot =
+    active && activeLine ? findChordAtSlot(activeLine, active.slot) : undefined;
+
+  const clearPlacement = useCallback(() => {
     setChordError(null);
-    setActiveSelection(null);
+    setActive(null);
     window.getSelection()?.removeAllRanges();
-  };
+  }, []);
 
-  const commitChord = (rawValue?: string) => {
-    if (!activeSelection) {
-      return;
-    }
 
-    const chord = (rawValue ?? activeSelection.currentVal).trim();
-    if (chord && !isValidChord(chord)) {
-      setChordError("Invalid chord. Try Am7, G/B, or Dsus4.");
-      return;
-    }
-    setChordError(null);
+  /** Place a chord without opening the picker (quick place). */
+  const stampChord = useCallback(
+    (sIndex: number, lIndex: number, slot: PlacementSlot, chord: string) => {
+      const line = sections[sIndex]?.lines[lIndex];
+      if (!line) {
+        return;
+      }
+      const applied = applyPlacement(line, slot, chord);
+      commitSections(replaceLine(sections, sIndex, lIndex, applied.line));
+      setLastChord(chord);
+    },
+    [sections, commitSections],
+  );
 
-    const { sIndex, lIndex, start, end } = activeSelection;
-
-    updateSections((prev) => {
-      const next = [...prev];
-      const section = { ...next[sIndex], lines: [...next[sIndex].lines] };
-      const line = {
-        ...section.lines[lIndex],
-        chords: [...section.lines[lIndex].chords],
-      };
-      const chords = line.chords.map(normalizeChordMark);
-      const existingIdx = chords.findIndex((mark) => getMarkStart(mark) === start);
-
-      if (!chord) {
-        if (existingIdx >= 0) {
-          chords.splice(existingIdx, 1);
-        }
-      } else if (existingIdx >= 0) {
-        chords[existingIdx] = createChordMark(chord, start, end);
-      } else {
-        chords.push(createChordMark(chord, start, end));
+  const openSlot = useCallback(
+    (sIndex: number, lIndex: number, slot: PlacementSlot) => {
+      const line = sections[sIndex]?.lines[lIndex];
+      if (!line) {
+        return;
       }
 
-      line.chords = chords;
-      section.lines[lIndex] = line;
-      next[sIndex] = section;
-      return next;
-    });
+      if (quickChord) {
+        stampChord(sIndex, lIndex, slot, quickChord);
+        return;
+      }
 
-    clearPlacement();
-  };
+      const existing = findChordAtSlot(line, slot);
+      setChordError(null);
+      setActive({
+        sIndex,
+        lIndex,
+        slot,
+        currentVal: existing ? normalizeChordMark(existing).chord : "",
+      });
+    },
+    [sections, quickChord, stampChord],
+  );
 
-  const removeChord = () => {
-    if (!activeSelection) {
+  const removeChord = useCallback(() => {
+    if (!active || active.slot.kind !== "char") {
+      clearPlacement();
       return;
     }
 
-    const { sIndex, lIndex, start } = activeSelection;
+    const line = sections[active.sIndex]?.lines[active.lIndex];
+    if (!line) {
+      clearPlacement();
+      return;
+    }
 
-    updateSections((prev) => {
-      const next = [...prev];
-      const section = { ...next[sIndex], lines: [...next[sIndex].lines] };
-      const line = {
-        ...section.lines[lIndex],
-        chords: section.lines[lIndex].chords.filter(
-          (mark) => getMarkStart(normalizeChordMark(mark)) !== start,
-        ),
-      };
-      section.lines[lIndex] = line;
-      next[sIndex] = section;
-      return next;
-    });
-
+    commitSections(
+      replaceLine(
+        sections,
+        active.sIndex,
+        active.lIndex,
+        removePlacementAt(line, active.slot.start),
+      ),
+    );
     clearPlacement();
-  };
+  }, [active, sections, commitSections, clearPlacement]);
+
+  const placeChord = useCallback(
+    (rawValue?: string, advance = false) => {
+      if (!active) {
+        return;
+      }
+
+      const chord = (rawValue ?? active.currentVal).trim();
+      if (!chord) {
+        removeChord();
+        return;
+      }
+      if (!isValidChord(chord)) {
+        setChordError("Invalid chord. Try Am7, G/B, or Dsus4.");
+        return;
+      }
+
+      const line = sections[active.sIndex]?.lines[active.lIndex];
+      if (!line) {
+        return;
+      }
+
+      const applied = applyPlacement(line, active.slot, chord);
+      commitSections(
+        replaceLine(sections, active.sIndex, active.lIndex, applied.line),
+      );
+      setLastChord(chord);
+      setChordError(null);
+
+      if (advance) {
+        setActive({
+          ...active,
+          slot: nextSlot(applied.line, applied.slot),
+          currentVal: chord,
+        });
+        return;
+      }
+
+      clearPlacement();
+    },
+    [active, sections, commitSections, clearPlacement, removeChord],
+  );
+
+  const moveSlot = useCallback(
+    (direction: 1 | -1) => {
+      if (!active) {
+        return;
+      }
+      const line = sections[active.sIndex]?.lines[active.lIndex];
+      if (!line) {
+        return;
+      }
+
+      const slot =
+        direction === 1 ? nextSlot(line, active.slot) : prevSlot(line, active.slot);
+      setActive({ ...active, slot });
+    },
+    [active, sections],
+  );
+
+  const undo = useCallback(() => {
+    if (history.length === 0) {
+      return;
+    }
+    const previous = history[history.length - 1]!;
+    setHistory(history.slice(0, -1));
+    emit(previous);
+    setActive(null);
+    setChordError(null);
+  }, [history, emit]);
+
+  /** Open the picker from whatever the browser selection points at. */
+  const openFromDomSelection = useCallback((): boolean => {
+    const selection = window.getSelection();
+    const node = selection?.focusNode;
+    if (!node) {
+      return false;
+    }
+
+    const host = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+    const element = host?.closest<HTMLElement>(".lyric-editor-line");
+    if (!element) {
+      return false;
+    }
+
+    const indices = lyricElementIndices(element);
+    if (!indices) {
+      return false;
+    }
+
+    const line = sections[indices.sIndex]?.lines[indices.lIndex];
+    if (!line) {
+      return false;
+    }
+
+    const range = getSelectionRangeInElement(element, line.lyrics);
+    if (range) {
+      openSlot(
+        indices.sIndex,
+        indices.lIndex,
+        slotFromSelection(line.lyrics, range.start, range.end),
+      );
+      return true;
+    }
+
+    const offset = getFocusOffsetInElement(element);
+    if (offset === null) {
+      return false;
+    }
+
+    openSlot(indices.sIndex, indices.lIndex, slotFromCaret(line.lyrics, offset));
+    return true;
+  }, [sections, openSlot]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const inField = Boolean(target?.closest("input, textarea, select"));
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !inField) {
+        event.preventDefault();
+        undo();
+        return;
+      }
+
+      if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        if (!active) {
+          return;
+        }
+        event.preventDefault();
+        moveSlot(event.key === "ArrowRight" ? 1 : -1);
+        return;
+      }
+
+      if (event.key === "Escape" && !active && quickChord) {
+        setQuickChord(null);
+        return;
+      }
+
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
-
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, button")) {
+      if (inField || target?.closest("button")) {
         return;
       }
 
-      const lyricLines = document.querySelectorAll<HTMLElement>(".lyric-editor-line");
-      for (const element of lyricLines) {
-        const range = getSelectionRangeInElement(element);
-        if (!range) {
-          continue;
-        }
-
-        const sIndex = Number(element.dataset.sectionIndex);
-        const lIndex = Number(element.dataset.lineIndex);
-        if (Number.isNaN(sIndex) || Number.isNaN(lIndex)) {
-          continue;
-        }
-
+      if (openFromDomSelection()) {
         event.preventDefault();
-        openSelection(sIndex, lIndex, range.start, range.end);
-        return;
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openSelection]);
+  }, [openFromDomSelection, undo, moveSlot, active, quickChord]);
 
   const palette = getDiatonicChords(originalKey);
+  const showVisual = isStacked || editorMode === "visual";
 
   return (
     <div className="flex flex-col gap-4 pb-24 sm:pb-0">
@@ -272,9 +421,7 @@ export function InteractiveEditor({
                 {EDITOR_VISUAL_HEADING}
               </h3>
               <p className="mt-0.5 text-sm text-lf-text-secondary">
-                {touchEditor
-                  ? "Tap a syllable or highlight lyrics — the chord picker opens at the bottom."
-                  : EDITOR_VISUAL_HINT}
+                {touchEditor ? EDITOR_VISUAL_HINT_TOUCH : EDITOR_VISUAL_HINT}
               </p>
             </div>
           ) : (
@@ -287,7 +434,12 @@ export function InteractiveEditor({
                 type="button"
                 role="tab"
                 aria-selected={editorMode === "source"}
-                onClick={() => setEditorMode("source")}
+                onClick={() => {
+                  setTabSourceText(syncSourceTextFromSections(sections));
+                  setTabSourceError(null);
+                  clearPlacement();
+                  setEditorMode("source");
+                }}
                 className={`min-h-10 rounded-[var(--lf-radius-sm)] px-4 text-sm font-medium transition-colors ${
                   editorMode === "source"
                     ? "bg-lf-bg-elevated text-lf-text-primary shadow-sm"
@@ -312,29 +464,27 @@ export function InteractiveEditor({
             </div>
           )}
 
-          <p className="text-sm tabular-nums text-lf-text-secondary">
-            {chordStats.chordCount} chords · {chordStats.chordedLines}/
-            {chordStats.lineCount} lines chorded
-          </p>
         </div>
 
         {!isStacked && editorMode === "visual" && (
           <p className="text-sm text-lf-text-secondary">
-            {touchEditor ? (
-              <>
-                Tap a syllable or highlight lyrics — the chord picker opens at
-                the bottom. Wide selections snap to one word.
-              </>
-            ) : (
-              <>
-                Select lyrics, then pick a chord. Press{" "}
-                <kbd className="rounded bg-lf-bg-muted px-1.5 py-0.5 font-mono text-xs text-lf-text-primary">
-                  /
-                </kbd>{" "}
-                with text selected.
-              </>
-            )}
+            {touchEditor ? EDITOR_VISUAL_HINT_TOUCH : EDITOR_VISUAL_HINT}
           </p>
+        )}
+
+        {showVisual && (
+          <PlacementToolbar
+            chordCount={chordStats.chordCount}
+            chordedLines={chordStats.chordedLines}
+            lineCount={chordStats.lineCount}
+            canUndo={history.length > 0}
+            onUndo={undo}
+            quickChord={quickChord}
+            lastChord={lastChord}
+            onToggleQuickChord={() =>
+              setQuickChord((prev) => (prev ? null : lastChord))
+            }
+          />
         )}
 
         {onSave && !isMobile && editorMode === "visual" && (
@@ -364,14 +514,14 @@ export function InteractiveEditor({
               setTabSourceError(result.error);
               return;
             }
-            updateSections(result.sections);
+            commitSections(result.sections);
             setTabSourceError(null);
             setEditorMode("visual");
           }}
         />
       ) : null}
 
-      {(isStacked || editorMode === "visual") && (
+      {showVisual && (
         <div className="chord-chart chord-chart-editor rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-4 shadow-sm">
           {sections.map((section, sIndex) => (
             <div key={`s-${sIndex}`} className="mb-6 last:mb-0">
@@ -384,36 +534,28 @@ export function InteractiveEditor({
                   originalKey={originalKey}
                   sectionIndex={sIndex}
                   lineIndex={lIndex}
-                  selectionRange={
-                    activeSelection?.sIndex === sIndex &&
-                    activeSelection.lIndex === lIndex
-                      ? {
-                          start: activeSelection.start,
-                          end: activeSelection.end,
-                        }
+                  activeSlot={
+                    active?.sIndex === sIndex && active.lIndex === lIndex
+                      ? active.slot
                       : null
                   }
-                  pendingPlacement={
-                    activeSelection?.sIndex === sIndex &&
-                    activeSelection.lIndex === lIndex
-                      ? {
-                          start: activeSelection.start,
-                          end: activeSelection.end,
-                          chord: activeSelection.currentVal,
-                        }
-                      : null
+                  pendingChord={
+                    active?.sIndex === sIndex && active.lIndex === lIndex
+                      ? active.currentVal
+                      : ""
                   }
-                  onSelection={({ start, end }) => {
-                    openSelection(sIndex, lIndex, start, end);
-                  }}
+                  onPlaceSlot={(slot) => openSlot(sIndex, lIndex, slot)}
                   onChordClick={(mark) => {
                     const normalized = normalizeChordMark(mark);
                     setChordError(null);
-                    setActiveSelection({
+                    setActive({
                       sIndex,
                       lIndex,
-                      start: normalized.start,
-                      end: normalized.end,
+                      slot: {
+                        kind: "char",
+                        start: normalized.start,
+                        end: normalized.end,
+                      },
                       currentVal: normalized.chord,
                     });
                   }}
@@ -424,39 +566,41 @@ export function InteractiveEditor({
         </div>
       )}
 
-      {(isStacked || editorMode === "visual") && touchEditor && activeSelection ? (
+      {showVisual && touchEditor && active ? (
         <InlineChordToolbar
           palette={palette}
-          value={activeSelection.currentVal}
-          targetText={targetText}
+          recents={recents}
+          value={active.currentVal}
+          targetLabel={targetLabel}
           error={chordError}
+          canRemove={Boolean(existingChordAtSlot)}
           reserveSaveBarSpace={Boolean(onSave)}
           onChange={(value) => {
             setChordError(null);
-            setActiveSelection((prev) =>
-              prev ? { ...prev, currentVal: value } : prev,
-            );
+            setActive((prev) => (prev ? { ...prev, currentVal: value } : prev));
           }}
-          onPick={(chord) => commitChord(chord)}
-          onSubmit={() => commitChord()}
+          onPick={(chord) => placeChord(chord)}
+          onSubmit={() => placeChord()}
+          onSubmitNext={() => placeChord(undefined, true)}
           onRemove={removeChord}
           onCancel={clearPlacement}
         />
-      ) : isStacked || editorMode === "visual" ? (
+      ) : showVisual ? (
         <ChordInputPopover
-          open={activeSelection !== null}
-          value={activeSelection?.currentVal ?? ""}
-          targetText={targetText}
+          open={active !== null}
+          value={active?.currentVal ?? ""}
+          targetLabel={targetLabel}
           error={chordError}
           palette={palette}
+          recents={recents}
           mobile={false}
+          canRemove={Boolean(existingChordAtSlot)}
           onChange={(value) => {
             setChordError(null);
-            setActiveSelection((prev) =>
-              prev ? { ...prev, currentVal: value } : prev,
-            );
+            setActive((prev) => (prev ? { ...prev, currentVal: value } : prev));
           }}
-          onSubmit={(value) => commitChord(value)}
+          onSubmit={(value) => placeChord(value)}
+          onSubmitNext={(value) => placeChord(value, true)}
           onRemove={removeChord}
           onCancel={clearPlacement}
         />

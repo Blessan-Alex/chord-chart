@@ -9,6 +9,8 @@ export const EDITOR_CONTINUE_TO_PLACEMENT = "Continue to place chords →";
 export const EDITOR_BACK_TO_SOURCE = "← Back to chord source";
 export const EDITOR_VISUAL_HEADING = "Place chords";
 export const EDITOR_VISUAL_HINT =
-  "Highlight lyrics and add or adjust chords. Press / with text selected.";
+  "Click a syllable, a gap between words, or the end of a line — then pick a chord. Press / to open the picker, Shift+Enter to place and jump to the next spot.";
+export const EDITOR_VISUAL_HINT_TOUCH =
+  "Tap a syllable, the gap between words, or the end of a line — the chord picker opens at the bottom. Tap the same gap again to fit another chord in it.";
 export const EDITOR_EDIT_SUBTITLE =
   "Enter song details and paste chord source, then place chords on the lyrics.";

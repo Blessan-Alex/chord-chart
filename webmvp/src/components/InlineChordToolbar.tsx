@@ -3,12 +3,16 @@
 type InlineChordToolbarProps = {
   palette: string[];
   value: string;
-  targetText?: string | null;
+  /** Plain-language description of the slot being placed on. */
+  targetLabel?: string | null;
   error: string | null;
+  recents?: string[];
+  canRemove?: boolean;
   reserveSaveBarSpace?: boolean;
   onChange: (value: string) => void;
   onPick: (chord: string) => void;
   onSubmit: () => void;
+  onSubmitNext: () => void;
   onRemove: () => void;
   onCancel: () => void;
 };
@@ -16,18 +20,23 @@ type InlineChordToolbarProps = {
 export function InlineChordToolbar({
   palette,
   value,
-  targetText,
+  targetLabel,
   error,
+  recents = [],
+  canRemove = false,
   reserveSaveBarSpace = false,
   onChange,
   onPick,
   onSubmit,
+  onSubmitNext,
   onRemove,
   onCancel,
 }: InlineChordToolbarProps) {
   const bottomOffset = reserveSaveBarSpace
     ? "calc(4.5rem + env(safe-area-inset-bottom))"
     : "calc(0.5rem + env(safe-area-inset-bottom))";
+
+  const quickPicks = [...new Set([...recents, ...palette])];
 
   return (
     <div
@@ -38,11 +47,12 @@ export function InlineChordToolbar({
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-lf-text-primary">
-              Place chord{value ? `: ${value}` : ""}
+              {canRemove ? "Edit chord" : "Place chord"}
+              {value ? `: ${value}` : ""}
             </p>
-            {targetText ? (
-              <p className="truncate text-xs text-lf-text-secondary">
-                Placing on {targetText}
+            {targetLabel ? (
+              <p className="truncate text-xs text-lf-text-secondary" aria-live="polite">
+                {targetLabel}
               </p>
             ) : null}
           </div>
@@ -56,7 +66,7 @@ export function InlineChordToolbar({
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {palette.map((chord) => (
+          {quickPicks.map((chord) => (
             <button
               key={chord}
               type="button"
@@ -98,15 +108,24 @@ export function InlineChordToolbar({
           </p>
         )}
 
-        {value && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onRemove}
-            className="mt-2 min-h-9 text-sm font-medium text-lf-danger hover:underline"
+            onClick={onSubmitNext}
+            className="min-h-10 rounded-[var(--lf-radius-md)] border border-lf-border px-3 text-sm font-medium text-lf-text-primary"
           >
-            Remove chord
+            Place &amp; next
           </button>
-        )}
+          {canRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="ml-auto min-h-10 px-2 text-sm font-medium text-lf-danger"
+            >
+              Remove chord
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

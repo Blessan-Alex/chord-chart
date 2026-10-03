@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { createChordMark } from "@/lib/chordMarks";
+import {
+  describeSlot,
+  gapZonesForLine,
+  gapMeasurementIndices,
+  slotFromCaret,
+  slotPosition,
+  type PlacementSlot,
+} from "@/lib/chordPlacement";
 import { isChordOnlyLine } from "@/lib/chordProParser";
 import {
   EMPTY_CHORD_INDICES,
@@ -17,21 +25,24 @@ import {
 } from "@/lib/lyricChords";
 import {
   collapseSelectionToWord,
-  getCaretGraphemeRangeInElement,
   getFocusOffsetInElement,
   getSelectionRangeInElement,
 } from "@/lib/hooks/useTextSelection";
 import type { Key } from "@/lib/engine";
 import type { ChordMark, LyricLine } from "@/lib/types";
 
+const LINE_START_ZONE_PX = 14;
+const LINE_END_ZONE_PX = 48;
+
 type LyricLineEditorProps = {
   line: LyricLine;
   originalKey: Key;
   sectionIndex: number;
   lineIndex: number;
-  selectionRange?: { start: number; end: number } | null;
-  pendingPlacement?: { start: number; end: number; chord: string } | null;
-  onSelection: (range: { start: number; end: number }) => void;
+  /** Slot currently being placed on this line, if any. */
+  activeSlot?: PlacementSlot | null;
+  pendingChord?: string;
+  onPlaceSlot: (slot: PlacementSlot) => void;
   onChordClick: (mark: ChordMark) => void;
 };
 
@@ -65,13 +76,13 @@ export function LyricLineEditor({
   originalKey,
   sectionIndex,
   lineIndex,
-  selectionRange,
-  pendingPlacement,
-  onSelection,
+  activeSlot,
+  pendingChord = "",
+  onPlaceSlot,
   onChordClick,
 }: LyricLineEditorProps) {
   const lyricRef = useRef<HTMLDivElement>(null);
-  const onSelectionRef = useRef(onSelection);
+  const onPlaceSlotRef = useRef(onPlaceSlot);
   const touchEditor = useTouchEditor();
   const chordsSignature = lyricChordsSignature(line.chords);
   const normalizedChords = useMemo(
@@ -83,18 +94,25 @@ export function LyricLineEditor({
     [chordsSignature],
   );
 
-  const pendingStart = pendingPlacement?.start;
-  const pendingEnd = pendingPlacement?.end;
-  const pendingChord = pendingPlacement?.chord ?? "";
+  const gapZones = useMemo(() => gapZonesForLine(line), [line]);
 
-  const extraIndices = useMemo(
-    () => (pendingChord.trim() && pendingStart !== undefined ? [pendingStart] : EMPTY_CHORD_INDICES),
-    [pendingStart, pendingChord],
-  );
+  const charStart = activeSlot?.kind === "char" ? activeSlot.start : undefined;
+  const charEnd = activeSlot?.kind === "char" ? activeSlot.end : undefined;
+  const charRange =
+    charStart !== undefined && charEnd !== undefined
+      ? { start: charStart, end: charEnd }
+      : null;
 
-  const layoutKey = selectionRange
-    ? `${selectionRange.start}-${selectionRange.end}`
-    : "";
+  const extraIndices = useMemo(() => {
+    const indices = gapMeasurementIndices(line);
+    if (activeSlot) {
+      indices.push(slotPosition(activeSlot));
+    }
+    return indices.length > 0 ? indices : EMPTY_CHORD_INDICES;
+  }, [line, activeSlot]);
+
+  const layoutKey =
+    charStart !== undefined ? `${charStart}-${charEnd ?? charStart}` : "";
 
   const chordOffsets = useLyricChordOffsets(
     lyricRef,
@@ -105,16 +123,26 @@ export function LyricLineEditor({
   );
 
   const previewMark = useMemo((): ChordMark | null => {
-    if (!pendingChord.trim() || pendingStart === undefined || pendingEnd === undefined) {
+    if (!pendingChord.trim() || charStart === undefined || charEnd === undefined) {
       return null;
     }
+    return createChordMark(pendingChord, charStart, charEnd);
+  }, [pendingChord, charStart, charEnd]);
 
-    return createChordMark(pendingChord, pendingStart, pendingEnd);
-  }, [pendingChord, pendingStart, pendingEnd]);
+  const ghost = useMemo(() => {
+    if (!activeSlot || activeSlot.kind !== "gap") {
+      return null;
+    }
+    const left = chordOffsets[activeSlot.index];
+    if (left === undefined) {
+      return null;
+    }
+    return { left, label: pendingChord.trim() || "+" };
+  }, [activeSlot, chordOffsets, pendingChord]);
 
   useEffect(() => {
-    onSelectionRef.current = onSelection;
-  }, [onSelection]);
+    onPlaceSlotRef.current = onPlaceSlot;
+  }, [onPlaceSlot]);
 
   useEffect(() => {
     const element = lyricRef.current;
@@ -150,7 +178,12 @@ export function LyricLineEditor({
         return;
       }
 
-      onSelectionRef.current({ start, end });
+      if (line.lyrics.slice(start, end).trim() === "") {
+        onPlaceSlotRef.current({ kind: "gap", index: start });
+        return;
+      }
+
+      onPlaceSlotRef.current({ kind: "char", start, end });
     };
 
     const scheduleNotify = () => {
@@ -160,35 +193,35 @@ export function LyricLineEditor({
       debounce = setTimeout(notifySelection, touchEditor ? 150 : 0);
     };
 
-    const handleTapPlacement = () => {
-      if (!touchEditor) {
+    /** Collapsed caret / tap: resolve to a char or gap slot. */
+    const placeAtCaret = () => {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) {
         return;
       }
 
-      setTimeout(() => {
-        const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) {
-          return;
-        }
+      const offset = getFocusOffsetInElement(element);
+      if (offset === null) {
+        return;
+      }
 
-        const caret = getCaretGraphemeRangeInElement(element, line.lyrics);
-        if (caret) {
-          onSelectionRef.current({ start: caret.start, end: caret.end });
-        }
-      }, 80);
+      onPlaceSlotRef.current(slotFromCaret(line.lyrics, offset));
     };
 
     if (touchEditor) {
       const handleSelectionChange = () => {
         scheduleNotify();
       };
+      const handleTouchEnd = () => {
+        setTimeout(placeAtCaret, 80);
+      };
 
       document.addEventListener("selectionchange", handleSelectionChange);
-      element.addEventListener("touchend", handleTapPlacement);
+      element.addEventListener("touchend", handleTouchEnd);
 
       return () => {
         document.removeEventListener("selectionchange", handleSelectionChange);
-        element.removeEventListener("touchend", handleTapPlacement);
+        element.removeEventListener("touchend", handleTouchEnd);
         if (debounce) {
           clearTimeout(debounce);
         }
@@ -198,17 +231,23 @@ export function LyricLineEditor({
     const handleMouseUp = () => {
       scheduleNotify();
     };
+    const handleClick = () => {
+      placeAtCaret();
+    };
 
     element.addEventListener("mouseup", handleMouseUp);
+    element.addEventListener("click", handleClick);
     return () => {
       element.removeEventListener("mouseup", handleMouseUp);
+      element.removeEventListener("click", handleClick);
       if (debounce) {
         clearTimeout(debounce);
       }
     };
   }, [touchEditor, line.lyrics]);
 
-  const showTargetOverlay = Boolean(selectionRange);
+  const activeGapLeft =
+    activeSlot?.kind === "gap" ? chordOffsets[activeSlot.index] : undefined;
 
   return (
     <div className="chord-line relative mb-3">
@@ -220,18 +259,70 @@ export function LyricLineEditor({
         chordOffsets={chordOffsets}
         packed={isChordOnlyLine(line)}
         previewMark={previewMark}
+        ghost={ghost}
         onChordClick={onChordClick}
       />
 
-      <div
-        ref={lyricRef}
-        data-section-index={sectionIndex}
-        data-line-index={lineIndex}
-        className="lyric-row lyric-editor-line lyric-line-measured cursor-text whitespace-pre px-1 py-0.5 hover:bg-lf-bg-muted/40"
-      >
-        {showTargetOverlay
-          ? renderLyricsWithTarget(line.lyrics, selectionRange)
-          : line.lyrics}
+      <div className="relative">
+        <div
+          ref={lyricRef}
+          data-section-index={sectionIndex}
+          data-line-index={lineIndex}
+          className="lyric-row lyric-editor-line lyric-line-measured cursor-text whitespace-pre px-1 py-0.5 hover:bg-lf-bg-muted/40"
+        >
+          {charRange
+            ? renderLyricsWithTarget(line.lyrics, charRange)
+            : line.lyrics}
+        </div>
+
+        {/* Overlay is a sibling with no text nodes so lyric measurement stays exact. */}
+        <div className="lyric-gap-layer pointer-events-none absolute inset-0">
+          {gapZones.map((zone) => {
+            const left = chordOffsets[zone.index];
+            if (left === undefined) {
+              return null;
+            }
+
+            const right = chordOffsets[zone.endIndex] ?? left;
+            // Zones stay inside the whitespace they represent: widening them would
+            // steal the neighbouring glyph's own pixels and cost letter precision.
+            const runWidth = Math.max(right - left, 0);
+            let zoneLeft = left;
+            let zoneWidth = runWidth;
+
+            if (zone.kind === "lineStart") {
+              zoneLeft = left - LINE_START_ZONE_PX + 2;
+              zoneWidth = LINE_START_ZONE_PX;
+            } else if (zone.kind === "lineEnd") {
+              zoneWidth = runWidth + LINE_END_ZONE_PX;
+            }
+
+            const isActive =
+              activeSlot?.kind === "gap" && activeSlot.index === zone.index;
+
+            return (
+              <button
+                key={`gap-${zone.index}`}
+                type="button"
+                aria-label={describeSlot(line, { kind: "gap", index: zone.index })}
+                aria-pressed={isActive}
+                className={`lyric-gap-zone pointer-events-auto${
+                  isActive ? " lyric-gap-zone--active" : ""
+                }`}
+                style={{ left: `${zoneLeft}px`, width: `${zoneWidth}px` }}
+                onClick={() => onPlaceSlot({ kind: "gap", index: zone.index })}
+              />
+            );
+          })}
+
+          {activeGapLeft !== undefined ? (
+            <span
+              className="lyric-gap-caret"
+              style={{ left: `${activeGapLeft}px` }}
+              aria-hidden
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

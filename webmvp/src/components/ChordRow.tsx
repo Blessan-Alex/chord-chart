@@ -38,6 +38,8 @@ type ChordRowProps = {
   /** Horizontal packed layout when there are no visible lyrics to measure. */
   packed?: boolean;
   previewMark?: ChordMark | null;
+  /** Dashed preview shown at a measured pixel offset (gap placement). */
+  ghost?: { left: number; label: string } | null;
   onChordClick?: (mark: ChordMark) => void;
 };
 
@@ -98,6 +100,7 @@ export function ChordRow({
   chordOffsets,
   packed = false,
   previewMark,
+  ghost,
   onChordClick,
 }: ChordRowProps) {
   const chordRowRef = useRef<HTMLDivElement>(null);
@@ -198,7 +201,7 @@ export function ChordRow({
       ? getMarkStart(normalizeChordMark(previewMark))
       : null;
 
-  if (sorted.length === 0) {
+  if (sorted.length === 0 && !ghost) {
     return null;
   }
 
@@ -231,6 +234,16 @@ export function ChordRow({
           </span>
         );
       })}
+
+      {ghost ? (
+        <span
+          className="chord-ghost absolute bottom-0"
+          style={{ left: `${ghost.left}px` }}
+          aria-hidden
+        >
+          {ghost.label}
+        </span>
+      ) : null}
     </div>
   );
 }
