@@ -1,117 +1,142 @@
-# Precise chord placement (web) — UX + implementation plan
+# Precise chord placement (web) — design + shipped behavior
 
-Scope: `webmvp` only. The Flutter app is out of scope for this round.
+**Status:** Implemented in `webmvp`. This document describes the **current** product and code (not a future sketch). For mobile parity, see [`mobile-chord-placement-parity-plan.md`](mobile-chord-placement-parity-plan.md).
 
-## The problem users report
+**Canonical logic:** `webmvp/src/lib/chordPlacement.ts` (44 unit tests in `chordPlacement.test.ts`).
 
-Highlight-to-place works well **on letters**, but breaks down everywhere else:
+---
 
-| User intent | Today |
-|---|---|
-| Chord in the space between two words | Must drag-select a single space character — nearly impossible to hit, and invisible once selected |
-| Several chords in one gap (`star   [c][c]`) | Second chord overwrites the first (editor keys chords by `start` only) |
-| Chord at the end of a line with no trailing space | Lands *on* the last letter, and a second one is impossible |
-| Chords before the first word (`[c][c]How`) | No way to express it visually |
+## Problem (historical)
 
-Root cause: the visual editor's only placement primitive is a **non-empty text selection**. `getSelectionRangeInElement` returns `null` for a collapsed caret, and `commitChord` treats `start` as a unique key. Meanwhile the ChordPro parser already solves the same problem by **inserting a spacer character** for back-to-back `[A][B]` marks — the visual editor just never reuses that rule.
+Highlight-to-place worked on letters but failed for gaps, stacked chords in one space, end-of-line, and line-start. The old editor keyed chords by `start` only and required a non-empty selection for whitespace.
 
-## Design decision: slots, not selections
-
-Introduce one concept that covers every case: a **placement slot**.
+## Design: placement slots
 
 ```ts
 type PlacementSlot =
-  | { kind: "char"; start: number; end: number }   // on a grapheme (today's behavior)
-  | { kind: "gap"; index: number }                 // between graphemes, incl. line start/end
+  | { kind: "char"; start: number; end: number }
+  | { kind: "gap"; index: number };
 ```
 
-Committing to a gap resolves against the lyric string:
+Gap commit (`resolveGapAnchor` + `applyPlacement`):
 
-1. If the gap is a whitespace run, use the **first unoccupied space** in that run — no lyric mutation, no visual shift.
-2. If every space in the run is taken, **insert one space at the end of the run** so the new chord lands to the *right* of the chords already in that gap (musical order is preserved).
-3. If there's no whitespace at all (line start, end of line, mid-word), **insert a space at the slot** and shift the affected marks.
+1. If the gap is a **whitespace run**, use the **first unoccupied space** in that run — no lyric change.
+2. If every space in the run is occupied, **insert spacers at the end of the run** so the new chord lands to the right of existing gap chords. Count comes from `spacersToInsert()`:
+   - **Inside an existing run:** `GAP_STACK_SPACES = 2` (see `prepareGapPlacement` test: `"Twinkle Twinkle"` → `"Twinkle   Twinkle"` after second chord in same gap).
+   - **No whitespace run** (line start, end of line without trailing space, etc.): **1** spacer at the slot.
+3. Deleting a chord on a spacer removes the spacer when `isRemovableSpacer` is true (doubled/leading/trailing spaces yes; single word separator `a b` no).
 
-Deleting a chord whose anchor is a space **removes the spacer again**, but only when removing it wouldn't glue two words together (`isRemovableSpacer`). Lines don't accumulate junk whitespace.
+No schema migration: same `LyricLine` + `ChordMark` + ChordPro round-trip.
 
-Why this approach: `ChordMark {chord, start, end}` and the lyric string stay exactly as they are, so Firestore documents, `validation.ts`, the performance renderer, `wrapLyricLine`, and ChordPro round-tripping all keep working with **zero migration**. Every state the new UI can produce is a state the source tab can already express:
+| User intent | Example stored lyrics | Evidence |
+|-------------|----------------------|----------|
+| Syllable highlight | `little star`, chord on `le` | `applyPlacement — char slots` |
+| Two chords in one gap | `little   star` (3 spaces) | `applyPlacement — gaps between words` |
+| Line start stack | `   How i wonder` | `applyPlacement — before the first word` |
+| End of line | `star ` then `star   ` for two chords | `applyPlacement — end of line` |
 
-| User's example | Stored lyrics | ChordPro round-trip |
-|---|---|---|
-| `litt[c]le star` | `little star` | char slot, unchanged behavior |
-| `star   [c][c]` | `star   ` (spacers) | `star  [c] [c]` → reparses identically |
-| `[[c]c]How` | `  How` | `[c] [c] How` → reparses identically |
+---
 
-No `anchorKind` field, no schema version bump, no backend work. **Backend changes needed: none.**
+## UX (as built)
 
-## UX principles applied
+| Principle | Implementation |
+|-----------|----------------|
+| Exact x-position | `useLyricChordOffsets` + `gapMeasurementIndices` in `LyricLineEditor.tsx` |
+| Gap hit targets | Sibling overlay `.lyric-gap-layer` — **no text nodes** in overlay (`LyricLineEditor.tsx` ~306–357) |
+| Gap width | Whitespace run width only; **not** widened into glyphs (`runWidth`, comment ~315–316) |
+| Line start / end padding | `LINE_START_ZONE_PX = 14`, `LINE_END_ZONE_PX = 48` (`LyricLineEditor.tsx` ~35–36) |
+| Ghost before commit | `ChordRow` `ghost` prop; label `pendingChord.trim() \|\| "+"` (~148–161) |
+| Char-slot preview while typing | `ChordRow` `previewMark` from active char range (~141–146) |
+| Gap insertion caret | `.lyric-gap-caret` at `gapCaretIndex` → `gapPreviewAnchor` for gaps (~42–49, 269–356) |
+| Quick place | `PlacementToolbar` + `openSlot` → `stampChord` when `quickChord` set (`InteractiveEditor.tsx` ~382–384) |
+| Undo | `MAX_HISTORY = 40`; `commitSections` pushes prior `Section[]` (~49, 187–199) |
+| Preview spacers don’t save | `emit(..., { notifyParent: false })` + `pendingGapSpacer` ref; rewind via `rewindPreparedGapSpacer` (~159–168, 274–378) |
+| Undo baseline with preview | `recordFrom` rewinds preview line before recording (`placeChord` / `stampChord` ~315–334, 443–458) |
+| Slot move with preview | `moveSlot` restores `gap` slot from `pendingBefore.gapIndex` after rewind (~530–556) |
+| Edit chord after preview | `slotAfterPreviewSpacerRewind` remaps mark indices (~105–119, 484–527) |
+| Parent prop echo | `emittedSig` + `sectionsSignature` — parent echo doesn’t reset editor (~170–216) |
+| No `+ space` button | Removed; implicit insertion only (see below) |
+| Chord-only lines | `ChordRow` `packed={isChordOnlyLine(line)}` |
 
-1. **Direct manipulation** — you click precisely where the chord goes, and that exact x-position is where it renders. Gap hit zones are measured from the real glyph geometry (`measureLyricCharOffset`), not estimated.
-2. **Fitts's law** — a single space is ~9px wide, which is not a target. Every gap gets a full-row-height hit zone; the end-of-line zone extends into the empty space to the right of the text; the line-start zone lives in the left padding.
-3. **Feedforward over feedback** — a dashed **ghost chord** appears above the line at the exact landing position before you commit, so you never place-then-check-then-undo.
-4. **Recognition over recall** — gaps reveal an insertion caret on hover instead of requiring you to know that `/` exists or that ChordPro uses brackets.
-5. **Flow** — the desktop picker no longer throws a modal scrim over the chart. You can click the next target while it's open, and **Place & next** (`⇧⏎`) walks slot-by-slot down the line so a whole verse can be chorded without touching the mouse.
-6. **Momentum for repetition** — worship charts repeat the same 4 chords. **Quick place** arms the last chord so each additional placement is a single click.
-7. **Reversibility** — because placement can now mutate lyrics, every mutation is undoable (`⌘Z`/`Ctrl+Z`, plus a visible Undo button).
-8. **Clarity of target** — the picker states the target in words (`Gap · between "little" and "star"`, `End of line · after "star"`) in an `aria-live` region, so the target is unambiguous even when the highlight is a single space.
-9. **Accessibility** — gap zones are real `<button>`s with descriptive `aria-label`s; all interactions have keyboard equivalents; motion respects `prefers-reduced-motion`.
-10. **No regressions to what already works** — highlighting letters behaves exactly as before, including the mobile word-snap heuristic.
+### Desktop vs touch (web)
 
-## Interaction model
+| Surface | Chord entry | Lyric interaction |
+|---------|-------------|-------------------|
+| Desktop (`useTouchEditor` false) | `ChordInputPopover` — fixed bottom center, **non-modal** (clicks inside `.chord-chart-editor` retarget) | `mouseup` selection + `click` → `slotFromCaret` |
+| Touch (`useTouchEditor` true: coarse pointer, hover none, max-width 1024px, or touch) | `InlineChordToolbar` fixed bottom | `selectionchange` (150ms debounce), `touchend` → caret slot; wide selection (≥60% line) → `collapseSelectionToWord` |
 
-### Desktop
-| Action | Result |
-|---|---|
-| Drag-select letters | Char slot (unchanged) |
-| Click a letter | Char slot on that grapheme |
-| Click a space / hover gap zone | Gap slot, insertion caret shown |
-| Click end-of-line zone | Gap at end of line |
-| Click line-start zone | Gap before the first word |
-| Click an existing chord | Edit it (unchanged) |
-| `/` | Open picker at the current selection *or caret* |
-| `⏎` / `⇧⏎` | Place / Place and advance to next slot |
-| `Alt ←` / `Alt →` | Move the slot one position without losing the typed chord |
-| `Esc` | Close picker, or disarm Quick place |
-| `⌘Z` | Undo last placement |
+`useTouchEditor.ts` — single hook, used by both `InteractiveEditor` and `LyricLineEditor`.
 
-### Touch (web)
-Tap resolves to a slot with the same rules (tap in whitespace → gap). The bottom toolbar gains the same **Place & next** and target description. Zones get an expanded vertical hit area.
+### Keyboard (`InteractiveEditor.tsx` ~655–694)
+
+| Key | Behavior |
+|-----|----------|
+| `⌘/Ctrl+Z` | Undo (not in input fields) |
+| `Alt+←` / `Alt+→` | `moveSlot` when picker active |
+| `Esc` | Disarm quick place if no active picker |
+| `/` | `openFromDomSelection()` → `openSlot` |
+
+Chord picker: `Enter` place, `Shift+Enter` place & next (`ChordInputPopover` / `InlineChordToolbar`).
+
+### Composer entry points
+
+- **Import / edit:** `AdminSongComposer` step 2 embeds `InteractiveEditor` with `layout="stacked"` (visual only in that step; source is step 1 `ChordProSourcePanel`).
+- **Standalone tabs:** `InteractiveEditor` `layout="tabs"` — source ↔ visual with `persistSectionsWithoutGapPreview` when leaving visual.
+
+Per line after lyrics: **"+ Chord line below"** → `insertChordLine` inserts `{ lyrics: "", chords: [] }`, rewinds gap preview, `recordFrom: baseSections`, shifts `active.lIndex` if needed (~565–598).
 
 ### Why there is no "Add space" button
-The original sketch had an explicit `+ space` control. It was built, then removed: because `applyPlacement` already reuses the first free space in a run and only inserts a spacer when it needs one, pressing `+ space` and then placing a chord produced byte-identical output to placing the chord directly. Its only observable effect was when the user abandoned the picker afterwards, which left an orphan trailing space — and since `parseChordProSections` trims each line, a round-trip through the source tab then shifted the chord one position left. The button added a redundant step and one real failure mode, so implicit insertion is the only path.
 
-### Gap zone width
-Gap zones span exactly the whitespace they represent and are never widened past it. Widening a ~9.6px space to a comfier 12–14px target overlapped the neighbouring glyph, so a click aimed at a letter's leading edge opened the gap instead — the opposite of the precision users asked for. The full line height already makes the zone easy to hit, and a miss in either direction still lands on a sensible slot. Line-start and line-end zones keep generous padding because they sit in empty space with no glyphs to steal.
+`applyPlacement` / `prepareGapPlacement` already insert spacers when needed. A manual `+ space` duplicated that and left orphan spaces that ChordPro trim could break on source round-trip. See comment in prior plan — behavior unchanged.
 
-## Implementation
+### Gap zone width (precision)
 
-### New
-- `src/lib/chordPlacement.ts` — pure slot logic: `slotFromCaret`, `slotsForLine`, `gapZonesForLine`, `applyPlacement`, `removePlacementAt`, `nextSlot`/`prevSlot`, `describeSlot`, `findChordAtSlot`.
-- `src/lib/chordPlacement.test.ts` — covers all four user scenarios plus ChordPro round-trip through `serializeChordProLine`.
-- `src/components/PlacementToolbar.tsx` — Undo + Quick place + stats.
+Zones use `runWidth = max(right - left, 0)` from measured offsets. Widening into adjacent glyphs caused mis-clicks; line-start/end use padding zones in empty margin only (`LyricLineEditor.tsx` ~321–326).
 
-### Modified
-| File | Change |
-|---|---|
-| `LyricLineEditor.tsx` | Gap zone overlay (sibling layer, zero text nodes so measurement stays exact), insertion caret, click-to-place, slot-aware props |
-| `InteractiveEditor.tsx` | Slot state, spacer-aware commit/remove, undo history, Quick place, keyboard map, source-tab re-sync |
-| `ChordRow.tsx` | Additive `ghost` prop for the dashed preview |
-| `ChordInputPopover.tsx` | Non-blocking on desktop, slot description, Place & next, shortcut hints |
-| `InlineChordToolbar.tsx` | Place & next, slot description |
-| `globals.css` | Gap zone, insertion caret, ghost chord, reduced-motion |
-| `editorLabels.ts` | Copy for the new model |
+---
 
-### Deliberately deferred
-- Drag an existing chord sideways to retime it.
-- Starting a text drag-selection *on* a space. Gap zones are buttons, so pressing one and dragging away cancels, exactly like any button. Dragging *across* a gap into another word still works normally, and the gap target itself replaces the reason to select whitespace.
-- Thin space (`U+2009`) spacers instead of normal spaces, if wide gaps bother anyone in performance view.
-- `anchorKind` on `ChordMark` — only if the spacer model ever proves insufficient.
+## Module map (current)
 
-## Acceptance criteria
+### Pure domain
 
-- Click between two words → chord renders between those words; source tab shows the equivalent ChordPro and reparses to the same sections.
-- Three chords can be placed in one gap, left to right, in the order clicked.
-- Two chords can be placed after the final word of a line that has no trailing space.
-- Chords can be placed before the first word.
-- Removing a gap chord removes its spacer; removing a chord sitting on a real word separator does not.
-- Highlight-on-letter and click-chord-to-edit behave exactly as before.
-- `npm run test`, `npm run lint`, `npm run typecheck` pass.
+| File | Responsibility |
+|------|----------------|
+| `chordPlacement.ts` | Slots, zones, `prepareGapPlacement`, `rewindPreparedGapSpacer`, `gapPreviewAnchor`, `applyPlacement`, `removePlacementAt`, `nextSlot`/`prevSlot`, `describeSlot`, `findChordAtSlot`, `chordsUsedIn` (max 8) |
+| `chordPlacement.test.ts` | 44 tests — caret, gaps, stack-2-spacers, preview rewind, ChordPro round-trip, remove, describe |
+
+### UI
+
+| File | Responsibility |
+|------|----------------|
+| `InteractiveEditor.tsx` | Sections state, history, quick place, `openSlot`, `pendingGapSpacer`, emit/notifyParent, keyboard, toolbar, chord UI branch |
+| `LyricLineEditor.tsx` | Chord row + lyric + gap buttons + caret + selection handlers |
+| `PlacementToolbar.tsx` | Undo, quick place toggle, stats string |
+| `ChordInputPopover.tsx` | Desktop picker, palette + recents, target `aria-live` |
+| `InlineChordToolbar.tsx` | Touch picker (same actions) |
+| `ChordRow.tsx` | `ghost`, `previewMark`, `chordOffsets`, packed chord-only |
+| `hooks/useLyricChordOffsets.ts` | Measure lyric indices for chord/gap positions |
+| `hooks/useTouchEditor.ts` | Touch vs desktop detection |
+| `hooks/useTextSelection.ts` | DOM offset ↔ lyric index |
+| `globals.css` | `.chord-ghost`, `.lyric-gap-zone`, `.lyric-gap-caret`, reduced motion |
+| `editorLabels.ts` | Step copy, hints |
+
+### Deliberately not in scope (unchanged)
+
+- Drag chord to new time position.
+- `anchorKind` on `ChordMark`.
+- Thin-space spacers.
+
+---
+
+## Acceptance criteria (verified by tests + manual)
+
+- [x] Between words — reuse single space, no lyric change (`gap(6)` on `"little star"`).
+- [x] Three+ chords in one gap — left-to-right order, `GAP_STACK_SPACES` when run full.
+- [x] End of line without trailing space — append spacer(s).
+- [x] Before first word — leading spacers, shift existing marks.
+- [x] Remove gap chord removes removable spacer; single `a b` separator kept.
+- [x] Char highlight + chord edit unchanged.
+- [x] `prepareGapPlacement` preview rewound on cancel (`rewindPreparedGapSpacer` with `preparedSpacerCount`).
+- [x] ChordPro serialize/parse round-trip for gap/end/start stacks.
+
+Run: `npm run test -- --run src/lib/chordPlacement.test.ts`

@@ -63,3 +63,25 @@ int _nearestBoundary(List<int> boundaries, int index, String mode) {
   }
   return (start: snappedStart, end: snappedEnd);
 }
+
+/// Grapheme cluster containing [index], or empty range at end of text.
+({int start, int end}) graphemeRangeAt(
+  String text,
+  int index, [
+  String locale = 'en',
+]) {
+  if (text.isEmpty) {
+    return (start: 0, end: 0);
+  }
+
+  final clamped = index.clamp(0, text.length);
+  final boundaries = graphemeBoundaries(text, locale);
+  final start = _nearestBoundary(boundaries, clamped, 'floor');
+  final end = _nearestBoundary(boundaries, clamped + 1, 'ceil');
+
+  if (end <= start) {
+    return (start: clamped, end: (clamped + 1).clamp(0, text.length));
+  }
+
+  return (start: start, end: end);
+}

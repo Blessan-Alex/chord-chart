@@ -6,6 +6,13 @@ import 'package:lf_chords/domain/chord_marks.dart';
 import 'package:lf_chords/domain/chart_display.dart';
 import 'package:lf_chords/features/song/layout/chord_label_measure.dart';
 
+class ChordRowGhost {
+  const ChordRowGhost({required this.left, required this.label});
+
+  final double left;
+  final String label;
+}
+
 class ChordRowWidget extends StatelessWidget {
   const ChordRowWidget({
     super.key,
@@ -17,6 +24,9 @@ class ChordRowWidget extends StatelessWidget {
     this.chordOffsets,
     this.packed = false,
     this.maxWidth = double.infinity,
+    this.previewMark,
+    this.ghost,
+    this.onChordTap,
   });
 
   final List<ChordMark> chords;
@@ -27,15 +37,31 @@ class ChordRowWidget extends StatelessWidget {
   final Map<int, double>? chordOffsets;
   final bool packed;
   final double maxWidth;
+  final ChordMark? previewMark;
+  final ChordRowGhost? ghost;
+  final ValueChanged<ChordMark>? onChordTap;
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...chords.map(normalizeChordMark)]
+    final normalized = chords.map(normalizeChordMark).toList();
+    final preview = previewMark != null && previewMark!.chord.trim().isNotEmpty
+        ? normalizeChordMark(previewMark!)
+        : null;
+    var merged = normalized;
+    if (preview != null) {
+      merged = [
+        ...normalized.where((m) => getMarkStart(m) != getMarkStart(preview)),
+        preview,
+      ];
+    }
+
+    final sorted = [...merged]
       ..sort((a, b) => getMarkStart(a).compareTo(getMarkStart(b)));
-    if (sorted.isEmpty) {
+    if (sorted.isEmpty && ghost == null) {
       return const SizedBox.shrink();
     }
 
+    final previewStart = preview != null ? getMarkStart(preview) : null;
     final starts = sorted.map(getMarkStart).toList();
     final labels = sorted
         .map((m) => displayChordLabel(m, originalKey, targetKey, viewMode))
@@ -68,8 +94,10 @@ class ChordRowWidget extends StatelessWidget {
     final tierStepPx = tierStepEm * emPx;
     final minHeight = tierCount * tierStepPx;
 
+    final ghostMinHeight = ghost != null && sorted.isEmpty ? tierStepPx : 0.0;
+
     return SizedBox(
-      height: minHeight,
+      height: minHeight > ghostMinHeight ? minHeight : ghostMinHeight,
       width: maxWidth,
       child: Stack(
         clipBehavior: Clip.none,
@@ -78,7 +106,43 @@ class ChordRowWidget extends StatelessWidget {
             Positioned(
               left: placements[i].left,
               bottom: placements[i].tier * tierStepPx,
-              child: Text(labels[i], style: chordStyle),
+              child: GestureDetector(
+                onTap: onChordTap != null ? () => onChordTap!(sorted[i]) : null,
+                child: Text(
+                  labels[i],
+                  style: chordStyle.copyWith(
+                    color: previewStart == starts[i]
+                        ? chordStyle.color?.withValues(alpha: 0.7)
+                        : chordStyle.color,
+                  ),
+                ),
+              ),
+            ),
+          if (ghost != null)
+            Positioned(
+              left: ghost!.left,
+              bottom: 0,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: (chordStyle.color ?? Colors.grey)
+                            .withValues(alpha: 0.55),
+                        style: BorderStyle.solid,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    ghost!.label,
+                    style: chordStyle.copyWith(
+                      color: (chordStyle.color ?? Colors.grey)
+                          .withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),

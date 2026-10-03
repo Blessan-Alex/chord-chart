@@ -87,11 +87,13 @@ Sources: `admin/page.tsx`, `AdminStats.tsx`, `AdminSongRow.tsx`, `adminStats.ts`
 
 ### 2.5 Composer — placement step
 
-1. Per line: lyric text + chord marks at grapheme indices (`ChordMark` / `createChordMark`).
-2. Selection: word collapse, caret grapheme range (port `useTextSelection` helpers).
-3. Touch: long-press to select; chord chip tap to edit/delete.
-4. Packed chord-only lines (`isChordOnlyLine`) layout separately.
-5. Preview uses same chord row layout as musician chart.
+**Implemented (mobile):** visual editor parity with web `InteractiveEditor` — see [`mobile-chord-placement-parity-plan.md`](mobile-chord-placement-parity-plan.md).
+
+1. Per line: `LyricLinePlacementEditor` — tap lyrics/gaps, ghost chord, gap caret, `chord_placement.dart` slot rules.
+2. Selection: `placement_text_selection.dart` (`collapseSelectionToWord`); `SelectableText` for highlight-to-place.
+3. Touch: 48dp min gap targets; chord chip tap → `beginChordEdit`; bottom `ChordPlacementSheet` (palette, Place & next).
+4. Packed chord-only lines (`isChordOnlyLine`) + empty line tap target.
+5. Preview uses `ChordRowWidget` / chart theme (`ChartThemeScope`); undo, quick place, `+ Chord line below`.
 
 ### 2.6 Import — create new song (**no `songEdits` draft**)
 

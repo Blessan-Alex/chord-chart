@@ -19,14 +19,16 @@ double? measureLyricCharOffset(
   String lyrics,
   int charIndex,
   TextStyle style,
-  double maxWidth,
-) {
+  double maxWidth, {
+  TextScaler textScaler = TextScaler.noScaling,
+}) {
   if (charIndex < 0 || charIndex > lyrics.length) {
     return null;
   }
   final painter = TextPainter(
     text: TextSpan(text: lyrics, style: style),
     textDirection: TextDirection.ltr,
+    textScaler: textScaler,
   )..layout(maxWidth: maxWidth);
 
   final boxes = painter.getBoxesForSelection(
@@ -45,8 +47,9 @@ Map<int, double> measureChordOffsets(
   String lyrics,
   List<int> indices,
   TextStyle style,
-  double maxWidth,
-) {
+  double maxWidth, {
+  TextScaler textScaler = TextScaler.noScaling,
+}) {
   if (indices.isEmpty) {
     return {};
   }
@@ -58,6 +61,7 @@ Map<int, double> measureChordOffsets(
     style.fontWeight,
     style.letterSpacing,
     maxWidth,
+    textScaler,
   );
   final cached = _chordOffsetCache[cacheKey];
   if (cached != null) {
@@ -66,7 +70,13 @@ Map<int, double> measureChordOffsets(
 
   final offsets = <int, double>{};
   for (final index in indices) {
-    final measured = measureLyricCharOffset(lyrics, index, style, maxWidth);
+    final measured = measureLyricCharOffset(
+      lyrics,
+      index,
+      style,
+      maxWidth,
+      textScaler: textScaler,
+    );
     if (measured != null) {
       offsets[index] = measured;
     }
