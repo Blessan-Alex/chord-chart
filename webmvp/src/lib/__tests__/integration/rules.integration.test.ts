@@ -104,6 +104,45 @@ describe.skipIf(!emulatorEnabled).sequential("firestore rules integration", () =
     );
   });
 
+  it("allows admin to create and read draft songs", async () => {
+    const adminDb = testEnv
+      .authenticatedContext("admin-uid", { admin: true })
+      .firestore();
+
+    await assertSucceeds(
+      setDoc(doc(adminDb, "songs", "draft-song"), {
+        title: "Draft Song",
+        originalKey: "C",
+        status: "draft",
+        sections: sampleSongSections,
+        version: 1,
+        createdBy: "admin-uid",
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+
+    await assertSucceeds(getDoc(doc(adminDb, "songs", "draft-song")));
+  });
+
+  it("denies musician read of draft songs", async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "songs", "draft-song"), {
+        title: "Draft Song",
+        originalKey: "C",
+        status: "draft",
+        sections: sampleSongSections,
+        version: 1,
+        createdBy: "admin-uid",
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    });
+
+    const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
+    await assertFails(getDoc(doc(musicianDb, "songs", "draft-song")));
+  });
+
   it("allows musician self-signup user doc with username", async () => {
     const musicianDb = testEnv.authenticatedContext("musician-uid").firestore();
 

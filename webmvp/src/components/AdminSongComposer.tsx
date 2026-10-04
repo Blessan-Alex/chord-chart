@@ -4,15 +4,19 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
-  type ReactNode,
 } from "react";
 
 import { ChordProSourcePanel } from "@/components/ChordProSourcePanel";
-import { InteractiveEditor } from "@/components/InteractiveEditor";
+import { ComposerActionBar } from "@/components/ComposerActionBar";
+import {
+  InteractiveEditor,
+  type InteractiveEditorHandle,
+} from "@/components/InteractiveEditor";
+import { canPersistComposer } from "@/lib/composerGates";
 import { LanguageTagPicker } from "@/components/LanguageTagPicker";
 import {
-  EDITOR_BACK_TO_SOURCE,
   EDITOR_CONTINUE_TO_PLACEMENT,
   EDITOR_STEP_PLACEMENT,
   EDITOR_STEP_SOURCE,
@@ -49,8 +53,16 @@ type AdminSongComposerProps = {
   showLanguageTags?: boolean;
   notes?: string;
   onNotesChange?: (value: string) => void;
-  /** Shown on the placement step (e.g. Create song, Discard draft). */
-  footer?: ReactNode;
+  actionBar?: {
+    onBackToLibrary: () => void;
+    onSaveDraft?: () => void;
+    onPublish?: () => void;
+    busy?: boolean;
+    saveStatus?: "idle" | "saving" | "saved";
+    primaryLabel?: string;
+  };
+  /** Fired when title, source, or sections change (for autosave parents). */
+  onComposerActivity?: () => void;
 };
 
 const cardClass =
@@ -100,10 +112,13 @@ export const AdminSongComposer = forwardRef<
     showLanguageTags = true,
     notes,
     onNotesChange,
-    footer,
+    actionBar,
+    onComposerActivity,
   },
   ref,
 ) {
+  const placementEditorRef = useRef<InteractiveEditorHandle>(null);
+  const [placementCanUndo, setPlacementCanUndo] = useState(false);
   const [composerStep, setComposerStep] = useState<ComposerStep>("source");
   const [sourceText, setSourceText] = useState(() =>
     syncSourceTextFromSections(sections),
@@ -117,6 +132,13 @@ export const AdminSongComposer = forwardRef<
       setSourceText(syncSourceTextFromSections(sections));
     }
   }, [sectionsSig, sections, sourceDirty]);
+
+  const onComposerActivityRef = useRef(onComposerActivity);
+  onComposerActivityRef.current = onComposerActivity;
+
+  useEffect(() => {
+    onComposerActivityRef.current?.();
+  }, [title, sourceText, sectionsSig]);
 
   const flushSourceToSections = (): FlushResult => {
     const result = tryFlushChordSource(sourceText);
@@ -141,12 +163,32 @@ export const AdminSongComposer = forwardRef<
   }));
 
   const handleContinueToPlacement = () => {
+    if (!title.trim()) {
+      setApplyError("Title is required.");
+      return;
+    }
     const result = flushSourceToSections();
     if (!result.ok) {
       setApplyError(result.error);
       return;
     }
+    if (!canPersistComposer(title, result.sections)) {
+      setApplyError("Add at least one lyric line.");
+      return;
+    }
     setComposerStep("placement");
+  };
+
+  const canContinue =
+    title.trim() !== "" &&
+    tryFlushChordSource(sourceText).ok;
+
+  const handleActionBack = () => {
+    if (composerStep === "placement") {
+      setComposerStep("source");
+      return;
+    }
+    actionBar?.onBackToLibrary();
   };
 
   const handleSectionsChange = (next: Section[]) => {
@@ -237,6 +279,25 @@ export const AdminSongComposer = forwardRef<
 
   return (
     <div className="flex flex-col gap-6">
+      {actionBar ? (
+        <ComposerActionBar
+          onBack={handleActionBack}
+          canUndo={composerStep === "placement" && placementCanUndo}
+          onUndo={
+            composerStep === "placement"
+              ? () => placementEditorRef.current?.undo()
+              : undefined
+          }
+          onSave={actionBar.onSaveDraft}
+          saveDisabled={!canPersistComposer(title, sections)}
+          saveStatus={actionBar.saveStatus}
+          primaryLabel={actionBar.primaryLabel}
+          onPrimary={actionBar.onPublish}
+          primaryDisabled={!canPersistComposer(title, sections)}
+          busy={actionBar.busy}
+        />
+      ) : null}
+
       <ComposerStepIndicator step={composerStep} />
 
       {composerStep === "source" ? (
@@ -253,35 +314,24 @@ export const AdminSongComposer = forwardRef<
               }}
               applyError={applyError}
               applyButtonLabel={EDITOR_CONTINUE_TO_PLACEMENT}
+              applyDisabled={!canContinue}
               onApply={handleContinueToPlacement}
             />
           </section>
         </>
       ) : (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setComposerStep("source")}
-              className="text-sm font-medium text-lf-text-secondary hover:text-lf-text-primary"
-            >
-              {EDITOR_BACK_TO_SOURCE}
-            </button>
-            <p className="truncate text-sm text-lf-text-secondary">
-              {title.trim() || "Untitled"} · {originalKey}
-            </p>
-          </div>
-          <section className={cardClass}>
-            <InteractiveEditor
-              layout="stacked"
-              sections={sections}
-              originalKey={originalKey}
-              languageTags={tags}
-              onSectionsChange={handleSectionsChange}
-            />
-          </section>
-          {footer}
-        </>
+        <section className={cardClass}>
+          <InteractiveEditor
+            ref={placementEditorRef}
+            layout="stacked"
+            compactChrome
+            sections={sections}
+            originalKey={originalKey}
+            languageTags={tags}
+            onSectionsChange={handleSectionsChange}
+            onUndoAvailabilityChange={setPlacementCanUndo}
+          />
+        </section>
       )}
     </div>
   );

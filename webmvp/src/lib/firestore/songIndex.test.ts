@@ -52,7 +52,7 @@ describe("songToIndexEntry", () => {
         originalKey: "E",
         tags: ["worship"],
       }),
-    ).toEqual({ ...sampleEntries[0], updatedAtMs: 0 });
+    ).toEqual({ ...sampleEntries[0], status: "active", updatedAtMs: 0 });
   });
 
   it("builds searchText from sections", () => {
@@ -69,6 +69,26 @@ describe("songToIndexEntry", () => {
     });
 
     expect(entry.searchText).toContain("sweet the sound");
+  });
+
+  it("omits lyric text from searchText for draft songs", () => {
+    const entry = songToIndexEntry({
+      id: "work-in-progress",
+      title: "Secret Title",
+      artist: "Writer",
+      originalKey: "C",
+      status: "draft",
+      sections: [
+        {
+          label: "Verse 1",
+          lines: [{ lyrics: "hidden lyric phrase", chords: [] }],
+        },
+      ],
+    });
+
+    expect(entry.status).toBe("draft");
+    expect(entry.searchText).not.toContain("hidden lyric phrase");
+    expect(entry.searchText).toContain("secret title");
   });
 });
 

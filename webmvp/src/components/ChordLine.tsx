@@ -16,7 +16,7 @@ type ChordLineProps = {
   line: LyricLine;
   originalKey: string;
   targetKey: string;
-  viewMode: "chords" | "numbers";
+  viewMode: "chords" | "numbers" | "focus";
   wrapEnabled?: boolean;
   maxChars?: number;
 };
@@ -30,7 +30,7 @@ function MeasuredSegment({
   segment: { lyrics: string; chords: LyricLine["chords"] };
   originalKey: string;
   targetKey: string;
-  viewMode: "chords" | "numbers";
+  viewMode: "chords" | "numbers" | "focus";
 }) {
   const lyricRef = useRef<HTMLDivElement>(null);
   const chordsSignature = lyricChordsSignature(segment.chords);
@@ -48,6 +48,7 @@ function MeasuredSegment({
   const hasChords = segment.chords.length > 0;
   const hasLyrics = segment.lyrics.trim().length > 0;
   const packed = isChordOnlyLine(segment);
+  const chordViewMode = viewMode === "numbers" ? "numbers" : "chords";
 
   return (
     <>
@@ -56,7 +57,7 @@ function MeasuredSegment({
           chords={segment.chords}
           originalKey={originalKey}
           targetKey={targetKey}
-          viewMode={viewMode}
+          viewMode={chordViewMode}
           chordOffsets={chordOffsets}
           packed={packed}
         />

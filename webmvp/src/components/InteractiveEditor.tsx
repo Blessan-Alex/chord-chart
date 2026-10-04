@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { ChordInputPopover } from "@/components/ChordInputPopover";
 import { ChordProSourcePanel } from "@/components/ChordProSourcePanel";
@@ -59,6 +67,11 @@ type ActivePlacement = {
   currentVal: string;
 };
 
+export type InteractiveEditorHandle = {
+  undo: () => void;
+  canUndo: boolean;
+};
+
 type InteractiveEditorProps = {
   sections: Section[];
   onSave?: (sections: Section[]) => void;
@@ -68,27 +81,10 @@ type InteractiveEditorProps = {
   languageTags?: string[];
   /** Stacked: visual fine-tuner only (source panel lives in parent). */
   layout?: "tabs" | "stacked";
+  /** Hide placement hints (composer chrome provides context). */
+  compactChrome?: boolean;
+  onUndoAvailabilityChange?: (canUndo: boolean) => void;
 };
-
-function insertLineAfter(
-  sections: Section[],
-  sIndex: number,
-  afterLIndex: number,
-  line: LyricLine,
-): Section[] {
-  return sections.map((section, si) =>
-    si === sIndex
-      ? {
-          ...section,
-          lines: [
-            ...section.lines.slice(0, afterLIndex + 1),
-            line,
-            ...section.lines.slice(afterLIndex + 1),
-          ],
-        }
-      : section,
-  );
-}
 
 function replaceLine(
   sections: Section[],
@@ -136,14 +132,22 @@ function lyricElementIndices(
   return { sIndex, lIndex };
 }
 
-export function InteractiveEditor({
-  sections: initialSections,
-  onSave,
-  onSectionsChange,
-  originalKey,
-  languageTags = [],
-  layout = "tabs",
-}: InteractiveEditorProps) {
+export const InteractiveEditor = forwardRef<
+  InteractiveEditorHandle,
+  InteractiveEditorProps
+>(function InteractiveEditor(
+  {
+    sections: initialSections,
+    onSave,
+    onSectionsChange,
+    originalKey,
+    languageTags = [],
+    layout = "tabs",
+    compactChrome = false,
+    onUndoAvailabilityChange,
+  },
+  ref,
+) {
   const graphemeLocale = useMemo(
     () => graphemeLocaleFromTags(languageTags),
     [languageTags],
@@ -164,6 +168,8 @@ export function InteractiveEditor({
   const [history, setHistory] = useState<Section[][]>([]);
   const [lastChord, setLastChord] = useState<string | null>(null);
   const [quickChord, setQuickChord] = useState<string | null>(null);
+  const [quickPickOpen, setQuickPickOpen] = useState(false);
+  const [quickPickValue, setQuickPickValue] = useState("");
   const [tabSourceText, setTabSourceText] = useState(() =>
     syncSourceTextFromSections(initialSections),
   );
@@ -303,6 +309,44 @@ export function InteractiveEditor({
     };
   }, []);
 
+  const cancelQuickPlacePicker = useCallback(() => {
+    setQuickPickOpen(false);
+    setChordError(null);
+  }, []);
+
+  const openQuickPlacePicker = useCallback(() => {
+    const { sections: next, changed } = rewindPendingGapSpacerInto(sections);
+    if (changed) {
+      emit(next, { notifyParent: false });
+    }
+    setActive(null);
+    setChordError(null);
+    setQuickPickValue(quickChord ?? lastChord ?? "");
+    setQuickPickOpen(true);
+    window.getSelection()?.removeAllRanges();
+  }, [sections, emit, rewindPendingGapSpacerInto, quickChord, lastChord]);
+
+  const confirmQuickPlaceChord = useCallback(
+    (rawValue?: string) => {
+      const chord = (rawValue ?? quickPickValue).trim();
+      if (!chord) {
+        setQuickChord(null);
+        setQuickPickOpen(false);
+        setChordError(null);
+        return;
+      }
+      if (!isValidChord(chord)) {
+        setChordError("Invalid chord. Try Am7, G/B, or Dsus4.");
+        return;
+      }
+      setQuickChord(chord);
+      setLastChord(chord);
+      setQuickPickOpen(false);
+      setChordError(null);
+    },
+    [quickPickValue],
+  );
+
   const clearPlacement = useCallback(() => {
     const { sections: next, changed } = rewindPendingGapSpacerInto(sections);
     if (changed) {
@@ -395,9 +439,12 @@ export function InteractiveEditor({
       }
 
       if (quickChord) {
+        setQuickPickOpen(false);
         stampChord(sIndex, lIndex, resolvedSlot, quickChord, line);
         return;
       }
+
+      setQuickPickOpen(false);
 
       const existing = findChordAtSlot(line, resolvedSlot);
       setChordError(null);
@@ -531,6 +578,7 @@ export function InteractiveEditor({
         end = candidateMark.end;
       }
 
+      setQuickPickOpen(false);
       setChordError(null);
       setActive({
         sIndex,
@@ -577,42 +625,6 @@ export function InteractiveEditor({
     [active, sections, emit, rewindPendingGapSpacerInto],
   );
 
-  const insertChordLine = useCallback(
-    (sIndex: number, afterLIndex: number) => {
-      const pendingBefore = pendingGapSpacer.current;
-      const { sections: baseSections, changed } =
-        rewindPendingGapSpacerInto(sections);
-      if (changed) {
-        emit(baseSections, { notifyParent: false });
-      }
-      commitSections(
-        insertLineAfter(baseSections, sIndex, afterLIndex, {
-          lyrics: "",
-          chords: [],
-        }),
-        { recordFrom: baseSections },
-      );
-      setChordError(null);
-      setActive((prev) => {
-        if (!prev) {
-          return null;
-        }
-        if (
-          pendingBefore &&
-          prev.sIndex === pendingBefore.sIndex &&
-          prev.lIndex === pendingBefore.lIndex
-        ) {
-          return null;
-        }
-        if (prev.sIndex === sIndex && prev.lIndex > afterLIndex) {
-          return { ...prev, lIndex: prev.lIndex + 1 };
-        }
-        return prev;
-      });
-    },
-    [sections, commitSections, emit, rewindPendingGapSpacerInto],
-  );
-
   const undo = useCallback(() => {
     if (history.length === 0) {
       return;
@@ -623,6 +635,19 @@ export function InteractiveEditor({
     setActive(null);
     setChordError(null);
   }, [history, emit]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      undo,
+      canUndo: history.length > 0,
+    }),
+    [undo, history.length],
+  );
+
+  useEffect(() => {
+    onUndoAvailabilityChange?.(history.length > 0);
+  }, [history.length, onUndoAvailabilityChange]);
 
   /** Open the picker from whatever the browser selection points at. */
   const openFromDomSelection = useCallback((): boolean => {
@@ -691,9 +716,15 @@ export function InteractiveEditor({
         return;
       }
 
-      if (event.key === "Escape" && !active && quickChord) {
-        setQuickChord(null);
-        return;
+      if (event.key === "Escape") {
+        if (quickPickOpen) {
+          cancelQuickPlacePicker();
+          return;
+        }
+        if (!active && quickChord) {
+          setQuickChord(null);
+          return;
+        }
       }
 
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) {
@@ -710,7 +741,15 @@ export function InteractiveEditor({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openFromDomSelection, undo, moveSlot, active, quickChord]);
+  }, [
+    openFromDomSelection,
+    undo,
+    moveSlot,
+    active,
+    quickChord,
+    quickPickOpen,
+    cancelQuickPlacePicker,
+  ]);
 
   const palette = getDiatonicChords(originalKey);
   const showVisual = isStacked || editorMode === "visual";
@@ -719,7 +758,7 @@ export function InteractiveEditor({
     <div className="flex flex-col gap-4 pb-24 sm:pb-0">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {isStacked ? (
+          {isStacked && !compactChrome ? (
             <div>
               <h3 className="text-sm font-semibold text-lf-text-primary">
                 {EDITOR_VISUAL_HEADING}
@@ -728,7 +767,7 @@ export function InteractiveEditor({
                 {touchEditor ? EDITOR_VISUAL_HINT_TOUCH : EDITOR_VISUAL_HINT}
               </p>
             </div>
-          ) : (
+          ) : !isStacked ? (
             <div
               className="inline-flex rounded-[var(--lf-radius-md)] border border-lf-border bg-lf-bg-muted p-1"
               role="tablist"
@@ -767,11 +806,11 @@ export function InteractiveEditor({
                 {EDITOR_TAB_VISUAL}
               </button>
             </div>
-          )}
+          ) : null}
 
         </div>
 
-        {!isStacked && editorMode === "visual" && (
+        {!isStacked && !compactChrome && editorMode === "visual" && (
           <p className="text-sm text-lf-text-secondary">
             {touchEditor ? EDITOR_VISUAL_HINT_TOUCH : EDITOR_VISUAL_HINT}
           </p>
@@ -785,10 +824,7 @@ export function InteractiveEditor({
             canUndo={history.length > 0}
             onUndo={undo}
             quickChord={quickChord}
-            lastChord={lastChord}
-            onToggleQuickChord={() =>
-              setQuickChord((prev) => (prev ? null : lastChord))
-            }
+            onQuickPlaceClick={openQuickPlacePicker}
           />
         )}
 
@@ -836,7 +872,7 @@ export function InteractiveEditor({
               <div className="section-label">{`{${section.label}}`}</div>
 
               {section.lines.map((line, lIndex) => (
-                <div key={`l-${lIndex}`} className="mb-1">
+                <div key={`l-${lIndex}`}>
                   <LyricLineEditor
                     line={line}
                     originalKey={originalKey}
@@ -858,13 +894,6 @@ export function InteractiveEditor({
                     onPlaceSlot={(slot) => openSlot(sIndex, lIndex, slot)}
                     onChordClick={(mark) => beginChordEdit(sIndex, lIndex, mark)}
                   />
-                  <button
-                    type="button"
-                    className="mb-3 min-h-10 w-full rounded-[var(--lf-radius-sm)] border border-dashed border-lf-border px-2 text-sm text-lf-text-secondary hover:bg-lf-bg-muted/50"
-                    onClick={() => insertChordLine(sIndex, lIndex)}
-                  >
-                    + Chord line below
-                  </button>
                 </div>
               ))}
             </div>
@@ -891,24 +920,50 @@ export function InteractiveEditor({
           onRemove={removeChord}
           onCancel={clearPlacement}
         />
-      ) : showVisual ? (
+      ) : showVisual && (active || quickPickOpen) ? (
         <ChordInputPopover
-          open={active !== null}
-          value={active?.currentVal ?? ""}
-          targetLabel={targetLabel}
+          open
+          value={quickPickOpen && !active ? quickPickValue : (active?.currentVal ?? "")}
+          targetLabel={
+            quickPickOpen && !active
+              ? "Choose a chord to stamp on each tap."
+              : targetLabel
+          }
           error={chordError}
           palette={palette}
           recents={recents}
-          mobile={false}
-          canRemove={Boolean(existingChordAtSlot)}
+          mobile={touchEditor && !active}
+          canRemove={Boolean(existingChordAtSlot) && !quickPickOpen}
           onChange={(value) => {
             setChordError(null);
+            if (quickPickOpen && !active) {
+              setQuickPickValue(value);
+              return;
+            }
             setActive((prev) => (prev ? { ...prev, currentVal: value } : prev));
           }}
-          onSubmit={(value) => placeChord(value)}
-          onSubmitNext={(value) => placeChord(value, true)}
+          onSubmit={(value) => {
+            if (quickPickOpen && !active) {
+              confirmQuickPlaceChord(value);
+              return;
+            }
+            placeChord(value);
+          }}
+          onSubmitNext={(value) => {
+            if (quickPickOpen && !active) {
+              confirmQuickPlaceChord(value);
+              return;
+            }
+            placeChord(value, true);
+          }}
           onRemove={removeChord}
-          onCancel={clearPlacement}
+          onCancel={() => {
+            if (quickPickOpen && !active) {
+              cancelQuickPlacePicker();
+              return;
+            }
+            clearPlacement();
+          }}
         />
       ) : null}
 
@@ -925,4 +980,4 @@ export function InteractiveEditor({
       )}
     </div>
   );
-}
+});

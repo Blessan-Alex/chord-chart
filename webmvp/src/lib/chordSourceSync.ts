@@ -1,7 +1,6 @@
-import {
-  parseChordProSections,
-  sectionsToChordProText,
-} from "./chordProParser";
+import { sectionsToChordProText } from "./chordProParser";
+import { hasComposerLyrics } from "./composerGates";
+import { parseFlexibleLyricSource } from "./flexibleLyricParser";
 import type { Section } from "./types";
 
 export function sectionsSignature(sections: Section[]): string {
@@ -9,7 +8,7 @@ export function sectionsSignature(sections: Section[]): string {
 }
 
 function flushChordSourceToSections(sourceText: string): Section[] {
-  return parseChordProSections(sourceText);
+  return parseFlexibleLyricSource(sourceText);
 }
 
 export function syncSourceTextFromSections(sections: Section[]): string {
@@ -23,8 +22,8 @@ export type FlushResult =
 export function tryFlushChordSource(sourceText: string): FlushResult {
   try {
     const sections = flushChordSourceToSections(sourceText);
-    if (sections.every((section) => section.lines.length === 0)) {
-      return { ok: false, error: "Add at least one lyric line." };
+    if (!hasComposerLyrics(sections)) {
+      return { ok: false, error: "Add a title and at least one lyric line." };
     }
     return { ok: true, sections };
   } catch (error) {

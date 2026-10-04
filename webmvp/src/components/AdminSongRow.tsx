@@ -7,6 +7,7 @@ type AdminSongRowProps = {
   title: string;
   artist: string;
   songKey: Key;
+  isDraft?: boolean;
   onDelete: () => void;
 };
 
@@ -15,6 +16,7 @@ export function AdminSongRow({
   title,
   artist,
   songKey,
+  isDraft = false,
   onDelete,
 }: AdminSongRowProps) {
   const secondary = artist
@@ -24,7 +26,14 @@ export function AdminSongRow({
   return (
     <li className="group flex items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-lf-text-primary">{title}</p>
+        <p className="truncate font-semibold text-lf-text-primary">
+          {title}
+          {isDraft ? (
+            <span className="ml-2 rounded-full bg-lf-bg-muted px-2 py-0.5 text-xs font-medium text-lf-text-secondary">
+              Draft
+            </span>
+          ) : null}
+        </p>
         <p className="truncate text-sm text-lf-text-secondary">{secondary}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">

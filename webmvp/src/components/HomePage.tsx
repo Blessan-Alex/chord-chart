@@ -35,6 +35,7 @@ import { listOwnedPlaylists, listPlaylistsForGroup } from "@/lib/firestore/sessi
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRecentSongs } from "@/lib/hooks/useRecentSongs";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
+import { isMusicianLibraryEntry } from "@/lib/libraryEntryStatus";
 import { collectLibraryArtists, isArtistFilterValid } from "@/lib/libraryArtists";
 import { filterRecentByKnownIds } from "@/lib/recentSongs";
 import { deleteSong, getSongs } from "@/lib/storage";
@@ -139,8 +140,13 @@ export function HomePage() {
     }
   }, [artistFilter, libraryArtists]);
 
+  const publishedEntries = useMemo(
+    () => indexEntries.filter(isMusicianLibraryEntry),
+    [indexEntries],
+  );
+
   const libraryResults = useSongSearch(
-    indexEntries,
+    publishedEntries,
     searchQuery,
     keyFilter || undefined,
     languageFilter || undefined,

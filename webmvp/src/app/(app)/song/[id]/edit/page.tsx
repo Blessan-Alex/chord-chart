@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -11,7 +10,7 @@ import {
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SignInRequired } from "@/components/SignInRequired";
 import { normalizeSections } from "@/lib/chordMarks";
-import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
+import { canPersistComposer } from "@/lib/composerGates";
 import { type Key } from "@/lib/engine";
 import {
   createDraft,
@@ -25,38 +24,7 @@ import {
 import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
 import { getSong, updateSong } from "@/lib/firestore/songs";
 import { useAuth } from "@/lib/hooks/useAuth";
-import type { Section, SongEdit } from "@/lib/types";
-
-function EditDraftActions({
-  busy,
-  onSaveDraft,
-  onPublish,
-}: {
-  busy: boolean;
-  onSaveDraft: () => void;
-  onPublish: () => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={onSaveDraft}
-        className="rounded-[var(--lf-radius-md)] border border-lf-border px-4 py-2 text-sm font-medium text-lf-text-primary hover:bg-lf-bg-muted disabled:opacity-50"
-      >
-        Save draft
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={onPublish}
-        className="rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 py-2 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
-      >
-        Publish
-      </button>
-    </div>
-  );
-}
+import type { Section, SongEdit, SongStatus } from "@/lib/types";
 
 export default function SongEditPage() {
   const params = useParams();
@@ -77,6 +45,11 @@ export default function SongEditPage() {
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+  const [activityTick, setActivityTick] = useState(0);
+  const [songStatus, setSongStatus] = useState<SongStatus>("active");
 
   const loadDraft = useCallback(async () => {
     setLoading(true);
@@ -108,6 +81,7 @@ export default function SongEditPage() {
       }
 
       setDraft(nextDraft);
+      setSongStatus(song?.status ?? "draft");
       setTitle(nextDraft.title);
       setArtist(song?.artist ?? "");
       setTags(song?.tags ?? []);
@@ -143,74 +117,94 @@ export default function SongEditPage() {
     return resolved.sections;
   };
 
-  const saveDraft = async () => {
-    if (!draft) {
-      return;
-    }
+  const persistDraft = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      if (!draft || !user) {
+        return false;
+      }
 
-    const sectionsToSave = resolveSectionsForSave();
-    if (!sectionsToSave) {
-      return;
-    }
+      const sectionsToSave = resolveSectionsForSave();
+      if (!sectionsToSave || !canPersistComposer(title, sectionsToSave)) {
+        return false;
+      }
 
-    setBusy(true);
-    setError(null);
-    setSaveNotice(null);
-    try {
-      await updateDraft(draft.id, {
-        title: title.trim(),
-        originalKey,
-        sections: sectionsToSave,
-        notes: notes.trim() || null,
-      });
+      if (!options.silent) {
+        setBusy(true);
+      } else {
+        setSaveStatus("saving");
+      }
+      setError(null);
 
-      let metaWarning: string | null = null;
       try {
-        await updateSong(songId, {
-          artist: artist.trim(),
-          tags,
+        await updateDraft(draft.id, {
+          title: title.trim(),
+          originalKey,
+          sections: sectionsToSave,
+          notes: notes.trim() || null,
         });
-      } catch (metaErr) {
-        metaWarning =
-          metaErr instanceof Error
-            ? `Draft saved; metadata: ${metaErr.message}`
-            : "Draft saved; artist/tags could not be updated.";
-      }
 
-      await invalidateSongIndexCache();
-      if (metaWarning) {
-        setSaveNotice(metaWarning);
-        setBusy(false);
-        return;
+        try {
+          if (songStatus === "draft") {
+            await updateSong(songId, {
+              artist: artist.trim(),
+              tags,
+              title: title.trim(),
+              sections: sectionsToSave,
+              originalKey,
+            });
+          } else {
+            await updateSong(songId, {
+              artist: artist.trim(),
+              tags,
+            });
+          }
+        } catch {
+          // Song doc sync is best-effort while a songEdit draft is open.
+        }
+
+        await invalidateSongIndexCache();
+        if (options.silent) {
+          setSaveStatus("saved");
+        }
+        return true;
+      } catch (err) {
+        if (!options.silent) {
+          setError(err instanceof Error ? err.message : "Could not save draft.");
+        }
+        setSaveStatus("idle");
+        return false;
+      } finally {
+        if (!options.silent) {
+          setBusy(false);
+        }
       }
-      router.push(`/song/${songId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save draft.");
-      setBusy(false);
+    },
+    [draft, user, title, originalKey, notes, artist, tags, songId, songStatus],
+  );
+
+  useEffect(() => {
+    if (!draft || loading) {
+      return;
     }
-  };
+    const timer = setTimeout(() => {
+      void persistDraft({ silent: true });
+    }, 1600);
+    return () => clearTimeout(timer);
+  }, [draft, loading, title, sections, originalKey, notes, artist, tags, activityTick, persistDraft]);
 
   const handlePublish = async () => {
-    if (!draft) {
+    if (!draft || !user) {
       return;
     }
 
-    const sectionsToSave = resolveSectionsForSave();
-    if (!sectionsToSave) {
+    const ok = await persistDraft();
+    if (!ok) {
       return;
     }
 
     setBusy(true);
     setError(null);
-    setSaveNotice(null);
     try {
-      await updateDraft(draft.id, {
-        title: title.trim(),
-        originalKey,
-        sections: sectionsToSave,
-        notes: notes.trim() || null,
-      });
-
       const song = await getSong(songId);
       let draftToPublish = draft;
       if (song) {
@@ -221,7 +215,7 @@ export default function SongEditPage() {
         }
       }
 
-      await publishDraft(draftToPublish.id, user!.uid, {
+      await publishDraft(draftToPublish.id, user.uid, {
         artist: artist.trim(),
         tags,
       });
@@ -260,12 +254,7 @@ export default function SongEditPage() {
     return (
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 sm:p-6">
         <h1 className="text-2xl font-semibold text-lf-text-primary">Admin only</h1>
-        <p className="text-lf-text-secondary">
-          Only admins can edit songs.
-        </p>
-        <Link href={`/song/${songId}`} className="text-sm text-lf-brand hover:underline">
-          ← Back to song
-        </Link>
+        <p className="text-lf-text-secondary">Only admins can edit songs.</p>
       </main>
     );
   }
@@ -283,35 +272,10 @@ export default function SongEditPage() {
         onCancel={() => setShowDiscard(false)}
       />
 
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 pb-28 sm:p-6 sm:pb-8">
-        <div className="flex items-center justify-between gap-4">
-          <Link
-            href={`/song/${songId}`}
-            className="text-sm text-lf-text-secondary hover:text-lf-text-primary"
-          >
-            ← Back
-          </Link>
-          {draft && (
-            <EditDraftActions
-              busy={busy}
-              onSaveDraft={() => {
-                void saveDraft();
-              }}
-              onPublish={() => {
-                void handlePublish();
-              }}
-            />
-          )}
-        </div>
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 pb-8 sm:p-6">
+        <h1 className="text-2xl font-semibold text-lf-text-primary">Edit song</h1>
 
-        <div>
-          <h1 className="text-2xl font-semibold text-lf-text-primary">Edit song</h1>
-          <p className="mt-1 text-sm text-lf-text-secondary">
-            {EDITOR_EDIT_SUBTITLE}
-          </p>
-        </div>
-
-        {loading && <p className="text-lf-text-tertiary">Loading draft…</p>}
+        {loading && <p className="text-lf-text-tertiary">Loading…</p>}
         {error && (
           <p className="text-sm text-lf-danger" role="alert">
             {error}
@@ -324,73 +288,48 @@ export default function SongEditPage() {
         )}
 
         {!loading && draft && (
-          <div className="flex flex-col gap-4">
-            <AdminSongComposer
-              ref={composerRef}
-              title={title}
-              onTitleChange={setTitle}
-              artist={artist}
-              onArtistChange={setArtist}
-              originalKey={originalKey}
-              onOriginalKeyChange={setOriginalKey}
-              tags={tags}
-              onTagsChange={setTags}
-              sections={sections}
-              onSectionsChange={setSections}
-              notes={notes}
-              onNotesChange={setNotes}
-            />
-          </div>
+          <AdminSongComposer
+            ref={composerRef}
+            title={title}
+            onTitleChange={setTitle}
+            artist={artist}
+            onArtistChange={setArtist}
+            originalKey={originalKey}
+            onOriginalKeyChange={setOriginalKey}
+            tags={tags}
+            onTagsChange={setTags}
+            sections={sections}
+            onSectionsChange={setSections}
+            notes={notes}
+            onNotesChange={setNotes}
+            onComposerActivity={() => setActivityTick((tick) => tick + 1)}
+            actionBar={{
+              onBackToLibrary: () => router.push(`/song/${songId}`),
+              onSaveDraft: () => {
+                void persistDraft().then((ok) => {
+                  if (ok) {
+                    setSaveNotice("Draft saved.");
+                  }
+                });
+              },
+              onPublish: () => {
+                void handlePublish();
+              },
+              busy,
+              saveStatus,
+            }}
+          />
         )}
 
         {!loading && draft && (
-          <div
-            className="fixed inset-x-0 bottom-0 z-20 border-t border-lf-border bg-lf-bg-elevated/95 px-4 py-3 backdrop-blur sm:hidden"
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setShowDiscard(true)}
+            className="self-start text-sm font-medium text-lf-danger hover:underline disabled:opacity-50"
           >
-            <div className="mx-auto flex max-w-5xl flex-col gap-3">
-              <EditDraftActions
-                busy={busy}
-                onSaveDraft={() => {
-                  void saveDraft();
-                }}
-                onPublish={() => {
-                  void handlePublish();
-                }}
-              />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setShowDiscard(true)}
-                className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
-              >
-                Discard draft
-              </button>
-            </div>
-          </div>
-        )}
-
-        {!loading && draft && (
-          <div className="hidden border-t border-lf-border pt-4 sm:block">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setShowDiscard(true)}
-                className="rounded-[var(--lf-radius-md)] border border-lf-danger/30 px-4 py-2 text-sm font-medium text-lf-danger hover:bg-lf-danger-bg disabled:opacity-50"
-              >
-                Discard draft
-              </button>
-              <EditDraftActions
-                busy={busy}
-                onSaveDraft={() => {
-                  void saveDraft();
-                }}
-                onPublish={() => {
-                  void handlePublish();
-                }}
-              />
-            </div>
-          </div>
+            Discard draft
+          </button>
         )}
 
         {!loading && !draft && (

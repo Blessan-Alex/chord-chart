@@ -226,6 +226,7 @@ export default function AdminPage() {
                 title={entry.title}
                 artist={entry.artist ?? ""}
                 songKey={entry.key}
+                isDraft={entry.status === "draft"}
                 onDelete={() =>
                   setPendingDelete({ id: entry.id, title: entry.title })
                 }

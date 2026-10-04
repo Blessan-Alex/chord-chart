@@ -159,7 +159,7 @@ export async function createDraft(
 ): Promise<SongEdit> {
   const firestore = resolveDb(db);
   const song = await getSong(songId, firestore);
-  if (!song || song.status !== "active") {
+  if (!song || song.status === "archived") {
     throw new Error(`Song not found: ${songId}`);
   }
 
@@ -302,6 +302,7 @@ export async function publishDraft(
       sections: serializeSectionsForPublish(edit.sections),
       notes: edit.notes,
       version: edit.version,
+      status: "active",
       ...(extras?.artist !== undefined ? { artist: extras.artist.trim() } : {}),
       ...(extras?.tags !== undefined ? { tags: extras.tags } : {}),
       updatedAt: serverTimestamp(),
@@ -341,6 +342,7 @@ export async function publishDraft(
         originalKey: song.originalKey,
         tags: song.tags,
         sections: song.sections,
+        status: song.status,
         updatedAt: song.updatedAt,
         createdAt: song.createdAt,
       }),

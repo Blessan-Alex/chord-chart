@@ -295,6 +295,20 @@ body.song-performance-page {
   letter-spacing: 0;
 }
 
+.chord-chart[data-view-mode="focus"] .lyric-row,
+.chord-chart[data-view-mode="focus"] .lyric-line-measured {
+  opacity: 0.35;
+}
+
+.chord-chart[data-view-mode="focus"] .chord-row {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.chord-chart[data-view-mode="focus"] .section-label {
+  opacity: 0.5;
+}
+
 .song-page--performance .chord-chart .lyric-line-measured {
   white-space: normal;
   overflow-wrap: break-word;

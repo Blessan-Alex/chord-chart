@@ -483,7 +483,11 @@ export default function SongPage() {
           gesturesEnabled={!autoscroll.active}
           className="mt-2 min-w-0 sm:mt-4"
         >
-          <div className="chord-chart" data-chart-theme={chartTheme}>
+          <div
+            className="chord-chart"
+            data-chart-theme={chartTheme}
+            data-view-mode={viewMode}
+          >
             {song.sections.map((section, si) => (
               <div key={`${section.label}-${si}`}>
                 <div className="section-label">{section.label}</div>

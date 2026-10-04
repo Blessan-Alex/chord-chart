@@ -15,7 +15,7 @@ import type { Key } from "@/lib/engine";
 import { rankSongIndexResults } from "@/lib/songSearchRank";
 import { getDb } from "@/lib/firebase";
 import { buildSongSearchText } from "@/lib/songSearchText";
-import type { Section, SongIndexChunk, SongIndexEntry } from "@/lib/types";
+import type { Section, SongIndexChunk, SongIndexEntry, SongStatus } from "@/lib/types";
 
 export const SONG_INDEX_CHUNK_IDS = [
   "chunk0",
@@ -95,6 +95,7 @@ export function songToIndexEntry(song: {
   originalKey: Key;
   tags?: string[];
   sections?: Section[];
+  status?: SongStatus;
   updatedAt?: Timestamp;
   createdAt?: Timestamp;
 }): SongIndexEntry {
@@ -107,12 +108,13 @@ export function songToIndexEntry(song: {
     artist,
     key: song.originalKey,
     tags,
+    status: song.status ?? "active",
     updatedAtMs: resolveUpdatedAtMs(song.updatedAt, song.createdAt),
     searchText: buildSongSearchText({
       title: song.title,
       artist,
       tags,
-      sections: song.sections,
+      sections: song.status === "draft" ? undefined : song.sections,
     }),
   };
 }

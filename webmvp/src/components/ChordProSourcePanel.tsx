@@ -2,10 +2,8 @@
 
 import { useMemo } from "react";
 
-import {
-  countChordsInSections,
-  parseChordProSections,
-} from "@/lib/chordProParser";
+import { countChordsInSections } from "@/lib/chordProParser";
+import { parseFlexibleLyricSource } from "@/lib/flexibleLyricParser";
 import { EDITOR_SOURCE_HEADING, EDITOR_SOURCE_HINT } from "@/lib/editorLabels";
 
 type ChordProSourcePanelProps = {
@@ -15,6 +13,7 @@ type ChordProSourcePanelProps = {
   applyError?: string | null;
   large?: boolean;
   applyButtonLabel?: string;
+  applyDisabled?: boolean;
 };
 
 export function ChordProSourcePanel({
@@ -24,10 +23,11 @@ export function ChordProSourcePanel({
   applyError = null,
   large = false,
   applyButtonLabel = "Apply to chart",
+  applyDisabled = false,
 }: ChordProSourcePanelProps) {
   const preview = useMemo(() => {
     try {
-      const parsed = parseChordProSections(sourceText);
+      const parsed = parseFlexibleLyricSource(sourceText);
       return {
         lineCount: parsed.reduce((n, s) => n + s.lines.length, 0),
         chordCount: countChordsInSections(parsed),
@@ -63,7 +63,7 @@ export function ChordProSourcePanel({
             ? "min-h-[420px] w-full rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-page px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
             : "min-h-[280px] w-full rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-page px-4 py-3 font-mono text-sm leading-relaxed text-lf-text-primary focus:border-lf-brand focus:outline-none focus:ring-2 focus:ring-lf-brand/20"
         }
-        placeholder={`{Verse 1}\n[F#m]Nin mukham kaanman nadha en [E]Ashaya [D]\n[F#m]Nin ishttam cheyyvan ennum en [E]vancha [D]`}
+        placeholder={`Amazing grace how sweet the sound\n\nThat saved a wretch like me`}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -78,7 +78,7 @@ export function ChordProSourcePanel({
         </p>
         <button
           type="button"
-          disabled={Boolean(preview.error) || preview.lineCount === 0}
+          disabled={applyDisabled || Boolean(preview.error) || preview.lineCount === 0}
           onClick={onApply}
           className="min-h-10 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-4 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-50"
         >

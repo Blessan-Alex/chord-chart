@@ -32,9 +32,9 @@ export type Song = {
   sections: Section[];
 };
 
-export type SongStatus = "active" | "archived";
+export type SongStatus = "active" | "draft" | "archived";
 
-export type SongViewMode = "chords" | "numbers";
+export type SongViewMode = "chords" | "numbers" | "focus";
 
 /** Denormalized search row embedded in `songIndex` chunks. */
 export type SongIndexEntry = {
@@ -43,6 +43,8 @@ export type SongIndexEntry = {
   artist: string;
   key: Key;
   tags: string[];
+  /** Omitted on legacy index rows — treated as active. */
+  status?: SongStatus;
   /** Lowercase normalized text for client-side search (title + artist + tags + lyrics). */
   searchText?: string;
   /** Epoch ms from Firestore updatedAt (fallback createdAt) for library sort. */
@@ -83,6 +85,7 @@ export type CreateSongInput = {
   title: string;
   originalKey: Key;
   sections: Section[];
+  status?: SongStatus;
   artist?: string;
   tempo?: number | null;
   tags?: string[];

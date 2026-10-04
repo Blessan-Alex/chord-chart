@@ -96,6 +96,12 @@ function ViewModeSegment({
       >
         Numbers
       </SegmentButton>
+      <SegmentButton
+        active={viewMode === "focus"}
+        onClick={() => onViewModeChange("focus")}
+      >
+        Focus
+      </SegmentButton>
     </div>
   );
 }

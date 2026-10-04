@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   AdminSongComposer,
   type AdminSongComposerHandle,
 } from "@/components/AdminSongComposer";
 import { SignInRequired } from "@/components/SignInRequired";
-import { EDITOR_EDIT_SUBTITLE } from "@/lib/editorLabels";
+import { canPersistComposer } from "@/lib/composerGates";
 import type { Key } from "@/lib/engine";
 import { invalidateSongIndexCache } from "@/lib/firestore/songIndexCache";
 import { createSong } from "@/lib/firestore/songs";
@@ -29,7 +29,57 @@ export default function ImportPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [sections, setSections] = useState<Section[]>(EMPTY_SECTIONS);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [activityTick, setActivityTick] = useState(0);
+
+  useEffect(() => {
+    if (!user || !isAdmin || creating) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        const resolved = composerRef.current?.getSectionsForSave();
+        if (!resolved?.ok || !canPersistComposer(title, resolved.sections)) {
+          return;
+        }
+        setCreating(true);
+        setSaveError(null);
+        try {
+          const created = await createSong(
+            {
+              title: title.trim(),
+              artist: artist.trim(),
+              originalKey,
+              sections: resolved.sections,
+              tags,
+              status: "draft",
+            },
+            user.uid,
+          );
+          await invalidateSongIndexCache();
+          router.replace(`/song/${created.id}/edit`);
+        } catch (error) {
+          setSaveError(
+            error instanceof Error ? error.message : "Could not save draft.",
+          );
+          setCreating(false);
+        }
+      })();
+    }, 1800);
+
+    return () => clearTimeout(timer);
+  }, [
+    user,
+    isAdmin,
+    title,
+    artist,
+    originalKey,
+    tags,
+    creating,
+    router,
+    activityTick,
+  ]);
 
   if (loading) {
     return (
@@ -55,46 +105,13 @@ export default function ImportPage() {
     );
   }
 
-  const handleCreate = async (finalSections: Section[]) => {
-    if (!user || !isAdmin) {
-      return;
-    }
-
-    setSaveError(null);
-    setSaving(true);
-
-    try {
-      const created = await createSong(
-        {
-          title: title.trim(),
-          artist: artist.trim(),
-          originalKey,
-          sections: finalSections,
-          tags,
-        },
-        user.uid,
-      );
-      await invalidateSongIndexCache();
-      router.push(`/song/${created.id}`);
-    } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : "Could not save song.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <SignInRequired>
       <main className="mx-auto flex w-full max-w-5xl flex-col p-4 pb-12 sm:p-8">
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-2xl font-semibold text-lf-text-primary sm:text-3xl">
             Add song
           </h1>
-          <p className="mt-1 text-sm text-lf-text-secondary">
-            {EDITOR_EDIT_SUBTITLE}
-          </p>
         </div>
 
         {saveError && (
@@ -102,6 +119,10 @@ export default function ImportPage() {
             {saveError}
           </p>
         )}
+
+        {creating ? (
+          <p className="text-sm text-lf-text-secondary">Saving draft…</p>
+        ) : null}
 
         <AdminSongComposer
           ref={composerRef}
@@ -116,29 +137,10 @@ export default function ImportPage() {
           sections={sections}
           onSectionsChange={setSections}
           showLanguageTags
-          footer={
-            <div className="flex justify-end border-t border-lf-border pt-4">
-              <button
-                type="button"
-                disabled={!title.trim() || saving}
-                onClick={() => {
-                  const resolved = composerRef.current?.getSectionsForSave();
-                  if (!resolved || !resolved.ok) {
-                    setSaveError(
-                      resolved && !resolved.ok
-                        ? resolved.error
-                        : "Could not read chart data.",
-                    );
-                    return;
-                  }
-                  void handleCreate(resolved.sections);
-                }}
-                className="min-h-12 rounded-[var(--lf-radius-md)] bg-lf-action-primary px-6 text-sm font-semibold text-lf-text-inverse hover:bg-lf-action-primary-hover disabled:opacity-40"
-              >
-                {saving ? "Saving…" : "Create song"}
-              </button>
-            </div>
-          }
+          onComposerActivity={() => setActivityTick((tick) => tick + 1)}
+          actionBar={{
+            onBackToLibrary: () => router.push("/"),
+          }}
         />
       </main>
     </SignInRequired>

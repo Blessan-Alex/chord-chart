@@ -23,11 +23,12 @@ service cloud.firestore {
         && request.resource.data.originalKey is string
         && validKey(request.resource.data.originalKey)
         && request.resource.data.sections is list
-        && request.resource.data.status in ['active', 'archived'];
+        && request.resource.data.status in ['active', 'archived', 'draft'];
     }
 
     match /songs/{songId} {
-      allow read: if resource.data.status == 'active';
+      allow read: if resource.data.status == 'active'
+        || (isAdmin() && resource.data.status in ['draft', 'archived']);
 
       allow create: if isAdmin() && validSongShape();
       allow update: if isAdmin() && validSongShape();
