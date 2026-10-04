@@ -314,6 +314,12 @@ export const InteractiveEditor = forwardRef<
     setChordError(null);
   }, []);
 
+  const disarmQuickPlace = useCallback(() => {
+    setQuickChord(null);
+    setQuickPickOpen(false);
+    setChordError(null);
+  }, []);
+
   const openQuickPlacePicker = useCallback(() => {
     const { sections: next, changed } = rewindPendingGapSpacerInto(sections);
     if (changed) {
@@ -722,7 +728,7 @@ export const InteractiveEditor = forwardRef<
           return;
         }
         if (!active && quickChord) {
-          setQuickChord(null);
+          disarmQuickPlace();
           return;
         }
       }
@@ -749,6 +755,7 @@ export const InteractiveEditor = forwardRef<
     quickChord,
     quickPickOpen,
     cancelQuickPlacePicker,
+    disarmQuickPlace,
   ]);
 
   const palette = getDiatonicChords(originalKey);
@@ -824,7 +831,8 @@ export const InteractiveEditor = forwardRef<
             canUndo={history.length > 0}
             onUndo={undo}
             quickChord={quickChord}
-            onQuickPlaceClick={openQuickPlacePicker}
+            onQuickPlacePickChord={openQuickPlacePicker}
+            onQuickPlaceTurnOff={disarmQuickPlace}
           />
         )}
 

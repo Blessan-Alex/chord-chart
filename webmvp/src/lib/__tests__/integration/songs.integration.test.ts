@@ -6,8 +6,8 @@ import { doc, getDoc, type Firestore } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  archiveSong,
   createSong,
+  deleteSongPermanently,
   getSong,
   listSongs,
 } from "@/lib/firestore/songs";
@@ -33,7 +33,7 @@ describe.skipIf(!emulatorEnabled).sequential("songs integration", () => {
     await testEnv.clearFirestore();
   });
 
-  it("creates, reads, lists, and archives a song", async () => {
+  it("creates, reads, lists, and permanently deletes a song", async () => {
     const adminDb = testEnv
       .authenticatedContext("admin-uid", { admin: true })
       .firestore() as unknown as Firestore;
@@ -62,11 +62,13 @@ describe.skipIf(!emulatorEnabled).sequential("songs integration", () => {
     const page = await listSongs({ status: "active" }, adminDb);
     expect(page.songs.map((song) => song.id)).toContain("test-song");
 
-    await archiveSong("test-song", adminDb);
+    await deleteSongPermanently("test-song", adminDb);
 
-    await expect(
-      getDoc(doc(musicianDb, "songs", "test-song")),
-    ).rejects.toThrow();
+    const afterDelete = await getSong("test-song", musicianDb);
+    expect(afterDelete).toBeNull();
+
+    const adminRead = await getDoc(doc(adminDb, "songs", "test-song"));
+    expect(adminRead.exists()).toBe(false);
   });
 
   it("denies create for non-admin users", async () => {

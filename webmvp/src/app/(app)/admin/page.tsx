@@ -17,7 +17,7 @@ import {
   peekFullSongIndexCache,
   subscribeSongIndexUpdates,
 } from "@/lib/firestore/songIndexCache";
-import { archiveSong } from "@/lib/firestore/songs";
+import { deleteSongPermanently } from "@/lib/firestore/songs";
 import { formatError } from "@/lib/formatError";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useSongSearch } from "@/lib/hooks/useSongSearch";
@@ -125,7 +125,7 @@ export default function AdminPage() {
       return;
     }
     try {
-      await archiveSong(pendingDelete.id);
+      await deleteSongPermanently(pendingDelete.id);
       await invalidateSongIndexCache();
       setEntries((prev) => prev.filter((entry) => entry.id !== pendingDelete.id));
       setStats((prev) => ({
@@ -151,7 +151,7 @@ export default function AdminPage() {
           title="Delete song?"
           message={
             pendingDelete
-              ? `"${pendingDelete.title}" will be removed from the library.`
+              ? `"${pendingDelete.title}" will be permanently deleted from the library and removed from every playlist. This cannot be undone.`
               : ""
           }
           onConfirm={() => {

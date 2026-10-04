@@ -21,7 +21,6 @@ import type { Key } from "@/lib/engine";
 import { getDb } from "@/lib/firebase";
 import { trackReads } from "@/lib/readCounter";
 import {
-  removeSongIndexEntry,
   songToIndexEntry,
   upsertSongIndexEntry,
 } from "@/lib/firestore/songIndex";
@@ -217,15 +216,13 @@ export async function updateSong(
   }
 }
 
-/** Soft-delete — keeps session references intact. */
+/** @deprecated Use {@link deleteSongPermanently} — admin delete is a hard delete. */
 export async function archiveSong(songId: string, db?: Firestore): Promise<void> {
-  const firestore = resolveDb(db);
-  await updateDoc(doc(firestore, SONGS_COLLECTION, songId), {
-    status: "archived",
-    updatedAt: serverTimestamp(),
-  });
-  await removeSongIndexEntry(songId, firestore);
+  const { deleteSongPermanently } = await import("@/lib/firestore/deleteSongPermanently");
+  await deleteSongPermanently(songId, db);
 }
+
+export { deleteSongPermanently } from "@/lib/firestore/deleteSongPermanently";
 
 export type ListSongsOptions = {
   status?: SongStatus;
