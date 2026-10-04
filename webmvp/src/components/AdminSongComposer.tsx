@@ -276,6 +276,7 @@ export const AdminSongComposer = forwardRef<
               layout="stacked"
               sections={sections}
               originalKey={originalKey}
+              languageTags={tags}
               onSectionsChange={handleSectionsChange}
             />
           </section>

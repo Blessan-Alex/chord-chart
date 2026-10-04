@@ -85,7 +85,11 @@ function whitespaceRunAt(
 }
 
 /** Where a click/caret at `offset` should place a chord. */
-export function slotFromCaret(lyrics: string, offset: number): PlacementSlot {
+export function slotFromCaret(
+  lyrics: string,
+  offset: number,
+  locale = "en",
+): PlacementSlot {
   const len = lyrics.length;
   const clamped = Math.max(0, Math.min(offset, len));
 
@@ -101,7 +105,7 @@ export function slotFromCaret(lyrics: string, offset: number): PlacementSlot {
     return { kind: "gap", index: clamped };
   }
 
-  const { start, end } = graphemeRangeAt(lyrics, clamped);
+  const { start, end } = graphemeRangeAt(lyrics, clamped, locale);
   return { kind: "char", start, end };
 }
 
@@ -110,9 +114,10 @@ export function slotFromSelection(
   lyrics: string,
   start: number,
   end: number,
+  locale = "en",
 ): PlacementSlot {
   if (end <= start) {
-    return slotFromCaret(lyrics, start);
+    return slotFromCaret(lyrics, start, locale);
   }
 
   const selected = lyrics.slice(start, end);

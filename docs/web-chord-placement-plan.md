@@ -1,6 +1,6 @@
 # Precise chord placement (web) — design + shipped behavior
 
-**Status:** Implemented in `webmvp`. This document describes the **current** product and code (not a future sketch). For mobile parity, see [`mobile-chord-placement-parity-plan.md`](mobile-chord-placement-parity-plan.md).
+**Status:** Implemented in `webmvp`. This document describes the **current** product and code (not a future sketch). For mobile parity, see [`mobile-chord-placement-parity-plan.md`](mobile-chord-placement-parity-plan.md). Touch/iPad placement uses **lyric scrub** — see [`web-lyric-scrub-placement-plan.md`](web-lyric-scrub-placement-plan.md).
 
 **Canonical logic:** `webmvp/src/lib/chordPlacement.ts` (44 unit tests in `chordPlacement.test.ts`).
 

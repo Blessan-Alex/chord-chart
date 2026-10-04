@@ -36,6 +36,10 @@ import {
   EDITOR_VISUAL_HINT_TOUCH,
 } from "@/lib/editorLabels";
 import { getDiatonicChords, isValidChord, type Key } from "@/lib/engine";
+import {
+  graphemeLocaleFromTags,
+  lyricScriptFromTags,
+} from "@/lib/localeFromLanguageTag";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useTouchEditor } from "@/lib/hooks/useTouchEditor";
 import {
@@ -60,6 +64,8 @@ type InteractiveEditorProps = {
   onSave?: (sections: Section[]) => void;
   onSectionsChange?: (sections: Section[]) => void;
   originalKey: Key;
+  /** Song tags — used for grapheme locale and lyric fonts. */
+  languageTags?: string[];
   /** Stacked: visual fine-tuner only (source panel lives in parent). */
   layout?: "tabs" | "stacked";
 };
@@ -135,8 +141,17 @@ export function InteractiveEditor({
   onSave,
   onSectionsChange,
   originalKey,
+  languageTags = [],
   layout = "tabs",
 }: InteractiveEditorProps) {
+  const graphemeLocale = useMemo(
+    () => graphemeLocaleFromTags(languageTags),
+    [languageTags],
+  );
+  const lyricScript = useMemo(
+    () => lyricScriptFromTags(languageTags),
+    [languageTags],
+  );
   const [sections, setSections] = useState<Section[]>(initialSections);
   const [editorMode, setEditorMode] = useState<EditorMode>("visual");
   const isStacked = layout === "stacked";
@@ -638,7 +653,7 @@ export function InteractiveEditor({
       openSlot(
         indices.sIndex,
         indices.lIndex,
-        slotFromSelection(line.lyrics, range.start, range.end),
+        slotFromSelection(line.lyrics, range.start, range.end, graphemeLocale),
       );
       return true;
     }
@@ -648,9 +663,13 @@ export function InteractiveEditor({
       return false;
     }
 
-    openSlot(indices.sIndex, indices.lIndex, slotFromCaret(line.lyrics, offset));
+    openSlot(
+      indices.sIndex,
+      indices.lIndex,
+      slotFromCaret(line.lyrics, offset, graphemeLocale),
+    );
     return true;
-  }, [sections, openSlot]);
+  }, [sections, openSlot, graphemeLocale]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -808,7 +827,10 @@ export function InteractiveEditor({
       ) : null}
 
       {showVisual && (
-        <div className="chord-chart chord-chart-editor rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-4 shadow-sm">
+        <div
+          className="chord-chart chord-chart-editor rounded-[var(--lf-radius-lg)] border border-lf-border bg-lf-bg-elevated p-4 shadow-sm sm:p-5"
+          data-lyric-script={lyricScript}
+        >
           {sections.map((section, sIndex) => (
             <div key={`s-${sIndex}`} className="mb-6 last:mb-0">
               <div className="section-label">{`{${section.label}}`}</div>
@@ -820,6 +842,8 @@ export function InteractiveEditor({
                     originalKey={originalKey}
                     sectionIndex={sIndex}
                     lineIndex={lIndex}
+                    graphemeLocale={graphemeLocale}
+                    lyricScript={lyricScript}
                     activeSlot={
                       active?.sIndex === sIndex && active.lIndex === lIndex
                         ? active.slot
@@ -830,6 +854,7 @@ export function InteractiveEditor({
                         ? active.currentVal
                         : ""
                     }
+                    quickPlaceChord={quickChord}
                     onPlaceSlot={(slot) => openSlot(sIndex, lIndex, slot)}
                     onChordClick={(mark) => beginChordEdit(sIndex, lIndex, mark)}
                   />

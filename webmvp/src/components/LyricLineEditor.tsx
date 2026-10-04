@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 import { ChordRow } from "@/components/ChordRow";
 import { createChordMark } from "@/lib/chordMarks";
@@ -10,6 +17,7 @@ import {
   gapZonesForLine,
   gapMeasurementIndices,
   slotFromCaret,
+  slotFromSelection,
   slotPosition,
   type PlacementSlot,
 } from "@/lib/chordPlacement";
@@ -18,14 +26,14 @@ import {
   EMPTY_CHORD_INDICES,
   useLyricChordOffsets,
 } from "@/lib/hooks/useLyricChordOffsets";
-import { useTouchEditor } from "@/lib/hooks/useTouchEditor";
+import { useLyricCaretScrub } from "@/lib/hooks/useLyricCaretScrub";
+import { usePreferLyricScrub } from "@/lib/hooks/usePreferLyricScrub";
 import {
   lyricChordStarts,
   lyricChordsSignature,
   normalizeLyricChords,
 } from "@/lib/lyricChords";
 import {
-  collapseSelectionToWord,
   getFocusOffsetInElement,
   getSelectionRangeInElement,
 } from "@/lib/hooks/useTextSelection";
@@ -54,9 +62,13 @@ type LyricLineEditorProps = {
   originalKey: Key;
   sectionIndex: number;
   lineIndex: number;
+  graphemeLocale?: string;
+  lyricScript?: string;
   /** Slot currently being placed on this line, if any. */
   activeSlot?: PlacementSlot | null;
   pendingChord?: string;
+  /** When quick place is armed, shown in the scrub preview bubble. */
+  quickPlaceChord?: string | null;
   onPlaceSlot: (slot: PlacementSlot) => void;
   onChordClick: (mark: ChordMark) => void;
 };
@@ -91,14 +103,18 @@ export function LyricLineEditor({
   originalKey,
   sectionIndex,
   lineIndex,
+  graphemeLocale = "en",
+  lyricScript = "latin",
   activeSlot,
   pendingChord = "",
+  quickPlaceChord = null,
   onPlaceSlot,
   onChordClick,
 }: LyricLineEditorProps) {
   const lyricRef = useRef<HTMLDivElement>(null);
   const onPlaceSlotRef = useRef(onPlaceSlot);
-  const touchEditor = useTouchEditor();
+  const preferScrub = usePreferLyricScrub();
+  const [keyboardCaret, setKeyboardCaret] = useState<number | null>(null);
   const chordsSignature = lyricChordsSignature(line.chords);
   const normalizedChords = useMemo(
     () => normalizeLyricChords(line.chords),
@@ -118,17 +134,42 @@ export function LyricLineEditor({
       ? { start: charStart, end: charEnd }
       : null;
 
+  const handleScrubCommit = useCallback(
+    (caretIndex: number) => {
+      onPlaceSlotRef.current(
+        slotFromCaret(line.lyrics, caretIndex, graphemeLocale),
+      );
+    },
+    [line.lyrics, graphemeLocale],
+  );
+
+  const { scrubIndex, isScrubbing, scrubHandlers } = useLyricCaretScrub({
+    lyrics: line.lyrics,
+    enabled: preferScrub,
+    onCommit: handleScrubCommit,
+  });
+
+  const previewCaretIndex =
+    scrubIndex ?? keyboardCaret;
+
   const extraIndices = useMemo(() => {
     const indices = gapMeasurementIndices(line);
     if (activeSlot) {
       const caret = gapCaretIndex(line, activeSlot);
       indices.push(caret ?? slotPosition(activeSlot));
     }
+    if (previewCaretIndex !== null) {
+      indices.push(previewCaretIndex);
+    }
     return indices.length > 0 ? indices : EMPTY_CHORD_INDICES;
-  }, [line, activeSlot]);
+  }, [line, activeSlot, previewCaretIndex]);
 
   const layoutKey =
-    charStart !== undefined ? `${charStart}-${charEnd ?? charStart}` : "";
+    charStart !== undefined
+      ? `${charStart}-${charEnd ?? charStart}`
+      : previewCaretIndex !== null
+        ? `scrub-${previewCaretIndex}`
+        : "";
 
   const chordOffsets = useLyricChordOffsets(
     lyricRef,
@@ -165,6 +206,16 @@ export function LyricLineEditor({
   }, [onPlaceSlot]);
 
   useEffect(() => {
+    if (isScrubbing) {
+      setKeyboardCaret(null);
+    }
+  }, [isScrubbing]);
+
+  useEffect(() => {
+    if (preferScrub) {
+      return;
+    }
+
     const element = lyricRef.current;
     if (!element) {
       return;
@@ -178,21 +229,7 @@ export function LyricLineEditor({
         return;
       }
 
-      let { start, end } = range;
-
-      if (touchEditor) {
-        const selectedLength = end - start;
-        const isWideSelection = selectedLength >= line.lyrics.length * 0.6;
-        if (isWideSelection) {
-          const focusOffset = getFocusOffsetInElement(element);
-          ({ start, end } = collapseSelectionToWord(
-            line.lyrics,
-            start,
-            end,
-            focusOffset ?? undefined,
-          ));
-        }
-      }
+      const { start, end } = range;
 
       if (end <= start) {
         return;
@@ -203,17 +240,18 @@ export function LyricLineEditor({
         return;
       }
 
-      onPlaceSlotRef.current({ kind: "char", start, end });
+      onPlaceSlotRef.current(
+        slotFromSelection(line.lyrics, start, end, graphemeLocale),
+      );
     };
 
     const scheduleNotify = () => {
       if (debounce) {
         clearTimeout(debounce);
       }
-      debounce = setTimeout(notifySelection, touchEditor ? 150 : 0);
+      debounce = setTimeout(notifySelection, 0);
     };
 
-    /** Collapsed caret / tap: resolve to a char or gap slot. */
     const placeAtCaret = () => {
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed) {
@@ -225,28 +263,8 @@ export function LyricLineEditor({
         return;
       }
 
-      onPlaceSlotRef.current(slotFromCaret(line.lyrics, offset));
+      onPlaceSlotRef.current(slotFromCaret(line.lyrics, offset, graphemeLocale));
     };
-
-    if (touchEditor) {
-      const handleSelectionChange = () => {
-        scheduleNotify();
-      };
-      const handleTouchEnd = () => {
-        setTimeout(placeAtCaret, 80);
-      };
-
-      document.addEventListener("selectionchange", handleSelectionChange);
-      element.addEventListener("touchend", handleTouchEnd);
-
-      return () => {
-        document.removeEventListener("selectionchange", handleSelectionChange);
-        element.removeEventListener("touchend", handleTouchEnd);
-        if (debounce) {
-          clearTimeout(debounce);
-        }
-      };
-    }
 
     const handleMouseUp = () => {
       scheduleNotify();
@@ -264,9 +282,44 @@ export function LyricLineEditor({
         clearTimeout(debounce);
       }
     };
-  }, [touchEditor, line.lyrics]);
+  }, [preferScrub, line.lyrics, graphemeLocale]);
+
+  const handleLyricKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (!preferScrub) {
+        return;
+      }
+
+      const max = line.lyrics.length;
+      const current = previewCaretIndex ?? 0;
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setKeyboardCaret(Math.max(0, current - 1));
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setKeyboardCaret(Math.min(max, current + 1));
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleScrubCommit(current);
+        setKeyboardCaret(null);
+        return;
+      }
+      if (event.key === "Escape") {
+        setKeyboardCaret(null);
+      }
+    },
+    [preferScrub, line.lyrics.length, previewCaretIndex, handleScrubCommit],
+  );
 
   const activeGapLeft = useMemo(() => {
+    if (previewCaretIndex !== null) {
+      return chordOffsets[previewCaretIndex];
+    }
     if (!activeSlot) {
       return undefined;
     }
@@ -275,7 +328,22 @@ export function LyricLineEditor({
       return undefined;
     }
     return chordOffsets[anchor];
-  }, [activeSlot, chordOffsets, line]);
+  }, [activeSlot, chordOffsets, line, previewCaretIndex]);
+
+  const scrubPreviewLabel =
+    pendingChord.trim() || quickPlaceChord?.trim() || "+";
+
+  const showScrubPreview = isScrubbing || keyboardCaret !== null;
+
+  const lyricRowClass = [
+    "lyric-row lyric-editor-line lyric-line-measured whitespace-pre px-1 py-0.5",
+    preferScrub
+      ? "lyric-scrub-surface cursor-grab hover:bg-lf-bg-muted/40"
+      : "cursor-text hover:bg-lf-bg-muted/40",
+    isScrubbing ? "lyric-scrub-surface--active" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="chord-line relative mb-3">
@@ -291,20 +359,34 @@ export function LyricLineEditor({
         onChordClick={onChordClick}
       />
 
-      <div className="relative">
+      <div className="relative min-h-12">
         <div
           ref={lyricRef}
           data-section-index={sectionIndex}
           data-line-index={lineIndex}
-          className="lyric-row lyric-editor-line lyric-line-measured cursor-text whitespace-pre px-1 py-0.5 hover:bg-lf-bg-muted/40"
+          data-lyric-script={lyricScript}
+          className={lyricRowClass}
+          tabIndex={preferScrub ? 0 : undefined}
+          {...(preferScrub ? scrubHandlers : {})}
+          onKeyDown={handleLyricKeyDown}
+          role={preferScrub ? "slider" : undefined}
+          aria-label={
+            preferScrub
+              ? `Place chord on line ${lineIndex + 1}: drag or use arrow keys, then Enter`
+              : undefined
+          }
+          aria-valuemin={preferScrub ? 0 : undefined}
+          aria-valuemax={preferScrub ? line.lyrics.length : undefined}
+          aria-valuenow={
+            preferScrub && previewCaretIndex !== null ? previewCaretIndex : undefined
+          }
         >
           {charRange
             ? renderLyricsWithTarget(line.lyrics, charRange)
-            : line.lyrics}
+            : line.lyrics || (preferScrub ? "\u00a0" : "")}
         </div>
 
-        {/* Overlay is a sibling with no text nodes so lyric measurement stays exact. */}
-        <div className="lyric-gap-layer pointer-events-none absolute inset-0">
+        <div className="lyric-gap-layer pointer-events-none absolute inset-0 min-h-12">
           {gapZones.map((zone) => {
             const left = chordOffsets[zone.index];
             if (left === undefined) {
@@ -312,8 +394,6 @@ export function LyricLineEditor({
             }
 
             const right = chordOffsets[zone.endIndex] ?? left;
-            // Zones stay inside the whitespace they represent: widening them would
-            // steal the neighbouring glyph's own pixels and cost letter precision.
             const runWidth = Math.max(right - left, 0);
             let zoneLeft = left;
             let zoneWidth = runWidth;
@@ -336,11 +416,12 @@ export function LyricLineEditor({
               <button
                 key={`gap-${zone.index}`}
                 type="button"
+                tabIndex={0}
                 aria-label={describeSlot(line, { kind: "gap", index: zone.index })}
                 aria-pressed={isActive}
-                className={`lyric-gap-zone pointer-events-auto${
-                  isActive ? " lyric-gap-zone--active" : ""
-                }`}
+                className={`lyric-gap-zone${
+                  preferScrub ? " lyric-gap-zone--touch-keyboard" : " pointer-events-auto"
+                }${isActive ? " lyric-gap-zone--active" : ""}`}
                 style={{ left: `${zoneLeft}px`, width: `${zoneWidth}px` }}
                 onClick={() => onPlaceSlot({ kind: "gap", index: zone.index })}
               />
@@ -349,10 +430,22 @@ export function LyricLineEditor({
 
           {activeGapLeft !== undefined ? (
             <span
-              className="lyric-gap-caret"
+              className={
+                showScrubPreview ? "lyric-scrub-caret" : "lyric-gap-caret"
+              }
               style={{ left: `${activeGapLeft}px` }}
               aria-hidden
             />
+          ) : null}
+
+          {showScrubPreview && activeGapLeft !== undefined ? (
+            <span
+              className="lyric-scrub-preview"
+              style={{ left: `${activeGapLeft}px` }}
+              aria-hidden
+            >
+              {scrubPreviewLabel}
+            </span>
           ) : null}
         </div>
       </div>

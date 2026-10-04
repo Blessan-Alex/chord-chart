@@ -11,6 +11,6 @@ export const EDITOR_VISUAL_HEADING = "Place chords";
 export const EDITOR_VISUAL_HINT =
   "Click a syllable, a gap between words, or the end of a line — then pick a chord. Press / to open the picker, Shift+Enter to place and jump to the next spot.";
 export const EDITOR_VISUAL_HINT_TOUCH =
-  "Tap a syllable, the gap between words, or the end of a line — the chord picker opens at the bottom. Tap the same gap again to fit another chord in it.";
+  "Press and drag along a lyric line to position the caret (like iOS text scrubbing), then release to choose that spot. Turn on Quick place to stamp the same chord on each release. Gap taps on desktop; drag works on letters, spaces, and line ends.";
 export const EDITOR_EDIT_SUBTITLE =
   "Enter song details and paste chord source, then place chords on the lyrics.";

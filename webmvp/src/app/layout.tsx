@@ -1,5 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Lora, Noto_Sans_Devanagari, Noto_Sans_Malayalam } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Lora,
+  Noto_Sans_Devanagari,
+  Noto_Sans_Malayalam,
+  Noto_Sans_Tamil,
+  Noto_Sans_Telugu,
+} from "next/font/google";
 
 import { ClientProviders } from "@/components/ClientProviders";
 import { themeInitScript } from "@/lib/theme";
@@ -34,6 +42,18 @@ const notoDevanagari = Noto_Sans_Devanagari({
   weight: ["400", "500", "600", "700"],
 });
 
+const notoTamil = Noto_Sans_Tamil({
+  variable: "--font-noto-tamil",
+  subsets: ["tamil"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const notoTelugu = Noto_Sans_Telugu({
+  variable: "--font-noto-telugu",
+  subsets: ["telugu"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "LF Chords",
   description: "Worship chord charts with transpose and playlists",
@@ -61,7 +81,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} ${notoMalayalam.variable} ${notoDevanagari.variable} min-h-screen overflow-x-hidden antialiased pt-[env(safe-area-inset-top)] pr-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] pl-[max(0px,env(safe-area-inset-left))]`}
+        className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} ${notoMalayalam.variable} ${notoDevanagari.variable} ${notoTamil.variable} ${notoTelugu.variable} min-h-screen overflow-x-hidden antialiased pt-[env(safe-area-inset-top)] pr-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] pl-[max(0px,env(safe-area-inset-left))]`}
       >
         <ClientProviders>{children}</ClientProviders>
       </body>

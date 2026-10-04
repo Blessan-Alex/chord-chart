@@ -215,11 +215,76 @@ body.song-performance-page {
 .chord-chart-editor .lyric-line-measured,
 .chord-chart-editor .lyric-editor-line {
   font-family: var(--font-geist-mono), var(--font-noto-malayalam),
-    var(--font-noto-devanagari), "Noto Sans Malayalam", "Noto Sans Devanagari",
-    "Courier New", Courier, monospace;
+    var(--font-noto-devanagari), var(--font-noto-tamil), var(--font-noto-telugu),
+    "Noto Sans Malayalam", "Noto Sans Devanagari", "Noto Sans Tamil",
+    "Noto Sans Telugu", "Courier New", Courier, monospace;
   font-size: 1em;
   letter-spacing: 0;
   white-space: pre;
+}
+
+.chord-chart-editor[data-lyric-script="malayalam"] .lyric-line-measured,
+.chord-chart-editor[data-lyric-script="malayalam"] .lyric-editor-line {
+  font-family: var(--font-noto-malayalam), var(--font-geist-mono), monospace;
+}
+
+.chord-chart-editor[data-lyric-script="devanagari"] .lyric-line-measured,
+.chord-chart-editor[data-lyric-script="devanagari"] .lyric-editor-line {
+  font-family: var(--font-noto-devanagari), var(--font-geist-mono), monospace;
+}
+
+.chord-chart-editor[data-lyric-script="tamil"] .lyric-line-measured,
+.chord-chart-editor[data-lyric-script="tamil"] .lyric-editor-line {
+  font-family: var(--font-noto-tamil), var(--font-geist-mono), monospace;
+}
+
+.chord-chart-editor[data-lyric-script="telugu"] .lyric-line-measured,
+.chord-chart-editor[data-lyric-script="telugu"] .lyric-editor-line {
+  font-family: var(--font-noto-telugu), var(--font-geist-mono), monospace;
+}
+
+.lyric-scrub-surface {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.lyric-scrub-surface--active {
+  cursor: grabbing;
+  background: color-mix(in srgb, var(--lf-brand) 6%, transparent);
+}
+
+.lyric-scrub-caret {
+  position: absolute;
+  top: 8%;
+  bottom: 8%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--lf-brand);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lf-brand) 25%, transparent);
+}
+
+.lyric-scrub-preview {
+  position: absolute;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: var(--lf-radius-sm, 6px);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--lf-brand);
+  background: var(--lf-bg-elevated);
+  border: 1px solid color-mix(in srgb, var(--lf-brand) 45%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--lf-text-primary) 12%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .chord-chart .lyric-line-measured {
@@ -266,6 +331,16 @@ body.song-performance-page {
   overflow-x: auto;
   touch-action: manipulation;
   -webkit-touch-callout: default;
+}
+
+.chord-chart-editor .lyric-row.lyric-scrub-surface,
+.chord-chart-editor .lyric-editor-line.lyric-scrub-surface {
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.lyric-gap-zone--touch-keyboard {
+  pointer-events: none;
 }
 
 .lyric-editor-line {
@@ -375,6 +450,13 @@ mark.lyric-chord-target {
 
   .lyric-gap-zone::before {
     transition: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1200px) {
+  .chord-chart-editor {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
   }
 }
 
